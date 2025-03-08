@@ -49,19 +49,26 @@ Students often find it **time-consuming** to navigate Canvas for upcoming deadli
 ## Project Roadmap
 
 Below is our high-level roadmap with tasks, priorities, and time estimates.
+- P0 are the tasks that MUST get done for the project to be successful. We will complete all of our P1 tasks.
+- P1 are the tasks that are important but not critical. We will get at least half of our P2 tasks done.
+- P2 are the tasks that would be nice to complete but are not high-priority. We will only get substantial P2 work done if we are unexpectedly ahead of schedule.
+
 
 | **Work Item**                                                                               | **Priority** | **Estimated Duration** | **Notes**                                                                                                                  |
 |:-------------------------------------------------------------------------------------------:|:------------:|:----------------------:|:---------------------------------------------------------------------------------------------------------------------------|
-| **1. Set up SQLite Database & Knowledge Graph**                                             | P1           | 2–3 days               | - Initialize SQLite<br>- Define schema for each course’s knowledge graph<br>- Must handle all group members’ courses.      |
-| **2. Parse Course Syllabi & Internal Calendar Integration**                                 | P1           | 4–6 days               | - Write parser for assignment/exam info<br>- Store due dates in an internal calendar (in the DB).                          |
-| **3. Design LLM-Friendly Schema (MCP Compliance)**                                          | P1           | 4–6 days               | - Key deliverable<br>- Must follow [Model Context Protocol specs](https://modelcontextprotocol.io/introduction).           |
-| **4. Universal Course Info Handling**                                                       | P1           | 2–3 days               | - Ensure robust parsing for various syllabus formats<br>- Validate with real examples from group members’ classes.         |
-| **5. “Opt-Out” Indexing for Specific Classes**                                              | P2           | 1–2 days               | - Let user skip indexing certain courses<br>- Minimal overhead to maintain.                                               |
-| **6. Integrate Assignment & Module Info from Canvas**                                       | P2           | 4–6 days               | - Pull data via Canvas API<br>- Sync with DB<br>- Handle authentication, possible rate limits, etc.                        |
+| **1. Getting started: Create a new MCP server**                                             | P0           | 1 day                  | - Create a new Python app that can setup an MCP server and achieve connection with an LLM (Claude).                        |
+| **2. Set up SQLite Database & Knowledge Graph**                                             | P0           | 3–5 days               | - Initialize SQLite<br>- Define schema for each course’s knowledge graph<br>- Must handle all group members’ courses.      |
+| **3. Parse Course Syllabi & Internal Calendar Integration**                                 | P0           | 4–6 days               | - Write parser for assignment/exam info<br>- Store due dates in an internal calendar (in the DB).                          |
+| **4. Integrate Assignment & Module Info from Canvas**                                       | P0           | 4–6 days               | - Pull data via Canvas API<br>- Sync with DB<br>- Handle authentication, possible rate limits, etc.                        |
+| **5. Assignment Helping**                                                                   | P0           | 4–6 days               | - Claude will be able to autonomously complete every assignment in our group member's computer science classes             |
+| **6. “Opt-Out” Indexing for Specific Classes**                                              | P0           | 1–2 days               | - Let user skip indexing certain courses. (In case the course does not encourage AI usage)                                 |
+| **7. Fetch Lecture Notes**                                                                  | P1           | 1–2 days               | - Retrived posted notes and structure them for clarity.                                                                    |
+| **8. Generate notes from video transcript**                                                 | P1           | 3–5 days               | - If posted notes are unavailable, fetch lecture recording (if available) and create notes from the transcript.            |
+| **9. Study Ahead**                                                                          | P1           | 2–4 days               | - If available, retrieve the next day's slides and materials and help the user to study ahead.                             |
+| **10. Exam Prep**                                                                           | P1           | 4–6 days               | - Help the student prepare for an upcoming exam based on the material taught so far.                                       |
+| **11. Analyze Weakness and generate remedial content**                                      | P2           | 2–4 days               | - Analyze mistakes, instructor/TA comments on assignments and quizzes to identify weak areas.<br> - Create remedy material.|
+| **12. Smart Flashcards**                                                                    | P2           | 3–5 days               | - Auto-generate spaced repetition flashcards from lecture notes, readings, and previous mistakes.                          |
 
-**Note**: 
-- **P1** tasks are **must-haves**; they ensure the project meets the core vision.  
-- **P2** tasks are important but not strictly required for the minimal viable product. We aim to complete at least half of them if time allows.
 
 ---
 
@@ -71,8 +78,8 @@ Below is our high-level roadmap with tasks, priorities, and time estimates.
 
 ### Communication Norms
 1. **Team Meetings**: We plan to meet **twice a week** via Zoom/Google Meet (e.g., Mondays and Thursdays at 6 PM).
-2. **Communication**: We use a **Slack channel** for day-to-day updates.  
-3. **Response Time**: Team members strive to respond to Slack messages within **24 hours**.
+2. **Communication**: We use a **Discord Server** for day-to-day updates.  
+3. **Response Time**: Team members strive to respond to Discord messages within **24 hours**.
 
 ### Operating Guidelines
 1. **Decision-Making**: We decide by **majority vote** if consensus can’t be reached.  
@@ -83,7 +90,7 @@ Below is our high-level roadmap with tasks, priorities, and time estimates.
 6. **Procrastination Handling**: We’ll set internal deadlines 1–2 days before the actual due date to buffer.  
 
 ### Conflict Management
-1. **Resolving Differences**: We discuss openly in Slack or in a meeting. If unresolved, we escalate to the instructor.  
+1. **Resolving Differences**: We discuss openly in Discord or in a meeting. If unresolved, we escalate to the instructor.  
 2. **Non-Responsive Members**: We attempt direct contact. If still unresponsive, we reassign tasks and inform the instructor.  
 3. **Unexpected Issues**: If someone faces an emergency, the rest of the team divides their tasks.  
 
