@@ -112,6 +112,7 @@ All team members have read and agree to these norms.
 - We maintain a **Kanban board** under the “Projects” tab with tasks from our roadmap for the first sprint.  
 
 **Link to the Repo**: (https://github.com/AdityaPrakash-26/Canvas-MCP)
+
 **Link to the Kanban**: (https://github.com/users/AdityaPrakash-26/projects/1)
 
 ---
