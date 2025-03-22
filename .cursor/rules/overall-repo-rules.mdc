@@ -9,7 +9,7 @@ This document contains critical information about working with this codebase. Fo
 
 ## Information Gathering
 
-- Please search in the `docs` directory for existing documentation for any libraries you are unfamiliar with.
+- Please search in the `library_docs` directory for existing documentation for any libraries you are unfamiliar with.
 - If you learn anything new or have your understanding corrected by the user, please MAKE SURE a new markdown file in `lessons`, titled under the current task you were doing.
 - This is for your OWN reference, not for the user--this will help you later on!
 - ie: WHENEVER you mess something up, etc... make sure you make a markdown file in `lessons` with the title of the task you were doing.
