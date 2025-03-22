@@ -35,13 +35,17 @@ uv run mcp
 
 You can install this server in [Claude Desktop](https://claude.ai/download) and interact with it right away by running:
 ```bash
-mcp install src/server.py
+mcp install src/canvas_mcp/server.py
 ```
 
 Alternatively, you can test it with the MCP Inspector:
 ```bash
-mcp dev src/server.py
+mcp dev src/canvas_mcp/server.py
 ```
+
+## Secrets
+
+Clone .env.example to .env and add your Canvas API key.
 
 
 
