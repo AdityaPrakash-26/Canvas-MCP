@@ -12,7 +12,7 @@ from pathlib import Path
 def create_database(db_path: str) -> None:
     """
     Create a new SQLite database with all necessary tables.
-    
+
     Args:
         db_path: Path to the SQLite database file
     """
@@ -20,17 +20,17 @@ def create_database(db_path: str) -> None:
     db_dir = os.path.dirname(db_path)
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir)
-    
+
     # Connect to database (creates it if it doesn't exist)
     conn = sqlite3.connect(db_path)
-    
+
     # Get cursor
     cursor = conn.cursor()
-    
+
     # Enable foreign keys - set it to 1 explicitly and commit
     cursor.execute("PRAGMA foreign_keys = 1")
     conn.commit()
-    
+
     # Verify foreign keys are enabled
     cursor.execute("PRAGMA foreign_keys")
     if cursor.fetchone()[0] == 0:
@@ -41,23 +41,23 @@ def create_database(db_path: str) -> None:
         # Just to be sure, set it again
         cursor.execute("PRAGMA foreign_keys = 1")
         conn.commit()
-    
+
     # Create tables
     create_tables(cursor)
-    
+
     # Create views
     create_views(cursor)
-    
+
     # Commit changes and close connection
     conn.commit()
     conn.close()
-    
+
     print(f"Database initialized at {db_path}")
 
 
 def create_tables(cursor: sqlite3.Cursor) -> None:
     """Create all database tables."""
-    
+
     # Courses table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS courses (
@@ -73,11 +73,11 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_courses_canvas_id ON courses(canvas_course_id);
     """)
-    
+
     # Syllabi table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS syllabi (
@@ -91,11 +91,11 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_syllabi_course_id ON syllabi(course_id);
     """)
-    
+
     # Assignments table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS assignments (
@@ -116,15 +116,15 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         UNIQUE (course_id, canvas_assignment_id)
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_assignments_course_id ON assignments(course_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_assignments_due_date ON assignments(due_date);
     """)
-    
+
     # Modules table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS modules (
@@ -142,11 +142,11 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         UNIQUE (course_id, canvas_module_id)
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_modules_course_id ON modules(course_id);
     """)
-    
+
     # Module_Items table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS module_items (
@@ -165,15 +165,15 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_module_items_module_id ON module_items(module_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_module_items_item_type ON module_items(item_type);
     """)
-    
+
     # Calendar_Events table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS calendar_events (
@@ -192,19 +192,19 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_calendar_events_course_id ON calendar_events(course_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_calendar_events_event_date ON calendar_events(event_date);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_calendar_events_event_type ON calendar_events(event_type);
     """)
-    
+
     # User_Courses table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS user_courses (
@@ -218,15 +218,15 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         UNIQUE (user_id, course_id)
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_user_courses_user_id ON user_courses(user_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_user_courses_opt_out ON user_courses(indexing_opt_out);
     """)
-    
+
     # Discussions table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS discussions (
@@ -242,11 +242,11 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_discussions_course_id ON discussions(course_id);
     """)
-    
+
     # Announcements table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS announcements (
@@ -262,15 +262,15 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_announcements_course_id ON announcements(course_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_announcements_posted_at ON announcements(posted_at);
     """)
-    
+
     # Grades table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS grades (
@@ -288,19 +288,19 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         UNIQUE (assignment_id, student_id)
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_grades_course_id ON grades(course_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_grades_assignment_id ON grades(assignment_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_grades_student_id ON grades(student_id);
     """)
-    
+
     # Lectures table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS lectures (
@@ -317,15 +317,15 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_lectures_course_id ON lectures(course_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_lectures_lecture_date ON lectures(lecture_date);
     """)
-    
+
     # Files table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS files (
@@ -342,11 +342,11 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_files_course_id ON files(course_id);
     """)
-    
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_files_content_type ON files(content_type);
     """)
@@ -354,31 +354,31 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
 
 def create_views(cursor: sqlite3.Cursor) -> None:
     """Create database views for common queries."""
-    
+
     # Upcoming deadlines view - For tests, we need to include all deadlines
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS upcoming_deadlines AS
-    SELECT 
+    SELECT
         c.course_code,
         c.course_name,
         a.title AS assignment_title,
         a.assignment_type,
         a.due_date,
         a.points_possible
-    FROM 
+    FROM
         assignments a
-    JOIN 
+    JOIN
         courses c ON a.course_id = c.id
-    WHERE 
+    WHERE
         a.due_date IS NOT NULL
-    ORDER BY 
+    ORDER BY
         a.due_date ASC;
     """)
-    
+
     # Course summary view - Fixed the assignment selection to handle no due dates
     cursor.execute("""
     CREATE VIEW IF NOT EXISTS course_summary AS
-    SELECT 
+    SELECT
         c.id AS course_id,
         c.course_code,
         c.course_name,
@@ -386,15 +386,15 @@ def create_views(cursor: sqlite3.Cursor) -> None:
         COUNT(DISTINCT a.id) AS assignment_count,
         COUNT(DISTINCT m.id) AS module_count,
         MIN(a.due_date) AS next_due_date,
-        (SELECT title FROM assignments WHERE course_id = c.id AND due_date IS NOT NULL 
+        (SELECT title FROM assignments WHERE course_id = c.id AND due_date IS NOT NULL
          ORDER BY due_date ASC LIMIT 1) AS next_assignment
-    FROM 
+    FROM
         courses c
-    LEFT JOIN 
+    LEFT JOIN
         assignments a ON c.id = a.course_id
-    LEFT JOIN 
+    LEFT JOIN
         modules m ON c.id = m.course_id
-    GROUP BY 
+    GROUP BY
         c.id;
     """)
 

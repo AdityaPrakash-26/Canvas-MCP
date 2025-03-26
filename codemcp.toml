@@ -1,0 +1,4 @@
+project_prompt = "Please check Claude.md for codebase rules and getting yourself oriented! If `task.md` exists, that's where you left off last. Please don't touch the server until you have a VERY good idea of what the MCP is. "
+
+test = ["./test.sh"]
+lint = ["./lint.sh"]
