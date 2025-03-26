@@ -25,7 +25,45 @@ uv sync
 ```
 
 
-## Running and Testing
+## Installing to Claude Desktop
+
+If you don't have Claude Desktop MCP setup, you can follow the [Quickstart Guide](https://modelcontextprotocol.io/quickstart/user) to install it.
+
+
+To install this MCP server in Claude Desktop:
+
+1. Open Claude Desktop
+2. Go to Settings > Advanced > Edit Configuration
+3. Add the following to your `claude_desktop_config.json` file in the `tools` section:
+(it is a key under mcpServers)
+
+
+REPLACE $DIR with the absolute path to the directory where you cloned this repo. (MANDATORY!!!!!)
+
+```json
+"Canvas MCP": {
+      "command": "/Users/darin/.cargo/bin/uv",
+      "args": [
+        "run",
+        "--with",
+        "canvasapi>=3.3.0",
+        "--with",
+        "mcp[cli]",
+        "--with",
+        "python-dotenv>=1.0.1",
+        "--with",
+        "structlog>=24.1.0",
+        "--directory",
+        "$DIR",
+        "src/canvas_mcp/server.py"
+      ]
+    }
+```
+
+
+
+
+## Running
 
 To run the mcp command with uv:
 
@@ -37,6 +75,9 @@ You can install this server in [Claude Desktop](https://claude.ai/download) and 
 ```bash
 mcp install src/canvas_mcp/server.py
 ```
+
+
+## Testing
 
 Alternatively, you can test it with the MCP Inspector:
 ```bash
