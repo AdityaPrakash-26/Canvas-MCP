@@ -248,51 +248,51 @@ class TestCanvasClient(unittest.TestCase):
 
         # Verify correct return value
         self.assertEqual(len(course_ids), 2)
-        
+
     def test_sync_courses_with_term_filter(self):
         """Test syncing courses with term filtering."""
         # Mock user and courses with term IDs
         mock_user = MagicMock()
         mock_user.id = "test_user_id"
         self.mock_canvas.get_current_user.return_value = mock_user
-        
+
         # Create mock courses with different enrollment term IDs
         mock_course1 = MagicMock()
         mock_course1.id = 12345
         mock_course1.name = "Term 1 Course"
         mock_course1.course_code = "TST101"
         mock_course1.enrollment_term_id = 1
-        
+
         mock_course2 = MagicMock()
         mock_course2.id = 67890
         mock_course2.name = "Term 2 Course"
         mock_course2.course_code = "TST102"
         mock_course2.enrollment_term_id = 2
-        
+
         mock_course3 = MagicMock()
         mock_course3.id = 13579
-        mock_course3.name = "Term 3 Course" 
+        mock_course3.name = "Term 3 Course"
         mock_course3.course_code = "TST103"
         mock_course3.enrollment_term_id = 3  # Latest term
-        
+
         # Mock Canvas API responses
         self.mock_canvas.get_current_user.return_value.get_courses = MagicMock(
             return_value=[mock_course1, mock_course2, mock_course3]
         )
-        
+
         # Mock detailed course info
         mock_detailed_course1 = MagicMock()
         mock_detailed_course1.teacher = "Test Instructor"
         mock_detailed_course1.description = "Course description"
-        
+
         mock_detailed_course2 = MagicMock()
-        mock_detailed_course2.teacher = "Another Instructor" 
+        mock_detailed_course2.teacher = "Another Instructor"
         mock_detailed_course2.description = "Another description"
-        
+
         mock_detailed_course3 = MagicMock()
         mock_detailed_course3.teacher = "Latest Instructor"
         mock_detailed_course3.description = "Latest description"
-        
+
         # Configure mock to return detailed courses
         def get_course_side_effect(course_id):
             if course_id == 12345:
@@ -303,36 +303,36 @@ class TestCanvasClient(unittest.TestCase):
                 return mock_detailed_course3
             else:
                 raise ValueError(f"Unknown course ID: {course_id}")
-                
+
         self.mock_canvas.get_course.side_effect = get_course_side_effect
-        
+
         # Test case 1: Filter for specific term (term_id=2)
-        course_ids = self.client.sync_courses(term_id=2)
-        
+        self.client.sync_courses(term_id=2)
+
         # Verify only term 2 course was added
         conn, cursor = self.client.connect_db()
         cursor.execute("SELECT * FROM courses")
         courses = cursor.fetchall()
         self.assertEqual(len(courses), 1)
-        
+
         # Reset database for next test
         cursor.execute("DELETE FROM courses")
         cursor.execute("DELETE FROM syllabi")
         conn.commit()
-        
+
         # Test case 2: Filter for latest term (term_id=-1)
-        course_ids = self.client.sync_courses(term_id=-1)
-        
+        self.client.sync_courses(term_id=-1)
+
         # Verify only term 3 course (latest) was added
         cursor.execute("SELECT * FROM courses")
         courses = cursor.fetchall()
         self.assertEqual(len(courses), 1)
-        
+
         # Verify it's the correct course (term 3)
         cursor.execute("SELECT canvas_course_id FROM courses")
-        canvas_id = cursor.fetchone()[0]  
+        canvas_id = cursor.fetchone()[0]
         self.assertEqual(canvas_id, 13579)  # The ID of the term 3 course
-        
+
         conn.close()
 
     def test_sync_assignments(self):
@@ -640,32 +640,32 @@ class TestCanvasClient(unittest.TestCase):
         self.assertEqual(result["announcements"], 1)
 
         conn.close()
-        
+
     def test_sync_all_with_term_filter(self):
         """Test syncing all data with term filtering."""
         # Mock user and courses with term IDs
         mock_user = MagicMock()
         mock_user.id = "test_user_id"
         self.mock_canvas.get_current_user.return_value = mock_user
-        
+
         # Create mock courses with different enrollment term IDs
         mock_course1 = MagicMock()
         mock_course1.id = 12345
         mock_course1.name = "Term 1 Course"
         mock_course1.course_code = "TST101"
         mock_course1.enrollment_term_id = 1
-        
+
         mock_course2 = MagicMock()
         mock_course2.id = 67890
         mock_course2.name = "Term 2 Course"
         mock_course2.course_code = "TST102"
         mock_course2.enrollment_term_id = 2
-        
+
         # Mock Canvas API responses
         self.mock_canvas.get_current_user.return_value.get_courses = MagicMock(
             return_value=[mock_course1, mock_course2]
         )
-        
+
         # Mock detailed course info
         mock_detailed_course1 = MagicMock()
         mock_detailed_course1.teacher = "Test Instructor"
@@ -674,35 +674,35 @@ class TestCanvasClient(unittest.TestCase):
         mock_detailed_course1.get_assignments = MagicMock(return_value=[])
         mock_detailed_course1.get_modules = MagicMock(return_value=[])
         mock_detailed_course1.get_discussion_topics = MagicMock(return_value=[])
-        
+
         mock_detailed_course2 = MagicMock()
         mock_detailed_course2.teacher = "Term 2 Instructor"
         mock_detailed_course2.description = "Term 2 description"
         mock_detailed_course2.syllabus_body = "<p>Term 2 syllabus</p>"
-        
+
         # Set up mock assignment, module, and announcement for term 2 course only
         mock_assignment = MagicMock()
         mock_assignment.id = 9876
         mock_assignment.name = "Assignment 1"
         mock_assignment.due_at = "2025-02-15T23:59:00Z"
         mock_assignment.submission_types = ["online_text_entry"]
-        
+
         mock_module = MagicMock()
         mock_module.id = 1111
         mock_module.name = "Module 1"
         mock_module.position = 1
         mock_module.get_module_items = MagicMock(return_value=[])
-        
+
         mock_announcement = MagicMock()
         mock_announcement.id = 3333
         mock_announcement.title = "Announcement 1"
         mock_announcement.message = "This is an announcement"
-        
+
         # Add the mocks to the second course
         mock_detailed_course2.get_assignments = MagicMock(return_value=[mock_assignment])
         mock_detailed_course2.get_modules = MagicMock(return_value=[mock_module])
         mock_detailed_course2.get_discussion_topics = MagicMock(return_value=[mock_announcement])
-        
+
         # Configure mock to return detailed courses
         def get_course_side_effect(course_id):
             if course_id == 12345:
@@ -711,31 +711,31 @@ class TestCanvasClient(unittest.TestCase):
                 return mock_detailed_course2
             else:
                 raise ValueError(f"Unknown course ID: {course_id}")
-                
+
         self.mock_canvas.get_course.side_effect = get_course_side_effect
-        
+
         # Run sync_all with term_id=2 filter - should only include term 2 course
         result = self.client.sync_all(term_id=2)
-        
+
         # Verify only term 2 data was synced
         conn, cursor = self.client.connect_db()
-        
+
         # Should have 1 course
         cursor.execute("SELECT COUNT(*) FROM courses")
         course_count = cursor.fetchone()[0]
         self.assertEqual(course_count, 1)
-        
+
         # Verify it's the correct course (term 2)
         cursor.execute("SELECT canvas_course_id FROM courses")
         canvas_id = cursor.fetchone()[0]
         self.assertEqual(canvas_id, 67890)  # The ID of the term 2 course
-        
+
         # Verify the counts in the returned result
         self.assertEqual(result["courses"], 1)  # Only 1 course
         self.assertEqual(result["assignments"], 1)  # Only term 2's assignment
         self.assertEqual(result["modules"], 1)  # Only term 2's module
         self.assertEqual(result["announcements"], 1)  # Only term 2's announcement
-        
+
         conn.close()
 
 

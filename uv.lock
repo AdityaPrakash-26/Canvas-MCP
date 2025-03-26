@@ -47,6 +47,7 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "mock" },
     { name = "pytest" },
+    { name = "python-dotenv" },
     { name = "structlog" },
 ]
 
@@ -61,6 +62,7 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.5.0" },
     { name = "mock", specifier = ">=5.2.0" },
     { name = "pytest", specifier = ">=8.3.5" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "structlog", specifier = ">=24.1.0" },
 ]

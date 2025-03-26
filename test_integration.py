@@ -6,7 +6,6 @@ and synchronize data into the local database.
 import os
 import sqlite3
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # Add the project directory to the Python path to make imports work
@@ -14,7 +13,6 @@ project_dir = Path(__file__).parent
 sys.path.insert(0, str(project_dir))
 
 from dotenv import load_dotenv
-
 from src.canvas_mcp.canvas_client import CanvasClient
 
 # Load environment variables
@@ -184,9 +182,9 @@ try:
     print("\n-------------------------------------------------------")
     print("TESTING TERM FILTERING WITH CANVAS CLIENT")
     print("-------------------------------------------------------")
-    
+
     print(f"Using API URL: {API_URL}")
-    
+
     # Test direct Canvas API access first
     print("\nTesting direct API access...")
     if hasattr(client, 'canvas') and client.canvas:
@@ -200,21 +198,21 @@ try:
     else:
         print("Canvas API client not properly initialized")
         exit(1)  # Exit if client isn't initialized properly
-        
+
     print("\nTesting direct course access...")
     try:
         # Get current user
         user = client.canvas.get_current_user()
         courses = list(user.get_courses())
         print(f"Found {len(courses)} courses for user {user.id}")
-        
+
         # Debugging: check if any courses have term_id
         term_ids = set()
         for course in courses:
             term_id = getattr(course, 'enrollment_term_id', None)
             if term_id is not None:
                 term_ids.add(term_id)
-                
+
         if term_ids:
             print(f"Found courses with term IDs: {term_ids}")
             print(f"Maximum term ID (most recent): {max(term_ids)}")
@@ -228,55 +226,55 @@ try:
     print("\n-------------------------------------------------------")
     print("RESETTING DATABASE AND TESTING TERM FILTERING PROPERLY")
     print("-------------------------------------------------------")
-    
+
     # Remove existing data so we can start fresh
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
-    tables = ["courses", "syllabi", "assignments", "modules", "module_items", 
+    tables = ["courses", "syllabi", "assignments", "modules", "module_items",
               "calendar_events", "announcements"]
     for table in tables:
         cursor.execute(f"DELETE FROM {table}")
     conn.commit()
     conn.close()
-    
+
     # Test sync_all with term filtering (most recent term)
     print("\nTesting sync_all with term_id=-1 to get only the most recent term courses...")
     result = client.sync_all(term_id=-1)
     print("Sync results with term filtering:")
     for key, value in result.items():
         print(f"  {key}: {value}")
-    
+
     # Show the courses that were synced with term filtering
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
+
     cursor.execute("SELECT * FROM courses")
     filtered_courses = cursor.fetchall()
-    
+
     print("\nCourses synced with term filtering:")
     for i, course in enumerate(filtered_courses):
         print(f"  {i+1}. {course['course_name']} ({course['course_code']})")
-    
+
     print(f"\nTotal courses with term filtering: {len(filtered_courses)}")
-    
+
     # Now test assignments, modules and announcements using the first CURRENT course
     if filtered_courses:
         first_course = filtered_courses[0]
         first_course_id = first_course['id']
         canvas_course_id = first_course['canvas_course_id']
-        
+
         print(f"\nTesting with first CURRENT course: {first_course['course_name']} (ID: {canvas_course_id})")
-        
+
         # Fetch assignments for the first course
         try:
-            print(f"\nFetching assignments for current course...")
+            print("\nFetching assignments for current course...")
             assignments_count = client.sync_assignments([first_course_id])
             print(f"Successfully synced {assignments_count} assignments")
-            
+
             cursor.execute("SELECT * FROM assignments WHERE course_id = ?", (first_course_id,))
             assignments = cursor.fetchall()
-            
+
             if assignments:
                 print("\nAssignments for current course:")
                 for i, assignment in enumerate(assignments[:5]):  # Show first 5 only
@@ -288,29 +286,29 @@ try:
                 print("No assignments found for this course")
         except Exception as e:
             print(f"Error fetching assignments: {e}")
-        
+
         # Fetch modules for the first course
         try:
-            print(f"\nFetching modules for current course...")
+            print("\nFetching modules for current course...")
             modules_count = client.sync_modules([first_course_id])
             print(f"Successfully synced {modules_count} modules")
-            
+
             cursor.execute("SELECT * FROM modules WHERE course_id = ?", (first_course_id,))
             modules = cursor.fetchall()
-            
+
             if modules:
                 print("\nModules for current course:")
                 for i, module in enumerate(modules[:5]):  # Show first 5 only
                     print(f"  {i+1}. {module['name']}")
                 if len(modules) > 5:
                     print(f"  ... and {len(modules) - 5} more modules")
-                
+
                 # Check module items for first module
                 if modules:
                     first_module_id = modules[0]['id']
                     cursor.execute("SELECT * FROM module_items WHERE module_id = ?", (first_module_id,))
                     items = cursor.fetchall()
-                    
+
                     if items:
                         print(f"\nItems in first module ({modules[0]['name']}):")
                         for i, item in enumerate(items[:5]):  # Show first 5 only
@@ -321,16 +319,16 @@ try:
                 print("No modules found for this course")
         except Exception as e:
             print(f"Error fetching modules: {e}")
-        
+
         # Fetch announcements for the first course
         try:
-            print(f"\nFetching announcements for current course...")
+            print("\nFetching announcements for current course...")
             announcements_count = client.sync_announcements([first_course_id])
             print(f"Successfully synced {announcements_count} announcements")
-            
+
             cursor.execute("SELECT * FROM announcements WHERE course_id = ?", (first_course_id,))
             announcements = cursor.fetchall()
-            
+
             if announcements:
                 print("\nAnnouncements for current course:")
                 for i, announcement in enumerate(announcements[:5]):  # Show first 5 only
@@ -341,9 +339,9 @@ try:
                 print("No announcements found for this course")
         except Exception as e:
             print(f"Error fetching announcements: {e}")
-    
+
     conn.close()
-    
+
     print("\n-------------------------------------------------------")
     print("Integration test with term filtering completed successfully!")
     print("-------------------------------------------------------")

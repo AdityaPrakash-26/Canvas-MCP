@@ -98,13 +98,13 @@ class CanvasClient:
                     if max_term_id is not None:
                         print(f"Filtering to only include the most recent term (ID: {max_term_id})")
                         courses = [
-                            course for course in courses 
+                            course for course in courses
                             if getattr(course, 'enrollment_term_id', None) == max_term_id
                         ]
             else:
                 # Filter for the specific term requested
                 courses = [
-                    course for course in courses 
+                    course for course in courses
                     if getattr(course, 'enrollment_term_id', None) == term_id
                 ]
 
@@ -272,7 +272,7 @@ class CanvasClient:
                 for assignment in assignments:
                     # Convert submission_types to string
                     submission_types = ",".join(getattr(assignment, "submission_types", []))
-                    
+
                     # Check if assignment exists
                     cursor.execute(
                         "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
@@ -342,7 +342,7 @@ class CanvasClient:
                         # Check if calendar event exists
                         cursor.execute(
                             """
-                            SELECT id FROM calendar_events 
+                            SELECT id FROM calendar_events
                             WHERE course_id = ? AND source_type = ? AND source_id = ?
                             """,
                             (local_course_id, "assignment", assignment_id)
@@ -515,10 +515,10 @@ class CanvasClient:
                             item_position = int(getattr(item, "position", 0)) if getattr(item, "position", None) is not None else None
                             item_url = str(getattr(item, "external_url", "")) if getattr(item, "external_url", None) is not None else None
                             item_page_url = str(getattr(item, "page_url", "")) if getattr(item, "page_url", None) is not None else None
-                            
+
                             # Convert the content_details to a string representation
                             content_details = str(item) if hasattr(item, "__dict__") else None
-                            
+
                             # Check if module item exists
                             cursor.execute(
                                 "SELECT id FROM module_items WHERE module_id = ? AND canvas_item_id = ?",

@@ -1,2 +1,3 @@
-def hello() -> str:
-    return "Hello from canvas-mcp!"
+from .server import mcp
+
+__all__ = ["mcp"]
