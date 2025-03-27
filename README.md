@@ -39,7 +39,10 @@ To install this MCP server in Claude Desktop:
 
 
 REPLACE $DIR with the absolute path to the directory where you cloned this repo. (MANDATORY!!!!!)
-REPLACE $DIR_uv with the uv path. (MANDATORY!!!!!) you can find it by running which uv in your terminal.
+REPLACE $DIR_uv with the uv path. (MANDATORY!!!!!) you can find it by running
+```bash
+which uv
+```
 
 
 ```json
