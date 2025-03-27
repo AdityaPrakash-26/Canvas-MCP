@@ -39,10 +39,12 @@ To install this MCP server in Claude Desktop:
 
 
 REPLACE $DIR with the absolute path to the directory where you cloned this repo. (MANDATORY!!!!!)
+REPLACE $DIR_uv with the uv path. (MANDATORY!!!!!) you can find it by running which uv in your terminal.
+
 
 ```json
 "Canvas MCP": {
-      "command": "/Users/darin/.cargo/bin/uv",
+      "command": "$DIR_uv",
       "args": [
         "run",
         "--with",
@@ -87,6 +89,9 @@ mcp dev src/canvas_mcp/server.py
 ## Secrets
 
 Clone .env.example to .env and add your Canvas API key.
+Also change the variables in the .env file to match your Canvas instance.
+"CANVAS_API_KEY"
+"CANVAS_API_URL"
 
 
 
