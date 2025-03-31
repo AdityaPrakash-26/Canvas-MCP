@@ -6,19 +6,32 @@ This repository contains our project for building a **Model Context Protocol (MC
 
 ## Getting Started
 
-1. Clone the repository:
-
-```bash
-git clone https://github.com/AdityaPrakash-26/Canvas-MCP.git
-```
-
-1.5 Install `uv` if you haven't already:
+0. Install `uv` if you haven't already:
 ```bash
 # if you're paranoid about piping to sh, go read the script by copy pasting the URL
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-2. Install the dependencies:
+1. Clone the repository:
+
+```bash
+git clone https://github.com/AdityaPrakash-26/Canvas-MCP.git && cd Canvas-MCP
+```
+
+
+2. Create the virtual environment:
+
+```bash
+uv venv --seed
+```
+
+3. Activate the virtual environment:
+
+```bash
+source .venv/bin/activate
+```
+
+4. Install the dependencies:
 
 ```bash
 uv sync
@@ -75,12 +88,6 @@ To run the mcp command with uv:
 ```bash
 uv run mcp
 ```
-
-You can install this server in [Claude Desktop](https://claude.ai/download) and interact with it right away by running:
-```bash
-mcp install src/canvas_mcp/server.py
-```
-
 
 ## Testing
 
