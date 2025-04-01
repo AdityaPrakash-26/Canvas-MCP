@@ -9,11 +9,11 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import Context, FastMCP
-from sqlalchemy import desc, func, or_
+from sqlalchemy import desc, func, or_, String as SQLString
 from sqlalchemy.orm import Session, joinedload
 
 # Add project root to sys.path to allow importing database and models
@@ -80,7 +80,7 @@ def get_db_session() -> Session:
 # --- MCP Tools ---
 
 @mcp.tool()
-def sync_canvas_data(force: bool = False, term_id: Optional[int] = -1) -> Dict[str, Any]:
+def sync_canvas_data(force: bool = False, term_id: Optional[int] = -1) -> Dict[str, int]:
     """
     Synchronize data from Canvas LMS to the local database using SQLAlchemy.
 
@@ -106,7 +106,7 @@ def sync_canvas_data(force: bool = False, term_id: Optional[int] = -1) -> Dict[s
 
 
 @mcp.tool()
-def get_upcoming_deadlines(days: int = 7, course_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_upcoming_deadlines(days: int = 7, course_id: Optional[int] = None) -> List[Dict[str, object]]:
     """
     Get upcoming assignment deadlines using SQLAlchemy.
 
@@ -160,7 +160,7 @@ def get_upcoming_deadlines(days: int = 7, course_id: Optional[int] = None) -> Li
 
 
 @mcp.tool()
-def get_course_list() -> List[Dict[str, Any]]:
+def get_course_list() -> List[Dict[str, object]]:
     """
     Get list of all courses from the database using SQLAlchemy.
 
@@ -196,7 +196,7 @@ def get_course_list() -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_course_assignments(course_id: int) -> List[Dict[str, Any]]:
+def get_course_assignments(course_id: int) -> List[Dict[str, object]]:
     """
     Get all assignments for a specific course using SQLAlchemy.
 
@@ -219,7 +219,7 @@ def get_course_assignments(course_id: int) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_course_modules(course_id: int, include_items: bool = False) -> List[Dict[str, Any]]:
+def get_course_modules(course_id: int, include_items: bool = False) -> List[Dict[str, object]]:
     """
     Get all modules for a specific course using SQLAlchemy.
 
@@ -253,7 +253,7 @@ def get_course_modules(course_id: int, include_items: bool = False) -> List[Dict
 
 
 @mcp.tool()
-def get_syllabus(course_id: int, format: str = "raw") -> Dict[str, Any]:
+def get_syllabus(course_id: int, format: str = "raw") -> Dict[str, object]:
     """
     Get the syllabus for a specific course using SQLAlchemy.
 
@@ -300,7 +300,7 @@ def get_syllabus(course_id: int, format: str = "raw") -> Dict[str, Any]:
 
 
 @mcp.tool()
-def get_course_announcements(course_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+def get_course_announcements(course_id: int, limit: int = 10) -> List[Dict[str, object]]:
     """
     Get announcements for a specific course using SQLAlchemy.
 
@@ -323,7 +323,7 @@ def get_course_announcements(course_id: int, limit: int = 10) -> List[Dict[str, 
 
 
 @mcp.tool()
-def search_course_content(query_term: str, course_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def search_course_content(query_term: str, course_id: Optional[int] = None) -> List[Dict[str, object]]:
     """
     Search for content across courses using SQLAlchemy.
 
@@ -353,7 +353,7 @@ def search_course_content(query_term: str, course_id: Optional[int] = None) -> L
         ).add_columns(
             Assignment.title,
             Assignment.description,
-            func.cast("assignment", Any).label("content_type"),
+            func.cast("assignment", SQLString).label("content_type"),
             Assignment.id.label("content_id")
         )
         assignments = assignment_query.all()
@@ -365,7 +365,7 @@ def search_course_content(query_term: str, course_id: Optional[int] = None) -> L
         ).add_columns(
             Module.name.label("title"),
             Module.description,
-            func.cast("module", Any).label("content_type"),
+            func.cast("module", SQLString).label("content_type"),
             Module.id.label("content_id")
         )
         modules = module_query.all()
@@ -377,7 +377,7 @@ def search_course_content(query_term: str, course_id: Optional[int] = None) -> L
         ).add_columns(
             ModuleItem.title,
             ModuleItem.content_details.label("description"), # Adjust if content_details is JSON
-            func.cast("module_item", Any).label("content_type"),
+            func.cast("module_item", SQLString).label("content_type"),
             ModuleItem.id.label("content_id")
         )
         module_items = module_item_query.all()
@@ -387,9 +387,9 @@ def search_course_content(query_term: str, course_id: Optional[int] = None) -> L
         syllabus_query = base_query.join(Syllabus).filter(
             Syllabus.content.ilike(search_pattern) # Search raw content
         ).add_columns(
-            func.cast("Syllabus", Any).label("title"),
+            func.cast("Syllabus", SQLString).label("title"),
             Syllabus.content.label("description"),
-            func.cast("syllabus", Any).label("content_type"),
+            func.cast("syllabus", SQLString).label("content_type"),
             Syllabus.id.label("content_id")
         )
         syllabi = syllabus_query.all()
@@ -401,7 +401,7 @@ def search_course_content(query_term: str, course_id: Optional[int] = None) -> L
 
 
 @mcp.tool()
-def opt_out_course(course_id: int, user_id: str, opt_out: bool = True) -> Dict[str, Any]:
+def opt_out_course(course_id: int, user_id: str, opt_out: bool = True) -> Dict[str, object]:
     """
     Opt out of indexing a specific course using SQLAlchemy.
 
@@ -609,7 +609,7 @@ def get_assignments_resource(course_id: int) -> str:
         content = f"# {title}\n\n"
 
         # Group by type
-        assignments_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        assignments_by_type: Dict[str, List[Dict[str, object]]] = {}
         for a in assignments:
             a_type = a.get("assignment_type", "Other") or "Other"
             assignments_by_type.setdefault(a_type, []).append(a)
