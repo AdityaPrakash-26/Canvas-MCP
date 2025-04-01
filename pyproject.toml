@@ -11,11 +11,23 @@ dependencies = [
     "mock>=5.2.0",
     "pytest>=8.3.5",
     "python-dotenv>=1.0.1",
+    "sqlalchemy>=2.0.40",
     "structlog>=24.1.0",
 ]
 
 [project.optional-dependencies]
-dev = ["ruff"]
+test = [
+    "pytest>=8.0.0",   # Testing framework
+    "mock>=5.0.0",     # Mocking library (often used with unittest)
+    "coverage>=7.0.0", # Code coverage analysis
+    # Add other test-specific dependencies here if needed
+]
+dev = [
+    "ruff",        # Linter and formatter
+    "mypy>=1.8.0", # Static type checker
+    # Add canvas-mcp[test] to include test dependencies
+    "canvas-mcp[test]",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -26,38 +38,62 @@ build-backend = "hatchling.build"
 only-packages = true
 
 [tool.ruff]
-src = ["src"]
+src = ["src", "tests"]   # Include tests in linting/formatting
 target-version = "py312"
-unsafe-fixes = true
+
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "PT",  # flake8-pytest-style
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "RUF", # Ruff-specific rules
 ]
-ignore = ["E501"]
+ignore = [
+    "E501", # Line too long (handled by formatter)
+    "B008", # Function call argument defaults (can be okay)
+]
+# Consider activating more rules gradually
 
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
-# [tool.mypy]
-# python_version = "3.12"
-# strict = true
+
+[tool.mypy]
+# Basic setup - consider making stricter over time
+python_version = "3.12"
+ignore_missing_imports = true # Start with this, reduce later
+# Enable checks gradually
+# check_untyped_defs = true
+# disallow_untyped_defs = true
 # warn_return_any = true
 # warn_unused_configs = true
-# disallow_untyped_defs = true
-# disallow_incomplete_defs = true
-# check_untyped_defs = true
-# disallow_untyped_decorators = true
-# no_implicit_optional = true
-# warn_redundant_casts = true
-# warn_unused_ignores = true
-# warn_no_return = true
-# warn_unreachable = true
+packages = ["canvas_mcp"]
+
 
 [project.scripts]
+# Keep the entry point, assuming mcp.run() is still valid in server.py
 canvas-mcp = "canvas_mcp.server:mcp.run"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]                                     # Add src and root to pythonpath for imports
+testpaths = ["tests"]
+addopts = "-v --cov=src/canvas_mcp --cov-report=term-missing" # Add coverage
+
+[tool.coverage.run]
+source = ["src/canvas_mcp"]
+
+[tool.coverage.report]
+fail_under = 80     # Example coverage target
+show_missing = true

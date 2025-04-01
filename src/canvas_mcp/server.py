@@ -1,877 +1,645 @@
 """
 Canvas MCP Server
 
-This MCP server provides tools and resources for accessing Canvas LMS data.
-It integrates with the Canvas API and local SQLite database to provide
-structured access to course information.
+This MCP server provides tools and resources for accessing Canvas LMS data,
+using SQLAlchemy for database interaction.
 """
 
 import os
-import sqlite3
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from sqlalchemy import desc, func, or_
+from sqlalchemy.orm import Session, joinedload
 
-from canvas_mcp.canvas_client import CanvasClient
+# Add project root to sys.path to allow importing database and models
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# Local imports after path adjustment
+try:
+    from canvas_mcp.canvas_client import CanvasClient
+    from canvas_mcp.database import SessionLocal, engine, init_db
+    from canvas_mcp.models import (
+        Announcement,
+        Assignment,
+        Course,
+        Module,
+        ModuleItem,
+        Syllabus,
+        UserCourse,
+        orm_to_dict, # Import the helper
+    )
+except ImportError as e:
+    print(f"Error importing local modules in server.py: {e}")
+    print(f"PROJECT_ROOT: {PROJECT_ROOT}")
+    print(f"sys.path: {sys.path}")
+    raise
+
 
 # Load environment variables
 load_dotenv()
 
-# Configure paths
-PROJECT_DIR = Path(__file__).parent.parent.parent
-DB_DIR = PROJECT_DIR / "data"
-DB_PATH = DB_DIR / "canvas_mcp.db"
+# Configure paths (using database.py's path logic)
+DB_PATH = Path(str(engine.url).replace("sqlite:///", ""))
 
-# Ensure directories exist
-os.makedirs(DB_DIR, exist_ok=True)
+# Ensure database is initialized (database.py handles this on import)
+print(f"Database path check in server: {DB_PATH}")
+if not DB_PATH.exists() or os.path.getsize(DB_PATH) == 0:
+     print("Database not found or empty, initializing...")
+     init_db(engine)
 
-# Initialize database if it doesn't exist
-if not DB_PATH.exists():
-    import sys
 
-    sys.path.append(str(PROJECT_DIR))
-    from init_db import create_database
-
-    create_database(str(DB_PATH))
-
-# Create Canvas client (will connect to API if canvasapi is installed)
+# Create Canvas client
 API_KEY = os.environ.get("CANVAS_API_KEY")
 API_URL = os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
-canvas_client = CanvasClient(str(DB_PATH), API_KEY, API_URL)
+# Pass the session factory to the client
+canvas_client = CanvasClient(db_session_factory=SessionLocal, api_key=API_KEY, api_url=API_URL)
 
 # Create an MCP server
 mcp = FastMCP(
     "Canvas MCP",
-    dependencies=["canvasapi>=3.3.0", "structlog>=24.1.0", "python-dotenv>=1.0.1"],
+    dependencies=["canvasapi>=3.3.0", "structlog>=24.1.0", "python-dotenv>=1.0.1", "sqlalchemy>=2.0.0"],
 )
 
 
-# Helper functions for database access
+# --- Database Session Dependency ---
+# Although FastMCP doesn't directly support Depends like FastAPI,
+# we manage sessions manually within each tool/resource.
+
+def get_db_session() -> Session:
+    """Provides a SQLAlchemy session."""
+    return SessionLocal()
 
 
-def db_connect() -> tuple[sqlite3.Connection, sqlite3.Cursor]:
-    """
-    Connect to the SQLite database.
-
-    Returns:
-        Tuple of (connection, cursor)
-    """
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    # Enable foreign keys
-    cursor.execute("PRAGMA foreign_keys = ON")
-
-    return conn, cursor
-
-
-def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
-    """
-    Convert a SQLite Row to a dictionary.
-
-    Args:
-        row: SQLite Row object
-
-    Returns:
-        Dictionary representation of the row
-    """
-    if row is None:
-        return {}
-    return {key: row[key] for key in row.keys()}
-
-
-# MCP Tools
-
+# --- MCP Tools ---
 
 @mcp.tool()
-def sync_canvas_data(force: bool = False) -> dict[str, int]:
+def sync_canvas_data(force: bool = False, term_id: Optional[int] = -1) -> Dict[str, Any]:
     """
-    Synchronize data from Canvas LMS to the local database.
+    Synchronize data from Canvas LMS to the local database using SQLAlchemy.
 
     Args:
-        force: If True, sync all data even if recently updated
+        force: If True, might trigger a more thorough sync in the future (currently unused).
+        term_id: Optional term ID to filter courses (-1 for latest, None for all).
 
     Returns:
-        Dictionary with counts of synced items
+        Dictionary with counts of synced items or an error message.
     """
+    if not canvas_client.canvas:
+        return {"error": "Canvas API client not initialized. Cannot sync."}
     try:
-        result = canvas_client.sync_all()
+        # Assuming user_id comes from authentication context if needed, otherwise syncs for the API key's user
+        result = canvas_client.sync_all(term_id=term_id)
         return result
     except ImportError:
+        # This case should be handled by the initial check, but kept for safety
         return {"error": "canvasapi module is required for this operation"}
+    except Exception as e:
+        print(f"Error during sync_canvas_data: {e}")
+        return {"error": f"An unexpected error occurred during sync: {e}"}
 
 
 @mcp.tool()
-def get_upcoming_deadlines(
-    days: int = 7, course_id: int | None = None
-) -> list[dict[str, Any]]:
+def get_upcoming_deadlines(days: int = 7, course_id: Optional[int] = None) -> List[Dict[str, Any]]:
     """
-    Get upcoming assignment deadlines.
+    Get upcoming assignment deadlines using SQLAlchemy.
 
     Args:
-        days: Number of days to look ahead
-        course_id: Optional course ID to filter by
+        days: Number of days to look ahead.
+        course_id: Optional local course ID to filter by.
 
     Returns:
-        List of upcoming deadlines
+        List of upcoming deadlines (dictionaries).
     """
-    conn, cursor = db_connect()
+    session = get_db_session()
+    try:
+        now = datetime.now()
+        end_date = now + timedelta(days=days)
 
-    # Calculate the date range
-    now = datetime.now()
-    end_date = now + timedelta(days=days)
+        query = session.query(
+            Course.course_code,
+            Course.course_name,
+            Assignment.title.label("assignment_title"),
+            Assignment.assignment_type,
+            Assignment.due_date,
+            Assignment.points_possible
+        ).join(Assignment, Course.id == Assignment.course_id).filter(
+            Assignment.due_date != None, # Ensure due date exists
+            Assignment.due_date >= now,
+            Assignment.due_date <= end_date
+        )
 
-    # Convert dates to strings in ISO format
-    now.isoformat()
-    end_date.isoformat()
+        if course_id is not None:
+            query = query.filter(Course.id == course_id)
 
-    # Build the query with simple date string comparison for better compatibility
-    # The test data is in future dates (2025) so we want all assignments regardless of current date
-    query = """
-    SELECT
-        c.course_code,
-        c.course_name,
-        a.title AS assignment_title,
-        a.assignment_type,
-        a.due_date,
-        a.points_possible
-    FROM
-        assignments a
-    JOIN
-        courses c ON a.course_id = c.id
-    WHERE
-        a.due_date IS NOT NULL
-    """
+        query = query.order_by(Assignment.due_date.asc())
 
-    params: list[Any] = []
+        results = query.all()
 
-    # Add course filter if specified
-    if course_id is not None:
-        query += " AND c.id = ?"
-        params.append(course_id)
-
-    query += " ORDER BY a.due_date ASC"
-
-    # Execute query
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-
-    # Convert to list of dictionaries
-    result = [row_to_dict(row) for row in rows]
-
-    conn.close()
-    return result
+        # Convert results (which are KeyedTuples) to dictionaries
+        deadlines = [
+            {
+                "course_code": r.course_code,
+                "course_name": r.course_name,
+                "assignment_title": r.assignment_title,
+                "assignment_type": r.assignment_type,
+                # Format datetime for JSON compatibility
+                "due_date": r.due_date.isoformat() if r.due_date else None,
+                "points_possible": r.points_possible,
+            } for r in results
+        ]
+        return deadlines
+    finally:
+        session.close()
 
 
 @mcp.tool()
-def get_course_list() -> list[dict[str, Any]]:
+def get_course_list() -> List[Dict[str, Any]]:
     """
-    Get list of all courses in the database.
+    Get list of all courses from the database using SQLAlchemy.
 
     Returns:
-        List of course information
+        List of course information (dictionaries).
     """
-    conn, cursor = db_connect()
+    session = get_db_session()
+    try:
+        courses = session.query(
+            Course.id,
+            Course.canvas_course_id,
+            Course.course_code,
+            Course.course_name,
+            Course.instructor,
+            Course.start_date,
+            Course.end_date
+        ).order_by(desc(Course.start_date)).all()
 
-    cursor.execute("""
-    SELECT
-        c.id,
-        c.canvas_course_id,
-        c.course_code,
-        c.course_name,
-        c.instructor,
-        c.start_date,
-        c.end_date
-    FROM
-        courses c
-    ORDER BY
-        c.start_date DESC
-    """)
-
-    rows = cursor.fetchall()
-    result = [row_to_dict(row) for row in rows]
-
-    conn.close()
-    return result
+        # Convert results to dictionaries
+        return [
+            {
+                "id": c.id,
+                "canvas_course_id": c.canvas_course_id,
+                "course_code": c.course_code,
+                "course_name": c.course_name,
+                "instructor": c.instructor,
+                "start_date": c.start_date.isoformat() if c.start_date else None,
+                "end_date": c.end_date.isoformat() if c.end_date else None,
+            } for c in courses
+        ]
+    finally:
+        session.close()
 
 
 @mcp.tool()
-def get_course_assignments(course_id: int) -> list[dict[str, Any]]:
+def get_course_assignments(course_id: int) -> List[Dict[str, Any]]:
     """
-    Get all assignments for a specific course.
+    Get all assignments for a specific course using SQLAlchemy.
 
     Args:
-        course_id: Course ID
+        course_id: Local Course ID.
 
     Returns:
-        List of assignments
+        List of assignments (dictionaries).
     """
-    conn, cursor = db_connect()
+    session = get_db_session()
+    try:
+        assignments = session.query(Assignment).filter(
+            Assignment.course_id == course_id
+        ).order_by(Assignment.due_date.asc()).all()
 
-    cursor.execute(
-        """
-    SELECT
-        a.id,
-        a.canvas_assignment_id,
-        a.title,
-        a.description,
-        a.assignment_type,
-        a.due_date,
-        a.available_from,
-        a.available_until,
-        a.points_possible,
-        a.submission_types
-    FROM
-        assignments a
-    WHERE
-        a.course_id = ?
-    ORDER BY
-        a.due_date ASC
-    """,
-        (course_id,),
-    )
-
-    rows = cursor.fetchall()
-    result = [row_to_dict(row) for row in rows]
-
-    conn.close()
-    return result
+        # Convert ORM objects to dictionaries
+        return [orm_to_dict(a) for a in assignments]
+    finally:
+        session.close()
 
 
 @mcp.tool()
-def get_course_modules(
-    course_id: int, include_items: bool = False
-) -> list[dict[str, Any]]:
+def get_course_modules(course_id: int, include_items: bool = False) -> List[Dict[str, Any]]:
     """
-    Get all modules for a specific course.
+    Get all modules for a specific course using SQLAlchemy.
 
     Args:
-        course_id: Course ID
-        include_items: Whether to include module items
+        course_id: Local Course ID.
+        include_items: Whether to include module items.
 
     Returns:
-        List of modules
+        List of modules (dictionaries).
     """
-    conn, cursor = db_connect()
+    session = get_db_session()
+    try:
+        query = session.query(Module).filter(Module.course_id == course_id)
 
-    cursor.execute(
-        """
-    SELECT
-        m.id,
-        m.canvas_module_id,
-        m.name,
-        m.description,
-        m.unlock_date,
-        m.position
-    FROM
-        modules m
-    WHERE
-        m.course_id = ?
-    ORDER BY
-        m.position ASC
-    """,
-        (course_id,),
-    )
+        if include_items:
+            # Eager load items relationship, ordered by position
+            query = query.options(joinedload(Module.items).raiseload('*')) # Use raiseload for nested items if any
 
-    modules = [row_to_dict(row) for row in cursor.fetchall()]
+        modules = query.order_by(Module.position.asc()).all()
 
-    # Include module items if requested
-    if include_items:
-        for module in modules:
-            cursor.execute(
-                """
-            SELECT
-                mi.id,
-                mi.canvas_item_id,
-                mi.title,
-                mi.item_type,
-                mi.position,
-                mi.url,
-                mi.page_url,
-                mi.content_details
-            FROM
-                module_items mi
-            WHERE
-                mi.module_id = ?
-            ORDER BY
-                mi.position ASC
-            """,
-                (module["id"],),
+        # Convert to list of dictionaries, including items if requested
+        results = []
+        for mod in modules:
+            module_dict = orm_to_dict(mod)
+            if include_items:
+                module_dict["items"] = [orm_to_dict(item) for item in mod.items]
+            results.append(module_dict)
+        return results
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def get_syllabus(course_id: int, format: str = "raw") -> Dict[str, Any]:
+    """
+    Get the syllabus for a specific course using SQLAlchemy.
+
+    Args:
+        course_id: Local Course ID.
+        format: Format to return ("raw" for HTML, "parsed" for extracted text).
+
+    Returns:
+        Dictionary with syllabus content and course info.
+    """
+    session = get_db_session()
+    try:
+        course = session.query(
+            Course.course_code,
+            Course.course_name,
+            Course.instructor
+        ).filter(Course.id == course_id).first()
+
+        if not course:
+            return {"error": f"Course with ID {course_id} not found"}
+
+        syllabus = session.query(
+            Syllabus.content,
+            Syllabus.parsed_content,
+            Syllabus.is_parsed
+        ).filter(Syllabus.course_id == course_id).first()
+
+        result = {
+            "course_code": course.course_code,
+            "course_name": course.course_name,
+            "instructor": course.instructor,
+            "content": "No syllabus available" # Default content
+        }
+
+        if syllabus:
+            if format == "parsed" and syllabus.is_parsed and syllabus.parsed_content:
+                result["content"] = syllabus.parsed_content
+            else:
+                result["content"] = syllabus.content or "No syllabus content found" # Use raw content if parsed fails or not requested
+
+        return result
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def get_course_announcements(course_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Get announcements for a specific course using SQLAlchemy.
+
+    Args:
+        course_id: Local Course ID.
+        limit: Maximum number of announcements to return.
+
+    Returns:
+        List of announcements (dictionaries).
+    """
+    session = get_db_session()
+    try:
+        announcements = session.query(Announcement).filter(
+            Announcement.course_id == course_id
+        ).order_by(desc(Announcement.posted_at)).limit(limit).all()
+
+        return [orm_to_dict(a) for a in announcements]
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def search_course_content(query_term: str, course_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Search for content across courses using SQLAlchemy.
+
+    Args:
+        query_term: Search query.
+        course_id: Optional local course ID to limit search.
+
+    Returns:
+        List of matching items (dictionaries).
+    """
+    session = get_db_session()
+    try:
+        search_pattern = f"%{query_term}%"
+        results = []
+
+        # Base query part for joining with Course
+        base_query = session.query(
+            Course.course_code,
+            Course.course_name,
+        )
+        if course_id:
+            base_query = base_query.filter(Course.id == course_id)
+
+        # Search Assignments
+        assignment_query = base_query.join(Assignment).filter(
+            or_(Assignment.title.ilike(search_pattern), Assignment.description.ilike(search_pattern))
+        ).add_columns(
+            Assignment.title,
+            Assignment.description,
+            func.cast("assignment", Any).label("content_type"),
+            Assignment.id.label("content_id")
+        )
+        assignments = assignment_query.all()
+        results.extend([{**row._asdict()} for row in assignments]) # Convert KeyedTuple to dict
+
+        # Search Modules
+        module_query = base_query.join(Module).filter(
+             or_(Module.name.ilike(search_pattern), Module.description.ilike(search_pattern))
+        ).add_columns(
+            Module.name.label("title"),
+            Module.description,
+            func.cast("module", Any).label("content_type"),
+            Module.id.label("content_id")
+        )
+        modules = module_query.all()
+        results.extend([{**row._asdict()} for row in modules])
+
+        # Search Module Items
+        module_item_query = base_query.join(Module, Course.id == Module.course_id).join(ModuleItem).filter(
+             or_(ModuleItem.title.ilike(search_pattern), ModuleItem.content_details.ilike(search_pattern)) # Assuming content_details is stored as TEXT/JSON searchable string
+        ).add_columns(
+            ModuleItem.title,
+            ModuleItem.content_details.label("description"), # Adjust if content_details is JSON
+            func.cast("module_item", Any).label("content_type"),
+            ModuleItem.id.label("content_id")
+        )
+        module_items = module_item_query.all()
+        results.extend([{**row._asdict()} for row in module_items])
+
+        # Search Syllabi
+        syllabus_query = base_query.join(Syllabus).filter(
+            Syllabus.content.ilike(search_pattern) # Search raw content
+        ).add_columns(
+            func.cast("Syllabus", Any).label("title"),
+            Syllabus.content.label("description"),
+            func.cast("syllabus", Any).label("content_type"),
+            Syllabus.id.label("content_id")
+        )
+        syllabi = syllabus_query.all()
+        results.extend([{**row._asdict()} for row in syllabi])
+
+        return results
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def opt_out_course(course_id: int, user_id: str, opt_out: bool = True) -> Dict[str, Any]:
+    """
+    Opt out of indexing a specific course using SQLAlchemy.
+
+    Args:
+        course_id: Local Course ID.
+        user_id: User ID string.
+        opt_out: Whether to opt out (True) or opt in (False).
+
+    Returns:
+        Status of the operation.
+    """
+    session = get_db_session()
+    try:
+        # Check if course exists by local ID
+        course = session.query(Course.id).filter(Course.id == course_id).first()
+        if not course:
+            return {"success": False, "message": f"Course with local ID {course_id} not found"}
+
+        # Find existing preference or create a new one
+        user_pref = session.query(UserCourse).filter_by(user_id=user_id, course_id=course_id).first()
+
+        if user_pref:
+            user_pref.indexing_opt_out = opt_out
+            user_pref.updated_at = datetime.now()
+            session.merge(user_pref)
+            message = f"Course {course_id} {'opted out' if opt_out else 'opted in'} successfully for user {user_id}"
+        else:
+            new_pref = UserCourse(
+                user_id=user_id,
+                course_id=course_id,
+                indexing_opt_out=opt_out,
+                updated_at=datetime.now()
             )
+            session.add(new_pref)
+            message = f"Created preference for course {course_id}: {'opted out' if opt_out else 'opted in'} for user {user_id}"
 
-            module["items"] = [row_to_dict(row) for row in cursor.fetchall()]
-
-    conn.close()
-    return modules
-
-
-@mcp.tool()
-def get_syllabus(course_id: int, format: str = "raw") -> dict[str, Any]:
-    """
-    Get the syllabus for a specific course.
-
-    Args:
-        course_id: Course ID
-        format: Format to return ("raw" for HTML, "parsed" for extracted text)
-
-    Returns:
-        Dictionary with syllabus content
-    """
-    conn, cursor = db_connect()
-
-    # Get course information
-    cursor.execute(
-        """
-    SELECT
-        c.course_code,
-        c.course_name,
-        c.instructor
-    FROM
-        courses c
-    WHERE
-        c.id = ?
-    """,
-        (course_id,),
-    )
-
-    course_row = cursor.fetchone()
-    course = (
-        row_to_dict(course_row)
-        if course_row
-        else {"course_code": "", "course_name": "", "instructor": ""}
-    )
-
-    # Get syllabus content
-    cursor.execute(
-        """
-    SELECT
-        s.content,
-        s.parsed_content,
-        s.is_parsed
-    FROM
-        syllabi s
-    WHERE
-        s.course_id = ?
-    """,
-        (course_id,),
-    )
-
-    syllabus_row = cursor.fetchone()
-    syllabus = (
-        row_to_dict(syllabus_row)
-        if syllabus_row
-        else {"content": "", "parsed_content": "", "is_parsed": False}
-    )
-
-    result = {**course}
-
-    if (
-        format == "parsed"
-        and syllabus.get("is_parsed")
-        and syllabus.get("parsed_content")
-    ):
-        result["content"] = syllabus.get("parsed_content")
-    else:
-        result["content"] = syllabus.get("content", "No syllabus available")
-
-    # Always ensure course_code is present for tests
-    if "course_code" not in result:
-        result["course_code"] = ""
-
-    conn.close()
-    return result
+        session.commit()
+        return {
+            "success": True,
+            "message": message,
+            "course_id": course_id,
+            "user_id": user_id,
+            "opted_out": opt_out,
+        }
+    except Exception as e:
+        session.rollback()
+        print(f"Error in opt_out_course: {e}")
+        return {"success": False, "message": f"An error occurred: {e}"}
+    finally:
+        session.close()
 
 
-@mcp.tool()
-def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, Any]]:
-    """
-    Get announcements for a specific course.
+# --- MCP Resources ---
 
-    Args:
-        course_id: Course ID
-        limit: Maximum number of announcements to return
-
-    Returns:
-        List of announcements
-    """
-    conn, cursor = db_connect()
-
-    cursor.execute(
-        """
-    SELECT
-        a.id,
-        a.canvas_announcement_id,
-        a.title,
-        a.content,
-        a.posted_by,
-        a.posted_at
-    FROM
-        announcements a
-    WHERE
-        a.course_id = ?
-    ORDER BY
-        a.posted_at DESC
-    LIMIT ?
-    """,
-        (course_id, limit),
-    )
-
-    rows = cursor.fetchall()
-    result = [row_to_dict(row) for row in rows]
-
-    conn.close()
-    return result
-
-
-@mcp.tool()
-def search_course_content(
-    query: str, course_id: int | None = None
-) -> list[dict[str, Any]]:
-    """
-    Search for content across courses.
-
-    Args:
-        query: Search query
-        course_id: Optional course ID to limit search
-
-    Returns:
-        List of matching items
-    """
-    conn, cursor = db_connect()
-
-    # Prepare search parameters
-    search_term = f"%{query}%"
-    params: list[Any] = []
-    course_filter = ""
-
-    if course_id is not None:
-        course_filter = "AND c.id = ?"
-        params.append(course_id)
-
-    # Search in assignments
-    cursor.execute(
-        f"""
-    SELECT
-        c.course_code,
-        c.course_name,
-        a.title,
-        a.description,
-        'assignment' AS content_type,
-        a.id AS content_id
-    FROM
-        assignments a
-    JOIN
-        courses c ON a.course_id = c.id
-    WHERE
-        (a.title LIKE ? OR a.description LIKE ?)
-        {course_filter}
-    """,
-        [search_term, search_term] + params,
-    )
-
-    assignments = [row_to_dict(row) for row in cursor.fetchall()]
-
-    # Search in modules
-    cursor.execute(
-        f"""
-    SELECT
-        c.course_code,
-        c.course_name,
-        m.name AS title,
-        m.description,
-        'module' AS content_type,
-        m.id AS content_id
-    FROM
-        modules m
-    JOIN
-        courses c ON m.course_id = c.id
-    WHERE
-        (m.name LIKE ? OR m.description LIKE ?)
-        {course_filter}
-    """,
-        [search_term, search_term] + params,
-    )
-
-    modules = [row_to_dict(row) for row in cursor.fetchall()]
-
-    # Search in module items
-    cursor.execute(
-        f"""
-    SELECT
-        c.course_code,
-        c.course_name,
-        mi.title,
-        mi.content_details AS description,
-        'module_item' AS content_type,
-        mi.id AS content_id
-    FROM
-        module_items mi
-    JOIN
-        modules m ON mi.module_id = m.id
-    JOIN
-        courses c ON m.course_id = c.id
-    WHERE
-        (mi.title LIKE ? OR mi.content_details LIKE ?)
-        {course_filter}
-    """,
-        [search_term, search_term] + params,
-    )
-
-    module_items = [row_to_dict(row) for row in cursor.fetchall()]
-
-    # Search in syllabi
-    cursor.execute(
-        f"""
-    SELECT
-        c.course_code,
-        c.course_name,
-        'Syllabus' AS title,
-        s.content AS description,
-        'syllabus' AS content_type,
-        s.id AS content_id
-    FROM
-        syllabi s
-    JOIN
-        courses c ON s.course_id = c.id
-    WHERE
-        s.content LIKE ?
-        {course_filter}
-    """,
-        [search_term] + params,
-    )
-
-    syllabi = [row_to_dict(row) for row in cursor.fetchall()]
-
-    # Combine results
-    results = assignments + modules + module_items + syllabi
-
-    conn.close()
-    return results
-
-
-@mcp.tool()
-def opt_out_course(
-    course_id: int, user_id: str, opt_out: bool = True
-) -> dict[str, Any]:
-    """
-    Opt out of indexing a specific course.
-
-    Args:
-        course_id: Course ID
-        user_id: User ID
-        opt_out: Whether to opt out (True) or opt in (False)
-
-    Returns:
-        Status of the operation
-    """
-    conn, cursor = db_connect()
-
-    # Check if course exists
-    cursor.execute("SELECT id FROM courses WHERE id = ?", (course_id,))
-    if not cursor.fetchone():
-        conn.close()
-        return {"success": False, "message": f"Course with ID {course_id} not found"}
-
-    # Check if user_course record exists
-    cursor.execute(
-        "SELECT id FROM user_courses WHERE user_id = ? AND course_id = ?",
-        (user_id, course_id),
-    )
-    existing_record = cursor.fetchone()
-
-    if existing_record:
-        # Update existing record
-        cursor.execute(
-            """
-        UPDATE user_courses SET
-            indexing_opt_out = ?,
-            updated_at = ?
-        WHERE user_id = ? AND course_id = ?
-        """,
-            (opt_out, datetime.now().isoformat(), user_id, course_id),
-        )
-    else:
-        # Insert new record
-        cursor.execute(
-            """
-        INSERT INTO user_courses (user_id, course_id, indexing_opt_out, updated_at)
-        VALUES (?, ?, ?, ?)
-        """,
-            (user_id, course_id, opt_out, datetime.now().isoformat()),
-        )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "success": True,
-        "message": f"Course {course_id} {'opted out' if opt_out else 'opted in'} successfully",
-        "course_id": course_id,
-        "user_id": user_id,
-        "opted_out": opt_out,
-    }
-
-
-# MCP Resources
-
+# Helper to format resource content
+def format_resource(title: str, sections: Dict[str, str]) -> str:
+    content = f"# {title}\n\n"
+    for heading, text in sections.items():
+        content += f"## {heading}\n{text}\n\n"
+    return content.strip()
 
 @mcp.resource("course://{course_id}")
 def get_course_resource(course_id: int) -> str:
     """
-    Get resource with course information.
+    Get resource with course information using SQLAlchemy.
 
     Args:
-        course_id: Course ID
+        course_id: Local Course ID.
 
     Returns:
-        Course information as formatted text
+        Course information as formatted text.
     """
-    conn, cursor = db_connect()
+    session = get_db_session()
+    try:
+        course = session.query(Course).options(
+            joinedload(Course.assignments) # Eager load assignments for count/next due
+        ).filter(Course.id == course_id).first()
 
-    # Get course details
-    cursor.execute(
-        """
-    SELECT
-        c.id,
-        c.canvas_course_id,
-        c.course_code,
-        c.course_name,
-        c.instructor,
-        c.description,
-        c.start_date,
-        c.end_date
-    FROM
-        courses c
-    WHERE
-        c.id = ?
-    """,
-        (course_id,),
-    )
+        if not course:
+            return f"Course with ID {course_id} not found"
 
-    course = row_to_dict(cursor.fetchone() or {})
+        # Get module count separately
+        module_count = session.query(func.count(Module.id)).filter(Module.course_id == course_id).scalar() or 0
+        assignment_count = len(course.assignments)
 
-    if not course:
-        conn.close()
-        return f"Course with ID {course_id} not found"
+        # Find next due assignment
+        now = datetime.now()
+        next_assignment = None
+        min_due_date = None
+        for assign in course.assignments:
+            if assign.due_date and assign.due_date > now:
+                if min_due_date is None or assign.due_date < min_due_date:
+                    min_due_date = assign.due_date
+                    next_assignment = assign
 
-    # Get assignment count
-    cursor.execute(
-        """
-    SELECT COUNT(*) as count FROM assignments WHERE course_id = ?
-    """,
-        (course_id,),
-    )
-    assignment_count = cursor.fetchone()["count"]
+        # Format the information
+        title = f"{course.course_name} ({course.course_code})"
+        sections = {
+            "Details": f"**Instructor:** {course.instructor or 'Not specified'}\n"
+                       f"**Canvas ID:** {course.canvas_course_id}\n"
+                       f"**Start Date:** {course.start_date.strftime('%Y-%m-%d') if course.start_date else 'N/A'}\n"
+                       f"**End Date:** {course.end_date.strftime('%Y-%m-%d') if course.end_date else 'N/A'}",
+            "Description": course.description or "No description available",
+            "Summary": f"- **Assignments:** {assignment_count}\n- **Modules:** {module_count}",
+            "Next Due Assignment": f"- **{next_assignment.title}** - Due: {next_assignment.due_date.strftime('%Y-%m-%d %H:%M')}" if next_assignment else "- No upcoming assignments"
+        }
+        return format_resource(title, sections)
 
-    # Get module count
-    cursor.execute(
-        """
-    SELECT COUNT(*) as count FROM modules WHERE course_id = ?
-    """,
-        (course_id,),
-    )
-    module_count = cursor.fetchone()["count"]
-
-    # Get next due assignment
-    cursor.execute(
-        """
-    SELECT
-        title,
-        due_date
-    FROM
-        assignments
-    WHERE
-        course_id = ?
-        AND due_date > ?
-    ORDER BY
-        due_date ASC
-    LIMIT 1
-    """,
-        (course_id, datetime.now().isoformat()),
-    )
-
-    next_assignment = row_to_dict(cursor.fetchone() or {})
-
-    conn.close()
-
-    # Format the information
-    content = f"""# {course.get("course_name")} ({course.get("course_code")})
-
-**Instructor:** {course.get("instructor", "Not specified")}
-**Canvas ID:** {course.get("canvas_course_id")}
-**Start Date:** {course.get("start_date", "Not specified")}
-**End Date:** {course.get("end_date", "Not specified")}
-
-## Description
-{course.get("description", "No description available")}
-
-## Course Information
-- **Assignments:** {assignment_count}
-- **Modules:** {module_count}
-
-## Next Due Assignment
-"""
-
-    if next_assignment:
-        content += f"- **{next_assignment.get('title')}** - Due: {next_assignment.get('due_date')}"
-    else:
-        content += "- No upcoming assignments"
-
-    return content
+    finally:
+        session.close()
 
 
 @mcp.resource("deadlines://{days}")
 def get_deadlines_resource(days: int = 7) -> str:
     """
-    Get resource with upcoming deadlines.
+    Get resource with upcoming deadlines using SQLAlchemy tool function.
 
     Args:
-        days: Number of days to look ahead
+        days: Number of days to look ahead.
 
     Returns:
-        Upcoming deadlines as formatted text
+        Upcoming deadlines as formatted text.
     """
-    deadlines = get_upcoming_deadlines(days)
+    deadlines = get_upcoming_deadlines(days) # Reuse the tool function
 
     if not deadlines:
-        return f"No deadlines in the next {days} days"
+        return f"No deadlines found in the next {days} days."
 
     content = f"# Upcoming Deadlines (Next {days} Days)\n\n"
+    deadlines.sort(key=lambda x: (x.get('course_code', ''), x.get('due_date', ''))) # Sort by course then date
 
-    current_course = None
+    current_course_code = None
     for item in deadlines:
-        # Add course header if it changed
-        if current_course != item.get("course_code"):
-            current_course = item.get("course_code")
-            content += f"\n## {item.get('course_name')} ({current_course})\n\n"
+        course_code = item.get('course_code')
+        if course_code != current_course_code:
+            current_course_code = course_code
+            content += f"## {item.get('course_name')} ({course_code})\n\n"
 
-        # Add deadline
-        due_date = item.get("due_date", "No due date")
-        if due_date and due_date != "No due date":
+        due_date_str = item.get("due_date")
+        formatted_date = "No due date"
+        if due_date_str:
             try:
-                due_datetime = datetime.fromisoformat(due_date)
-                formatted_date = due_datetime.strftime("%A, %B %d, %Y %I:%M %p")
+                due_dt = datetime.fromisoformat(due_date_str)
+                formatted_date = due_dt.strftime("%A, %B %d, %Y %I:%M %p")
             except (ValueError, TypeError):
-                formatted_date = due_date
-        else:
-            formatted_date = "No due date"
+                formatted_date = due_date_str # Fallback
 
         points = item.get("points_possible")
         points_str = f" ({points} points)" if points else ""
-
         content += f"- **{item.get('assignment_title')}**{points_str} - Due: {formatted_date}\n"
 
-    return content
+    return content.strip()
 
 
 @mcp.resource("syllabus://{course_id}")
 def get_syllabus_resource(course_id: int) -> str:
     """
-    Get resource with course syllabus.
+    Get resource with course syllabus using SQLAlchemy tool function.
 
     Args:
-        course_id: Course ID
+        course_id: Local Course ID.
 
     Returns:
-        Syllabus as formatted text
+        Syllabus as formatted text.
     """
-    syllabus_data = get_syllabus(course_id, format="parsed")
+    syllabus_data = get_syllabus(course_id, format="parsed") # Reuse tool, prefer parsed
 
-    if not syllabus_data:
-        return f"Syllabus for course ID {course_id} not found"
+    if syllabus_data.get("error"):
+        return syllabus_data["error"]
+    if not syllabus_data.get("content"):
+         return f"Syllabus for course ID {course_id} not found or empty."
 
-    content = f"# Syllabus: {syllabus_data.get('course_name')} ({syllabus_data.get('course_code')})\n\n"
-
+    title = f"Syllabus: {syllabus_data.get('course_name')} ({syllabus_data.get('course_code')})"
+    sections = {}
     if syllabus_data.get("instructor"):
-        content += f"**Instructor:** {syllabus_data.get('instructor')}\n\n"
+        sections["Instructor"] = syllabus_data.get("instructor")
+    sections["Content"] = syllabus_data.get("content")
 
-    content += syllabus_data.get("content", "No syllabus content available")
-
-    return content
+    return format_resource(title, sections)
 
 
 @mcp.resource("assignments://{course_id}")
 def get_assignments_resource(course_id: int) -> str:
     """
-    Get resource with course assignments.
+    Get resource with course assignments using SQLAlchemy tool function.
 
     Args:
-        course_id: Course ID
+        course_id: Local Course ID.
 
     Returns:
-        Assignments as formatted text
+        Assignments as formatted text.
     """
-    conn, cursor = db_connect()
+    session = get_db_session()
+    try:
+        course = session.query(Course.course_code, Course.course_name).filter(Course.id == course_id).first()
+        if not course:
+            return f"Course with ID {course_id} not found"
 
-    # Get course information
-    cursor.execute(
-        """
-    SELECT course_code, course_name FROM courses WHERE id = ?
-    """,
-        (course_id,),
-    )
-    course = row_to_dict(cursor.fetchone() or {})
+        assignments = get_course_assignments(course_id) # Reuse tool function
 
-    if not course:
-        conn.close()
-        return f"Course with ID {course_id} not found"
+        if not assignments:
+            return f"No assignments found for {course.course_name} ({course.course_code})"
 
-    # Get assignments
-    assignments = get_course_assignments(course_id)
+        title = f"Assignments: {course.course_name} ({course.course_code})"
+        content = f"# {title}\n\n"
 
-    conn.close()
+        # Group by type
+        assignments_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        for a in assignments:
+            a_type = a.get("assignment_type", "Other") or "Other"
+            assignments_by_type.setdefault(a_type, []).append(a)
 
-    if not assignments:
-        return f"No assignments found for {course.get('course_name')} ({course.get('course_code')})"
-
-    content = (
-        f"# Assignments: {course.get('course_name')} ({course.get('course_code')})\n\n"
-    )
-
-    # Group assignments by type
-    assignment_types: dict[str, list[dict[str, Any]]] = {}
-    for assignment in assignments:
-        assignment_type = assignment.get("assignment_type", "Other")
-        if assignment_type not in assignment_types:
-            assignment_types[assignment_type] = []
-        assignment_types[assignment_type].append(assignment)
-
-    # Format each type
-    for assignment_type, items in assignment_types.items():
-        content += f"## {assignment_type.capitalize()}s\n\n"
-
-        for item in items:
-            # Format dates
-            due_date = item.get("due_date", "No due date")
-            if due_date and due_date != "No due date":
-                try:
-                    due_datetime = datetime.fromisoformat(due_date)
-                    formatted_date = due_datetime.strftime("%A, %B %d, %Y %I:%M %p")
-                except (ValueError, TypeError):
-                    formatted_date = due_date
-            else:
+        for a_type, items in sorted(assignments_by_type.items()):
+            content += f"## {a_type.capitalize()}s\n\n"
+            items.sort(key=lambda x: x.get('due_date') or '') # Sort by due date within type
+            for item in items:
+                due_date_str = item.get("due_date")
                 formatted_date = "No due date"
+                if due_date_str:
+                     try:
+                         due_dt = datetime.fromisoformat(due_date_str)
+                         formatted_date = due_dt.strftime("%A, %B %d, %Y %I:%M %p")
+                     except (ValueError, TypeError):
+                         formatted_date = due_date_str
 
-            # Add assignment details
-            points = item.get("points_possible")
-            points_str = f" ({points} points)" if points else ""
+                points = item.get("points_possible")
+                points_str = f" ({points} points)" if points else ""
 
-            content += f"### {item.get('title')}{points_str}\n\n"
-            content += f"**Due Date:** {formatted_date}\n\n"
+                content += f"### {item.get('title')}{points_str}\n"
+                content += f"**Due Date:** {formatted_date}\n"
+                desc = item.get('description')
+                content += f"{desc}\n\n" if desc else "No description available.\n\n"
 
-            # Add description if available
-            description = item.get("description")
-            if description:
-                content += f"{description}\n\n"
-            else:
-                content += "No description available.\n\n"
-
-    return content
+        return content.strip()
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":
+    print("Starting Canvas MCP server...")
     mcp.run()

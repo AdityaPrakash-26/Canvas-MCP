@@ -1,22 +1,77 @@
 """
-Canvas API client for synchronizing data with the local database.
+Canvas API client for synchronizing data with the local database using SQLAlchemy.
 """
 import os
-import sqlite3
+import sys
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Optional, Type
 
 from dotenv import load_dotenv
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, joinedload
+
+# Add project root to sys.path to allow importing database and models
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 
 # Make Canvas available for patching in tests
 try:
     from canvasapi import Canvas
+    from canvasapi.assignment import Assignment as CanvasAssignment
+    from canvasapi.course import Course as CanvasCourse
+    from canvasapi.discussion_topic import DiscussionTopic as CanvasDiscussionTopic
+    from canvasapi.exceptions import ResourceDoesNotExist
+    from canvasapi.module import Module as CanvasModule
+    from canvasapi.module import ModuleItem as CanvasModuleItem
+    from canvasapi.paginated_list import PaginatedList
+    from canvasapi.user import User as CanvasUser
 except ImportError:
-    # Create a dummy Canvas class for tests to patch
-    class Canvas:
-        def __init__(self, api_url, api_key):
-            self.api_url = api_url
-            self.api_key = api_key
+    # Create dummy classes for tests to patch
+    print("Warning: 'canvasapi' not installed. Canvas sync functionality will be disabled.")
+    Canvas = None
+    CanvasAssignment = object
+    CanvasCourse = object
+    CanvasDiscussionTopic = object
+    CanvasModule = object
+    CanvasModuleItem = object
+    PaginatedList = list
+    ResourceDoesNotExist = Exception
+    CanvasUser = object
+
+
+# Local imports after path adjustment
+try:
+    from canvas_mcp.database import SessionLocal
+    from canvas_mcp.models import (
+        Announcement,
+        Assignment,
+        CalendarEvent,
+        Course,
+        Module,
+        ModuleItem,
+        Syllabus,
+        UserCourse,
+    )
+except ImportError as e:
+    print(f"Error importing local modules: {e}")
+    print(f"PROJECT_ROOT: {PROJECT_ROOT}")
+    print(f"sys.path: {sys.path}")
+    raise
+
+
+def parse_canvas_datetime(date_str: Optional[str]) -> Optional[datetime]:
+    """Safely parse ISO 8601 datetime strings from Canvas API."""
+    if not date_str:
+        return None
+    try:
+        # Handle potential 'Z' for UTC timezone
+        if date_str.endswith('Z'):
+            date_str = date_str[:-1] + '+00:00'
+        return datetime.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        return None
 
 
 class CanvasClient:
@@ -24,710 +79,561 @@ class CanvasClient:
     Client for interacting with the Canvas LMS API and syncing data to the local database.
     """
 
-    def __init__(self, db_path: str, api_key: str | None = None, api_url: str | None = None):
+    def __init__(
+        self,
+        db_session_factory: Type[SessionLocal] = SessionLocal,
+        api_key: Optional[str] = None,
+        api_url: Optional[str] = None,
+    ):
         """
         Initialize the Canvas client.
 
         Args:
-            db_path: Path to the SQLite database
-            api_key: Canvas API key (if None, will look for CANVAS_API_KEY in environment)
-            api_url: Canvas API URL (if None, will use default Canvas URL)
+            db_session_factory: SQLAlchemy session factory (default: SessionLocal).
+            api_key: Canvas API key (if None, will look for CANVAS_API_KEY in environment).
+            api_url: Canvas API URL (if None, will use CANVAS_API_URL or default Canvas URL).
         """
-        # Load environment variables if api_key not provided
-        if api_key is None:
-            load_dotenv()
-            api_key = os.environ.get("CANVAS_API_KEY")
+        # Load environment variables if needed
+        load_dotenv()
+        self.api_key = api_key or os.environ.get("CANVAS_API_KEY")
+        self.api_url = api_url or os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
+        self.db_session_factory = db_session_factory
 
-        self.api_key = api_key
-        self.api_url = api_url or "https://canvas.instructure.com"
-        self.db_path = db_path
+        # Initialize canvasapi if available and configured
+        self.canvas: Optional[Canvas] = None
+        if Canvas is not None and self.api_key and self.api_url:
+            try:
+                self.canvas = Canvas(self.api_url, self.api_key)
+                # Test connection by getting current user
+                self.canvas.get_current_user()
+                print(f"Successfully connected to Canvas API at {self.api_url}")
+            except Exception as e:
+                print(f"Warning: Failed to connect to Canvas API at {self.api_url}. Error: {e}")
+                self.canvas = None
+        elif Canvas is None:
+            print("Warning: canvasapi module not installed. Sync disabled.")
+        else:
+            print("Warning: Canvas API Key or URL not configured. Sync disabled.")
 
-        # Import canvasapi here to avoid making it a hard dependency
-        try:
-            from canvasapi import Canvas
-            self.canvas = Canvas(self.api_url, self.api_key)
-        except ImportError:
-            self.canvas = None
-            print("Warning: canvasapi module not found. Some features will be limited.")
 
-    def connect_db(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
-        """
-        Connect to the SQLite database.
+    def _get_session(self) -> Session:
+        """Get a new database session."""
+        return self.db_session_factory()
 
-        Returns:
-            Tuple of (connection, cursor)
-        """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        return conn, cursor
-
-    def sync_courses(self, user_id: str | None = None, term_id: int | None = None) -> list[int]:
+    def sync_courses(self, user_id_str: Optional[str] = None, term_id: Optional[int] = None) -> List[int]:
         """
         Synchronize course data from Canvas to the local database.
 
         Args:
-            user_id: Optional user ID to filter courses
-            term_id: Optional term ID to filter courses
-                     (use -1 to select only the most recent term)
+            user_id_str: User ID string (obtained from Canvas). If None, uses the current authenticated user.
+            term_id: Optional term ID to filter courses (-1 for latest).
 
         Returns:
-            List of local course IDs that were synced
+            List of local course IDs that were synced or updated.
         """
-        if self.canvas is None:
-            raise ImportError("canvasapi module is required for this operation")
+        if not self.canvas:
+            print("Canvas API client not initialized. Skipping course sync.")
+            return []
 
-        # Get current user if not specified
-        if user_id is None:
-            user = self.canvas.get_current_user()
-            user_id = str(user.id)
-        else:
-            user = self.canvas.get_current_user()  # Always use current user for authentication
+        synced_course_ids = []
+        session = self._get_session()
+        try:
+            # Get current user for authentication context
+            current_user: CanvasUser = self.canvas.get_current_user()
+            user_id_str = user_id_str or str(current_user.id)
+            print(f"Starting course sync for user ID: {user_id_str}")
 
-        # Get courses from Canvas directly using the user object
-        # This fixes the authentication issue reported in integration testing
-        courses = list(user.get_courses())
+            # Get courses for the user
+            canvas_courses: List[CanvasCourse] = list(current_user.get_courses(include=["term", "teachers"]))
+            print(f"Found {len(canvas_courses)} potential courses in Canvas.")
 
-        # Apply term filtering if requested
-        if term_id is not None:
-            if term_id == -1:
-                # Get the most recent term (maximum term_id)
-                term_ids = [getattr(course, 'enrollment_term_id', 0) for course in courses]
-                if term_ids:
-                    max_term_id = max(filter(lambda x: x is not None, term_ids), default=None)
-                    if max_term_id is not None:
-                        print(f"Filtering to only include the most recent term (ID: {max_term_id})")
-                        courses = [
-                            course for course in courses
-                            if getattr(course, 'enrollment_term_id', None) == max_term_id
-                        ]
-            else:
-                # Filter for the specific term requested
-                courses = [
-                    course for course in courses
-                    if getattr(course, 'enrollment_term_id', None) == term_id
-                ]
-
-        # Connect to database
-        conn, cursor = self.connect_db()
-
-        course_ids = []
-        for course in courses:
-            # Check if user has opted out of this course
-            cursor.execute(
-                "SELECT indexing_opt_out FROM user_courses WHERE user_id = ? AND course_id = ?",
-                (user_id, course.id)
-            )
-            row = cursor.fetchone()
-            if row and row["indexing_opt_out"]:
-                print(f"Skipping opted-out course: {course.name}")
-                continue
-
-            # Get detailed course information
-            detailed_course = self.canvas.get_course(course.id)
-
-            # Properly convert all MagicMock attributes to appropriate types for SQLite
-            course_id = int(course.id) if hasattr(course, "id") else None
-            course_code = str(getattr(course, "course_code", "")) if getattr(course, "course_code", None) is not None else ""
-            course_name = str(course.name) if hasattr(course, "name") else ""
-            instructor = str(getattr(detailed_course, "teacher", "")) if getattr(detailed_course, "teacher", None) is not None else None
-            description = str(getattr(detailed_course, "description", "")) if getattr(detailed_course, "description", None) is not None else None
-            start_date = str(getattr(detailed_course, "start_at", "")) if getattr(detailed_course, "start_at", None) is not None else None
-            end_date = str(getattr(detailed_course, "end_at", "")) if getattr(detailed_course, "end_at", None) is not None else None
-
-            # Check if course exists
-            cursor.execute(
-                "SELECT id FROM courses WHERE canvas_course_id = ?",
-                (course_id,)
-            )
-            existing_course = cursor.fetchone()
-
-            if existing_course:
-                # Update existing course
-                cursor.execute(
-                    """
-                    UPDATE courses SET
-                        course_code = ?,
-                        course_name = ?,
-                        instructor = ?,
-                        description = ?,
-                        start_date = ?,
-                        end_date = ?,
-                        updated_at = ?
-                    WHERE canvas_course_id = ?
-                    """,
-                    (
-                        course_code,
-                        course_name,
-                        instructor,
-                        description,
-                        start_date,
-                        end_date,
-                        datetime.now().isoformat(),
-                        course_id
-                    )
-                )
-                local_course_id = existing_course["id"]
-            else:
-                # Insert new course
-                cursor.execute(
-                    """
-                    INSERT INTO courses (
-                        canvas_course_id, course_code, course_name,
-                        instructor, description, start_date, end_date, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        course_id,
-                        course_code,
-                        course_name,
-                        instructor,
-                        description,
-                        start_date,
-                        end_date,
-                        datetime.now().isoformat()
-                    )
-                )
-                local_course_id = cursor.lastrowid
-            course_ids.append(local_course_id)
-
-            # Store or update syllabus
-            if hasattr(detailed_course, "syllabus_body") and detailed_course.syllabus_body:
-                # Check if syllabus exists
-                cursor.execute(
-                    "SELECT id FROM syllabi WHERE course_id = ?",
-                    (local_course_id,)
-                )
-                existing_syllabus = cursor.fetchone()
-
-                if existing_syllabus:
-                    # Update existing syllabus
-                    cursor.execute(
-                        """
-                        UPDATE syllabi SET
-                            content = ?,
-                            updated_at = ?
-                        WHERE course_id = ?
-                        """,
-                        (detailed_course.syllabus_body, datetime.now().isoformat(), local_course_id)
-                    )
+            # Filter by term if requested
+            if term_id is not None:
+                if term_id == -1:
+                    term_ids = [getattr(c, 'enrollment_term_id', 0) for c in canvas_courses]
+                    if term_ids:
+                        max_term_id = max(filter(lambda x: x is not None, term_ids), default=None)
+                        if max_term_id is not None:
+                            print(f"Filtering courses for the latest term (ID: {max_term_id})")
+                            canvas_courses = [c for c in canvas_courses if getattr(c, 'enrollment_term_id', None) == max_term_id]
                 else:
-                    # Insert new syllabus
-                    cursor.execute(
-                        """
-                        INSERT INTO syllabi (course_id, content, updated_at)
-                        VALUES (?, ?, ?)
-                        """,
-                        (local_course_id, detailed_course.syllabus_body, datetime.now().isoformat())
-                    )
+                    print(f"Filtering courses for specific term (ID: {term_id})")
+                    canvas_courses = [c for c in canvas_courses if getattr(c, 'enrollment_term_id', None) == term_id]
+            print(f"Processing {len(canvas_courses)} courses after filtering.")
 
-        conn.commit()
-        conn.close()
 
-        return course_ids
+            for canvas_course in canvas_courses:
+                canvas_course_id = canvas_course.id
+                print(f"Processing course: {canvas_course.name} (ID: {canvas_course_id})")
 
-    def sync_assignments(self, course_ids: list[int] | None = None) -> int:
+                # Check opt-out status
+                user_course_pref = session.query(UserCourse).filter_by(
+                    user_id=user_id_str,
+                    course_id=canvas_course_id # Checking against canvas_course_id first
+                ).first()
+
+                # We need the local course ID to check opt-out correctly if it exists
+                existing_course = session.query(Course).filter_by(canvas_course_id=canvas_course_id).first()
+                local_course_id_for_opt_out = existing_course.id if existing_course else None
+
+                if local_course_id_for_opt_out:
+                    user_course_pref = session.query(UserCourse).filter_by(
+                        user_id=user_id_str,
+                        course_id=local_course_id_for_opt_out
+                    ).first()
+                    if user_course_pref and user_course_pref.indexing_opt_out:
+                        print(f"Skipping opted-out course: {canvas_course.name}")
+                        continue
+
+                # Get potentially more detailed info (though get_courses often includes much of it)
+                # Try/except for cases where the user might not have full permissions
+                try:
+                    detailed_course = self.canvas.get_course(canvas_course_id, include=["syllabus_body", "teachers"])
+                except ResourceDoesNotExist:
+                    print(f"Could not fetch details for course {canvas_course_id}. Skipping.")
+                    continue
+                except Exception as e:
+                    print(f"Error fetching details for course {canvas_course_id}: {e}. Skipping.")
+                    continue
+
+
+                # Prepare data for DB model
+                course_data = {
+                    "canvas_course_id": canvas_course_id,
+                    "course_code": getattr(canvas_course, "course_code", None),
+                    "course_name": getattr(canvas_course, "name", "Unknown Course"),
+                    "instructor": ", ".join([t.name for t in getattr(detailed_course, 'teachers', []) if hasattr(t, 'name')]) or None,
+                    "description": getattr(detailed_course, "public_description", None) or getattr(canvas_course, "public_description", None),
+                    "start_date": parse_canvas_datetime(getattr(detailed_course, "start_at", None) or getattr(canvas_course, "start_at", None)),
+                    "end_date": parse_canvas_datetime(getattr(detailed_course, "end_at", None) or getattr(canvas_course, "end_at", None)),
+                    "updated_at": datetime.now() # Mark as updated now
+                }
+                syllabus_content = getattr(detailed_course, "syllabus_body", None)
+
+
+                # Upsert Course
+                if existing_course:
+                    print(f"Updating existing course: {course_data['course_name']}")
+                    for key, value in course_data.items():
+                        setattr(existing_course, key, value)
+                    local_course = existing_course
+                    session.merge(local_course)
+                else:
+                    print(f"Inserting new course: {course_data['course_name']}")
+                    local_course = Course(**course_data)
+                    session.add(local_course)
+                    # We need to flush to get the local_course.id for the syllabus check
+                    session.flush()
+
+
+                # Upsert Syllabus
+                if syllabus_content:
+                    existing_syllabus = session.query(Syllabus).filter_by(course_id=local_course.id).first()
+                    if existing_syllabus:
+                        if existing_syllabus.content != syllabus_content:
+                            print(f"Updating syllabus for course {local_course.id}")
+                            existing_syllabus.content = syllabus_content
+                            existing_syllabus.is_parsed = False # Reset parsed status on update
+                            existing_syllabus.updated_at = datetime.now()
+                            session.merge(existing_syllabus)
+                    else:
+                        print(f"Inserting new syllabus for course {local_course.id}")
+                        new_syllabus = Syllabus(
+                            course_id=local_course.id,
+                            content=syllabus_content,
+                            updated_at=datetime.now()
+                        )
+                        session.add(new_syllabus)
+
+                session.commit() # Commit after each course to get ID and handle potential errors individually
+                synced_course_ids.append(local_course.id)
+                print(f"Successfully processed course {local_course.id} ({local_course.course_name})")
+
+            print(f"Course sync complete. Synced/updated {len(synced_course_ids)} courses.")
+
+        except Exception as e:
+            print(f"Error during course sync: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+        return synced_course_ids
+
+    def sync_assignments(self, local_course_ids: Optional[List[int]] = None) -> int:
         """
         Synchronize assignment data from Canvas to the local database.
 
         Args:
-            course_ids: Optional list of local course IDs to sync
+            local_course_ids: List of local course IDs to sync. If None, syncs for all courses in DB.
 
         Returns:
-            Number of assignments synced
+            Number of assignments synced or updated.
         """
-        if self.canvas is None:
-            raise ImportError("canvasapi module is required for this operation")
-
-        # Connect to database
-        conn, cursor = self.connect_db()
-
-        # Get all courses if not specified
-        if course_ids is None:
-            cursor.execute("SELECT id, canvas_course_id FROM courses")
-            courses = cursor.fetchall()
-        else:
-            courses = []
-            for course_id in course_ids:
-                cursor.execute(
-                    "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,)
-                )
-                course = cursor.fetchone()
-                if course:
-                    courses.append(course)
+        if not self.canvas:
+            print("Canvas API client not initialized. Skipping assignment sync.")
+            return 0
 
         assignment_count = 0
-        for course in courses:
-            try:
-                local_course_id = course["id"]
-                canvas_course_id = course["canvas_course_id"]
+        session = self._get_session()
+        try:
+            query = session.query(Course)
+            if local_course_ids:
+                query = query.filter(Course.id.in_(local_course_ids))
+            courses_to_sync = query.all()
+            print(f"Starting assignment sync for {len(courses_to_sync)} courses.")
 
-                # Get course from Canvas
-                canvas_course = self.canvas.get_course(canvas_course_id)
+            for local_course in courses_to_sync:
+                print(f"Syncing assignments for course: {local_course.course_name} (ID: {local_course.id}, CanvasID: {local_course.canvas_course_id})")
+                try:
+                    canvas_course: CanvasCourse = self.canvas.get_course(local_course.canvas_course_id)
+                    canvas_assignments: PaginatedList[CanvasAssignment] = canvas_course.get_assignments()
 
-                # Get assignments for the course
-                assignments = canvas_course.get_assignments()
+                    for canvas_assignment in canvas_assignments:
+                        assignment_data = {
+                            "course_id": local_course.id,
+                            "canvas_assignment_id": canvas_assignment.id,
+                            "title": getattr(canvas_assignment, "name", "Untitled Assignment"),
+                            "description": getattr(canvas_assignment, "description", None),
+                            "assignment_type": self._get_assignment_type(canvas_assignment),
+                            "due_date": parse_canvas_datetime(getattr(canvas_assignment, "due_at", None)),
+                            "available_from": parse_canvas_datetime(getattr(canvas_assignment, "unlock_at", None)),
+                            "available_until": parse_canvas_datetime(getattr(canvas_assignment, "lock_at", None)),
+                            "points_possible": getattr(canvas_assignment, "points_possible", None),
+                            "submission_types": ",".join(getattr(canvas_assignment, "submission_types", [])),
+                            "updated_at": datetime.now()
+                        }
 
-                for assignment in assignments:
-                    # Convert submission_types to string
-                    submission_types = ",".join(getattr(assignment, "submission_types", []))
+                        # Upsert Assignment
+                        existing_assignment = session.query(Assignment).filter_by(
+                            course_id=local_course.id,
+                            canvas_assignment_id=canvas_assignment.id
+                        ).first()
 
-                    # Check if assignment exists
-                    cursor.execute(
-                        "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
-                        (local_course_id, assignment.id)
-                    )
-                    existing_assignment = cursor.fetchone()
-
-                    if existing_assignment:
-                        # Update existing assignment
-                        cursor.execute(
-                            """
-                            UPDATE assignments SET
-                                title = ?,
-                                description = ?,
-                                assignment_type = ?,
-                                due_date = ?,
-                                available_from = ?,
-                                available_until = ?,
-                                points_possible = ?,
-                                submission_types = ?,
-                                updated_at = ?
-                            WHERE id = ?
-                            """,
-                            (
-                                assignment.name,
-                                getattr(assignment, "description", None),
-                                self._get_assignment_type(assignment),
-                                getattr(assignment, "due_at", None),
-                                getattr(assignment, "unlock_at", None),
-                                getattr(assignment, "lock_at", None),
-                                getattr(assignment, "points_possible", None),
-                                submission_types,
-                                datetime.now().isoformat(),
-                                existing_assignment["id"]
-                            )
-                        )
-                        assignment_id = existing_assignment["id"]
-                    else:
-                        # Insert new assignment
-                        cursor.execute(
-                            """
-                            INSERT INTO assignments (
-                                course_id, canvas_assignment_id, title, description,
-                                assignment_type, due_date, available_from, available_until,
-                                points_possible, submission_types, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                local_course_id,
-                                assignment.id,
-                                assignment.name,
-                                getattr(assignment, "description", None),
-                                self._get_assignment_type(assignment),
-                                getattr(assignment, "due_at", None),
-                                getattr(assignment, "unlock_at", None),
-                                getattr(assignment, "lock_at", None),
-                                getattr(assignment, "points_possible", None),
-                                submission_types,
-                                datetime.now().isoformat()
-                            )
-                        )
-                        assignment_id = cursor.lastrowid
-                    assignment_count += 1
-
-                    # Add to calendar events
-                    if hasattr(assignment, "due_at") and assignment.due_at:
-                        # Check if calendar event exists
-                        cursor.execute(
-                            """
-                            SELECT id FROM calendar_events
-                            WHERE course_id = ? AND source_type = ? AND source_id = ?
-                            """,
-                            (local_course_id, "assignment", assignment_id)
-                        )
-                        existing_event = cursor.fetchone()
-
-                        if existing_event:
-                            # Update existing event
-                            cursor.execute(
-                                """
-                                UPDATE calendar_events SET
-                                    title = ?,
-                                    description = ?,
-                                    event_date = ?,
-                                    updated_at = ?
-                                WHERE id = ?
-                                """,
-                                (
-                                    assignment.name,
-                                    f"Due date for assignment: {assignment.name}",
-                                    assignment.due_at,
-                                    datetime.now().isoformat(),
-                                    existing_event["id"]
-                                )
-                            )
+                        if existing_assignment:
+                            # print(f"Updating assignment: {assignment_data['title']}")
+                            for key, value in assignment_data.items():
+                                setattr(existing_assignment, key, value)
+                            local_assignment = existing_assignment
+                            session.merge(local_assignment)
                         else:
-                            # Insert new event
-                            cursor.execute(
-                                """
-                                INSERT INTO calendar_events (
-                                    course_id, title, description, event_type,
-                                    source_type, source_id, event_date, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                (
-                                    local_course_id,
-                                    assignment.name,
-                                    f"Due date for assignment: {assignment.name}",
-                                    self._get_assignment_type(assignment),
-                                    "assignment",
-                                    assignment_id,
-                                    assignment.due_at,
-                                    datetime.now().isoformat()
-                                )
-                            )
-            except Exception as e:
-                print(f"Error syncing assignments for course {canvas_course_id}: {e}")
+                            # print(f"Inserting assignment: {assignment_data['title']}")
+                            local_assignment = Assignment(**assignment_data)
+                            session.add(local_assignment)
+                        session.flush() # Ensure local_assignment has an ID for the calendar event
 
-        conn.commit()
-        conn.close()
+                        # Upsert Calendar Event for due date
+                        if local_assignment.due_date:
+                            event_data = {
+                                "course_id": local_course.id,
+                                "title": local_assignment.title,
+                                "description": f"Due date for {local_assignment.assignment_type}: {local_assignment.title}",
+                                "event_type": local_assignment.assignment_type or "assignment",
+                                "source_type": "assignment",
+                                "source_id": local_assignment.id,
+                                "event_date": local_assignment.due_date,
+                                "updated_at": datetime.now()
+                            }
+                            existing_event = session.query(CalendarEvent).filter_by(
+                                course_id=local_course.id,
+                                source_type="assignment",
+                                source_id=local_assignment.id
+                            ).first()
+
+                            if existing_event:
+                                for key, value in event_data.items():
+                                    setattr(existing_event, key, value)
+                                session.merge(existing_event)
+                            else:
+                                new_event = CalendarEvent(**event_data)
+                                session.add(new_event)
+
+                        assignment_count += 1
+                    session.commit() # Commit after processing all assignments for a course
+                    print(f"Finished assignments for course {local_course.course_name}.")
+
+                except ResourceDoesNotExist:
+                    print(f"Canvas course {local_course.canvas_course_id} not found or inaccessible. Skipping assignments.")
+                    session.rollback() # Rollback changes for this course if the course itself fails
+                except Exception as e:
+                    print(f"Error syncing assignments for course {local_course.canvas_course_id} ({local_course.course_name}): {e}")
+                    session.rollback() # Rollback changes for this course on error
+
+            print(f"Assignment sync complete. Synced/updated {assignment_count} assignments.")
+
+        except Exception as e:
+            print(f"General error during assignment sync: {e}")
+            session.rollback()
+        finally:
+            session.close()
 
         return assignment_count
 
-    def sync_modules(self, course_ids: list[int] | None = None) -> int:
+    def sync_modules(self, local_course_ids: Optional[List[int]] = None) -> int:
         """
-        Synchronize module data from Canvas to the local database.
+        Synchronize module data and module items from Canvas to the local database.
 
         Args:
-            course_ids: Optional list of local course IDs to sync
+            local_course_ids: List of local course IDs to sync. If None, syncs for all courses.
 
         Returns:
-            Number of modules synced
+            Number of modules synced or updated.
         """
-        if self.canvas is None:
-            raise ImportError("canvasapi module is required for this operation")
-
-        # Connect to database
-        conn, cursor = self.connect_db()
-
-        # Get all courses if not specified
-        if course_ids is None:
-            cursor.execute("SELECT id, canvas_course_id FROM courses")
-            courses = cursor.fetchall()
-        else:
-            courses = []
-            for course_id in course_ids:
-                cursor.execute(
-                    "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,)
-                )
-                course = cursor.fetchone()
-                if course:
-                    courses.append(course)
+        if not self.canvas:
+            print("Canvas API client not initialized. Skipping module sync.")
+            return 0
 
         module_count = 0
-        for course in courses:
-            try:
-                local_course_id = course["id"]
-                canvas_course_id = course["canvas_course_id"]
+        session = self._get_session()
+        try:
+            query = session.query(Course)
+            if local_course_ids:
+                query = query.filter(Course.id.in_(local_course_ids))
+            courses_to_sync = query.all()
+            print(f"Starting module sync for {len(courses_to_sync)} courses.")
 
-                # Get course from Canvas
-                canvas_course = self.canvas.get_course(canvas_course_id)
+            for local_course in courses_to_sync:
+                print(f"Syncing modules for course: {local_course.course_name} (ID: {local_course.id}, CanvasID: {local_course.canvas_course_id})")
+                try:
+                    canvas_course: CanvasCourse = self.canvas.get_course(local_course.canvas_course_id)
+                    canvas_modules: PaginatedList[CanvasModule] = canvas_course.get_modules(include=["module_items"])
 
-                # Get modules for the course
-                modules = canvas_course.get_modules()
+                    for canvas_module in canvas_modules:
+                        module_data = {
+                            "course_id": local_course.id,
+                            "canvas_module_id": canvas_module.id,
+                            "name": getattr(canvas_module, "name", "Untitled Module"),
+                            "position": getattr(canvas_module, "position", None),
+                            "unlock_date": parse_canvas_datetime(getattr(canvas_module, "unlock_at", None)),
+                            "require_sequential_progress": getattr(canvas_module, "require_sequential_progress", False),
+                            "updated_at": datetime.now()
+                            # Description might be added if needed, but often not available at this level
+                        }
 
-                for module in modules:
-                    # Convert boolean attribute to integer for SQLite
-                    require_sequential_progress = 1 if getattr(module, "require_sequential_progress", False) else 0
+                        # Upsert Module
+                        existing_module = session.query(Module).filter_by(
+                            course_id=local_course.id,
+                            canvas_module_id=canvas_module.id
+                        ).first()
 
-                    # Properly convert all MagicMock attributes to appropriate types for SQLite
-                    module_id = int(module.id) if hasattr(module, "id") else None
-                    module_name = str(module.name) if hasattr(module, "name") else ""
-                    module_description = str(getattr(module, "description", "")) if getattr(module, "description", None) is not None else None
-                    module_unlock_at = str(getattr(module, "unlock_at", "")) if getattr(module, "unlock_at", None) is not None else None
-                    module_position = int(getattr(module, "position", 0)) if getattr(module, "position", None) is not None else None
+                        if existing_module:
+                            # print(f"Updating module: {module_data['name']}")
+                            for key, value in module_data.items():
+                                setattr(existing_module, key, value)
+                            local_module = existing_module
+                            session.merge(local_module)
+                        else:
+                            # print(f"Inserting module: {module_data['name']}")
+                            local_module = Module(**module_data)
+                            session.add(local_module)
+                        session.flush() # Get local_module.id
 
-                    # Check if module exists
-                    cursor.execute(
-                        "SELECT id FROM modules WHERE course_id = ? AND canvas_module_id = ?",
-                        (local_course_id, module_id)
-                    )
-                    existing_module = cursor.fetchone()
+                        # Sync Module Items
+                        try:
+                            canvas_module_items: PaginatedList[CanvasModuleItem] = canvas_module.get_module_items()
+                            for canvas_item in canvas_module_items:
+                                item_data = {
+                                    "module_id": local_module.id,
+                                    "canvas_item_id": canvas_item.id,
+                                    "title": getattr(canvas_item, "title", "Untitled Item"),
+                                    "position": getattr(canvas_item, "position", None),
+                                    "item_type": getattr(canvas_item, "type", "Unknown"),
+                                    "content_id": getattr(canvas_item, "content_id", None),
+                                    "url": getattr(canvas_item, "external_url", None),
+                                    "page_url": getattr(canvas_item, "page_url", None),
+                                    # content_details could store item.__dict__ if needed
+                                    "updated_at": datetime.now()
+                                }
 
-                    if existing_module:
-                        # Update existing module
-                        cursor.execute(
-                            """
-                            UPDATE modules SET
-                                name = ?,
-                                description = ?,
-                                unlock_date = ?,
-                                position = ?,
-                                require_sequential_progress = ?,
-                                updated_at = ?
-                            WHERE id = ?
-                            """,
-                            (
-                                module_name,
-                                module_description,
-                                module_unlock_at,
-                                module_position,
-                                require_sequential_progress,
-                                datetime.now().isoformat(),
-                                existing_module["id"]
-                            )
-                        )
-                        local_module_id = existing_module["id"]
-                    else:
-                        # Insert new module
-                        cursor.execute(
-                            """
-                            INSERT INTO modules (
-                                course_id, canvas_module_id, name, description,
-                                unlock_date, position, require_sequential_progress, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                local_course_id,
-                                module_id,
-                                module_name,
-                                module_description,
-                                module_unlock_at,
-                                module_position,
-                                require_sequential_progress,
-                                datetime.now().isoformat()
-                            )
-                        )
-                        local_module_id = cursor.lastrowid
-                    module_count += 1
+                                # Upsert Module Item
+                                existing_item = session.query(ModuleItem).filter_by(
+                                    module_id=local_module.id,
+                                    canvas_item_id=canvas_item.id
+                                ).first()
 
-                    # Get module items
-                    try:
-                        items = module.get_module_items()
-                        for item in items:
-                            # Properly convert all MagicMock attributes to appropriate types for SQLite
-                            item_id = int(item.id) if hasattr(item, "id") else None
-                            item_title = str(getattr(item, "title", "")) if getattr(item, "title", None) is not None else None
-                            item_type = str(getattr(item, "type", "")) if getattr(item, "type", None) is not None else None
-                            item_position = int(getattr(item, "position", 0)) if getattr(item, "position", None) is not None else None
-                            item_url = str(getattr(item, "external_url", "")) if getattr(item, "external_url", None) is not None else None
-                            item_page_url = str(getattr(item, "page_url", "")) if getattr(item, "page_url", None) is not None else None
+                                if existing_item:
+                                    for key, value in item_data.items():
+                                        setattr(existing_item, key, value)
+                                    session.merge(existing_item)
+                                else:
+                                    new_item = ModuleItem(**item_data)
+                                    session.add(new_item)
 
-                            # Convert the content_details to a string representation
-                            content_details = str(item) if hasattr(item, "__dict__") else None
+                        except Exception as item_exc:
+                             print(f"Error syncing items for module {canvas_module.id} in course {local_course.canvas_course_id}: {item_exc}")
+                             # Continue with the next module
 
-                            # Check if module item exists
-                            cursor.execute(
-                                "SELECT id FROM module_items WHERE module_id = ? AND canvas_item_id = ?",
-                                (local_module_id, item_id)
-                            )
-                            existing_item = cursor.fetchone()
+                        module_count += 1
+                    session.commit() # Commit after processing all modules for a course
+                    print(f"Finished modules for course {local_course.course_name}.")
 
-                            if existing_item:
-                                # Update existing item
-                                cursor.execute(
-                                    """
-                                    UPDATE module_items SET
-                                        title = ?,
-                                        item_type = ?,
-                                        position = ?,
-                                        url = ?,
-                                        page_url = ?,
-                                        content_details = ?,
-                                        updated_at = ?
-                                    WHERE id = ?
-                                    """,
-                                    (
-                                        item_title,
-                                        item_type,
-                                        item_position,
-                                        item_url,
-                                        item_page_url,
-                                        content_details,
-                                        datetime.now().isoformat(),
-                                        existing_item["id"]
-                                    )
-                                )
-                            else:
-                                # Insert new item
-                                cursor.execute(
-                                    """
-                                    INSERT INTO module_items (
-                                        module_id, canvas_item_id, title, item_type,
-                                        position, url, page_url, content_details, updated_at
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """,
-                                    (
-                                        local_module_id,
-                                        item_id,
-                                        item_title,
-                                        item_type,
-                                        item_position,
-                                        item_url,
-                                        item_page_url,
-                                        content_details,
-                                        datetime.now().isoformat()
-                                    )
-                                )
-                    except Exception as e:
-                        print(f"Error syncing module items for module {module.id}: {e}")
-            except Exception as e:
-                print(f"Error syncing modules for course {canvas_course_id}: {e}")
+                except ResourceDoesNotExist:
+                    print(f"Canvas course {local_course.canvas_course_id} not found or inaccessible. Skipping modules.")
+                    session.rollback()
+                except Exception as e:
+                    print(f"Error syncing modules for course {local_course.canvas_course_id} ({local_course.course_name}): {e}")
+                    session.rollback()
 
-        conn.commit()
-        conn.close()
+            print(f"Module sync complete. Synced/updated {module_count} modules.")
+
+        except Exception as e:
+            print(f"General error during module sync: {e}")
+            session.rollback()
+        finally:
+            session.close()
 
         return module_count
 
-    def sync_announcements(self, course_ids: list[int] | None = None) -> int:
+    def sync_announcements(self, local_course_ids: Optional[List[int]] = None) -> int:
         """
         Synchronize announcement data from Canvas to the local database.
 
         Args:
-            course_ids: Optional list of local course IDs to sync
+            local_course_ids: List of local course IDs to sync. If None, syncs for all courses.
 
         Returns:
-            Number of announcements synced
+            Number of announcements synced or updated.
         """
-        if self.canvas is None:
-            raise ImportError("canvasapi module is required for this operation")
-
-        # Connect to database
-        conn, cursor = self.connect_db()
-
-        # Get all courses if not specified
-        if course_ids is None:
-            cursor.execute("SELECT id, canvas_course_id FROM courses")
-            courses = cursor.fetchall()
-        else:
-            courses = []
-            for course_id in course_ids:
-                cursor.execute(
-                    "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,)
-                )
-                course = cursor.fetchone()
-                if course:
-                    courses.append(course)
+        if not self.canvas:
+            print("Canvas API client not initialized. Skipping announcement sync.")
+            return 0
 
         announcement_count = 0
-        for course in courses:
-            try:
-                local_course_id = course["id"]
-                canvas_course_id = course["canvas_course_id"]
+        session = self._get_session()
+        try:
+            query = session.query(Course)
+            if local_course_ids:
+                query = query.filter(Course.id.in_(local_course_ids))
+            courses_to_sync = query.all()
+            print(f"Starting announcement sync for {len(courses_to_sync)} courses.")
 
-                # Get course from Canvas
-                canvas_course = self.canvas.get_course(canvas_course_id)
 
-                # Get announcements for the course
-                announcements = canvas_course.get_discussion_topics(only_announcements=True)
+            for local_course in courses_to_sync:
+                print(f"Syncing announcements for course: {local_course.course_name} (ID: {local_course.id}, CanvasID: {local_course.canvas_course_id})")
+                try:
+                    # Announcements are often retrieved as discussion topics
+                    # Use context_codes for efficiency
+                    context_code = f"course_{local_course.canvas_course_id}"
+                    canvas_announcements: PaginatedList[CanvasDiscussionTopic] = self.canvas.get_announcements(context_codes=[context_code])
 
-                for announcement in announcements:
-                    # Check if announcement exists
-                    cursor.execute(
-                        "SELECT id FROM announcements WHERE course_id = ? AND canvas_announcement_id = ?",
-                        (local_course_id, announcement.id)
-                    )
-                    existing_announcement = cursor.fetchone()
+                    for canvas_announcement in canvas_announcements:
+                        # Ensure it's actually an announcement (though get_announcements should handle this)
+                        # if not getattr(canvas_announcement, 'announcement', False): continue
 
-                    if existing_announcement:
-                        # Update existing announcement
-                        cursor.execute(
-                            """
-                            UPDATE announcements SET
-                                title = ?,
-                                content = ?,
-                                posted_by = ?,
-                                posted_at = ?,
-                                updated_at = ?
-                            WHERE id = ?
-                            """,
-                            (
-                                announcement.title,
-                                getattr(announcement, "message", None),
-                                getattr(announcement, "author_name", None),
-                                getattr(announcement, "posted_at", None),
-                                datetime.now().isoformat(),
-                                existing_announcement["id"]
-                            )
-                        )
-                    else:
-                        # Insert new announcement
-                        cursor.execute(
-                            """
-                            INSERT INTO announcements (
-                                course_id, canvas_announcement_id, title, content,
-                                posted_by, posted_at, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                local_course_id,
-                                announcement.id,
-                                announcement.title,
-                                getattr(announcement, "message", None),
-                                getattr(announcement, "author_name", None),
-                                getattr(announcement, "posted_at", None),
-                                datetime.now().isoformat()
-                            )
-                        )
+                        announcement_data = {
+                            "course_id": local_course.id,
+                            "canvas_announcement_id": canvas_announcement.id,
+                            "title": getattr(canvas_announcement, "title", "Untitled Announcement"),
+                            "content": getattr(canvas_announcement, "message", None), # HTML content
+                            "posted_by": getattr(canvas_announcement, "author", {}).get("display_name") if getattr(canvas_announcement, "author", None) else None,
+                            "posted_at": parse_canvas_datetime(getattr(canvas_announcement, "posted_at", None)),
+                            "updated_at": datetime.now()
+                        }
 
-                    announcement_count += 1
-            except Exception as e:
-                print(f"Error syncing announcements for course {canvas_course_id}: {e}")
+                        # Upsert Announcement
+                        existing_announcement = session.query(Announcement).filter_by(
+                            # course_id=local_course.id, # canvas_announcement_id should be globally unique
+                            canvas_announcement_id=canvas_announcement.id
+                        ).first()
 
-        conn.commit()
-        conn.close()
+                        if existing_announcement:
+                            # print(f"Updating announcement: {announcement_data['title']}")
+                            # Ensure course_id is correct if found by canvas_id only
+                            announcement_data["course_id"] = local_course.id
+                            for key, value in announcement_data.items():
+                                setattr(existing_announcement, key, value)
+                            session.merge(existing_announcement)
+                        else:
+                            # print(f"Inserting announcement: {announcement_data['title']}")
+                            new_announcement = Announcement(**announcement_data)
+                            session.add(new_announcement)
+
+                        announcement_count += 1
+                    session.commit() # Commit after processing announcements for a course
+                    print(f"Finished announcements for course {local_course.course_name}.")
+
+                except ResourceDoesNotExist:
+                     print(f"Canvas course {local_course.canvas_course_id} not found or inaccessible for announcements. Skipping.")
+                     session.rollback()
+                except Exception as e:
+                    print(f"Error syncing announcements for course {local_course.canvas_course_id} ({local_course.course_name}): {e}")
+                    session.rollback()
+
+            print(f"Announcement sync complete. Synced/updated {announcement_count} announcements.")
+
+        except Exception as e:
+            print(f"General error during announcement sync: {e}")
+            session.rollback()
+        finally:
+            session.close()
 
         return announcement_count
 
-    def sync_all(self, user_id: str | None = None, term_id: int | None = -1) -> dict[str, int]:
+
+    def sync_all(self, user_id_str: Optional[str] = None, term_id: Optional[int] = -1) -> dict[str, int]:
         """
-        Synchronize all data from Canvas to the local database.
+        Synchronize all relevant data from Canvas to the local database.
 
         Args:
-            user_id: Optional user ID to filter courses
-            term_id: Optional term ID to filter courses
-                     (default is -1, which only selects the most recent term)
+            user_id_str: Optional user ID string to identify the user context.
+            term_id: Optional term ID to filter courses (-1 for latest term, None for all terms).
 
         Returns:
-            Dictionary with counts of synced items
+            Dictionary with counts of synced items.
         """
-        # First sync courses
-        course_ids = self.sync_courses(user_id, term_id)
+        print(f"Starting full sync process. User: {user_id_str or 'current'}, Term: {term_id}")
 
-        # Then sync other data
-        assignment_count = self.sync_assignments(course_ids)
-        module_count = self.sync_modules(course_ids)
-        announcement_count = self.sync_announcements(course_ids)
+        # 1. Sync Courses (returns local IDs of synced/updated courses)
+        local_course_ids = self.sync_courses(user_id_str=user_id_str, term_id=term_id)
 
+        if not local_course_ids:
+            print("No courses were synced. Aborting further synchronization.")
+            return {"courses": 0, "assignments": 0, "modules": 0, "announcements": 0}
+
+        print(f"Proceeding to sync details for {len(local_course_ids)} courses...")
+
+        # 2. Sync other data types using the obtained local course IDs
+        assignment_count = self.sync_assignments(local_course_ids)
+        module_count = self.sync_modules(local_course_ids)
+        announcement_count = self.sync_announcements(local_course_ids)
+        # Add calls to sync other data types (discussions, files, grades) here if implemented
+
+        print("Full sync process completed.")
         return {
-            "courses": len(course_ids),
+            "courses": len(local_course_ids),
             "assignments": assignment_count,
             "modules": module_count,
-            "announcements": announcement_count
+            "announcements": announcement_count,
+            # Add counts for other synced types
         }
 
-    def _get_assignment_type(self, assignment: Any) -> str:
+    def _get_assignment_type(self, assignment: CanvasAssignment) -> str:
         """
-        Determine the type of an assignment.
+        Determine the type of an assignment based on Canvas data.
 
         Args:
-            assignment: Canvas assignment object
+            assignment: Canvas assignment object.
 
         Returns:
-            Assignment type string
+            Assignment type string (e.g., 'quiz', 'discussion', 'exam', 'assignment').
         """
-        if not hasattr(assignment, "submission_types"):
-            return "assignment"
+        submission_types = getattr(assignment, "submission_types", [])
+        name_lower = getattr(assignment, "name", "").lower()
 
-        if "online_quiz" in assignment.submission_types:
+        if "online_quiz" in submission_types:
             return "quiz"
-        elif "discussion_topic" in assignment.submission_types:
+        elif "discussion_topic" in submission_types:
             return "discussion"
-        elif any(t in assignment.name.lower() for t in ["exam", "midterm", "final"]):
+        elif any(term in name_lower for term in ["exam", "midterm", "final"]):
             return "exam"
         else:
             return "assignment"
+
+# Example usage (optional)
+if __name__ == "__main__":
+    print("Running CanvasClient example...")
+    client = CanvasClient()
+    if client.canvas:
+        sync_results = client.sync_all(term_id=-1) # Sync only the latest term
+        print("Sync results:", sync_results)
+    else:
+        print("Canvas client could not be initialized (check API key/URL and canvasapi installation).")

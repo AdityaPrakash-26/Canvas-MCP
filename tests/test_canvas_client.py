@@ -1,742 +1,560 @@
 """
-Tests for Canvas API client and database integration.
+Tests for Canvas API client and database integration using SQLAlchemy.
 """
 import os
-import sqlite3
-import tempfile
 import unittest
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-# Import from the canvas_mcp package
-from canvas_mcp.canvas_client import CanvasClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# Import necessary components from the refactored code
+from canvas_mcp.canvas_client import CanvasClient, parse_canvas_datetime
+from canvas_mcp.database import Base, init_db
+from canvas_mcp.models import (
+    Announcement,
+    Assignment,
+    CalendarEvent,
+    Course,
+    Module,
+    ModuleItem,
+    Syllabus,
+    UserCourse,
+)
+
+# Mock canvasapi classes before they are potentially imported by CanvasClient
+# This prevents errors if canvasapi is not installed during testing
+mock_canvas_api = MagicMock()
+sys_modules_patch = patch.dict('sys.modules', {'canvasapi': mock_canvas_api})
+sys_modules_patch.start()
+
+# Now create mock classes based on MagicMock
+MockCanvas = MagicMock()
+mock_canvas_api.Canvas = MockCanvas
+
+MockCanvasCourse = MagicMock()
+mock_canvas_api.course.Course = MockCanvasCourse
+
+MockCanvasUser = MagicMock()
+mock_canvas_api.user.User = MockCanvasUser
+
+MockCanvasAssignment = MagicMock()
+mock_canvas_api.assignment.Assignment = MockCanvasAssignment
+
+MockCanvasModule = MagicMock()
+mock_canvas_api.module.Module = MockCanvasModule
+
+MockCanvasModuleItem = MagicMock()
+mock_canvas_api.module.ModuleItem = MockCanvasModuleItem
+
+MockCanvasDiscussionTopic = MagicMock() # For announcements
+mock_canvas_api.discussion_topic.DiscussionTopic = MockCanvasDiscussionTopic
+
+MockPaginatedList = MagicMock()
+mock_canvas_api.paginated_list.PaginatedList = MockPaginatedList
+MockPaginatedList.side_effect = lambda x: list(x) # Simple mock: behave like list()
+
+MockResourceDoesNotExist = type('ResourceDoesNotExist', (Exception,), {})
+mock_canvas_api.exceptions.ResourceDoesNotExist = MockResourceDoesNotExist
 
 
-class TestCanvasClient(unittest.TestCase):
-    """Test suite for the Canvas client functionality."""
+class TestCanvasClientSQLAlchemy(unittest.TestCase):
+    """Test suite for the Canvas client functionality with SQLAlchemy."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Patch sys.modules once for the class."""
+        # Ensure the patch is active if it wasn't started earlier
+        if not sys_modules_patch.is_started:
+             sys_modules_patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        """Stop the sys.modules patch."""
+        sys_modules_patch.stop()
 
     def setUp(self):
         """Set up test environment before each test."""
-        # Create a temporary database for testing
-        self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
-        self.db_path = self.temp_db.name
-        self.temp_db.close()
+        # Use in-memory SQLite database for testing
+        self.engine = create_engine("sqlite:///:memory:")
+        # Create schema based on models
+        init_db(self.engine)
+        # Create a session factory bound to the test engine
+        self.TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
-        # Create test database schema
-        self.conn = sqlite3.connect(self.db_path)
-        self.cursor = self.conn.cursor()
+        # Mock the Canvas class from canvasapi *within* canvas_client module specifically
+        # This ensures our client uses the mock, not a potentially real one
+        self.canvas_patch = patch('canvas_mcp.canvas_client.Canvas', new=MockCanvas)
+        self.mock_canvas_class = self.canvas_patch.start()
+        # Reset the mock before each test
+        self.mock_canvas = self.mock_canvas_class.return_value
+        self.mock_canvas.reset_mock() # Clear previous calls/instances
 
-        # Create minimal schema for testing
-        self._create_test_schema()
-
-        # Set up the client with mock Canvas API
+        # Initialize the client with the testing session factory and mock API details
         self.api_key = "test_api_key"
         self.api_url = "https://test.instructure.com"
+        # Pass the testing session factory
+        self.client = CanvasClient(db_session_factory=self.TestingSessionLocal, api_key=self.api_key, api_url=self.api_url)
+        # Ensure the client's internal canvas instance is our mock
+        self.client.canvas = self.mock_canvas
 
-        # Patch the Canvas class to avoid actual API calls
-        self.canvas_patch = patch('canvas_mcp.canvas_client.Canvas')
-        self.mock_canvas_class = self.canvas_patch.start()
-        self.mock_canvas = self.mock_canvas_class.return_value
+        # Verify mock setup
+        self.assertIsNotNone(self.client.canvas, "Client canvas should be mocked")
 
-        # Initialize the client
-        self.client = CanvasClient(self.db_path, self.api_key, self.api_url)
-        self.client.canvas = self.mock_canvas  # Use the mocked Canvas instance
 
     def tearDown(self):
         """Clean up test environment after each test."""
         self.canvas_patch.stop()
-        self.conn.close()
-        os.unlink(self.db_path)
+        # Dispose of the engine to close connections
+        self.engine.dispose()
 
-    def _create_test_schema(self):
-        """Create a minimal test database schema."""
-        # Create courses table
-        self.cursor.execute("""
-        CREATE TABLE courses (
-            id INTEGER PRIMARY KEY,
-            canvas_course_id INTEGER UNIQUE NOT NULL,
-            course_code TEXT NOT NULL,
-            course_name TEXT NOT NULL,
-            instructor TEXT,
-            description TEXT,
-            start_date TIMESTAMP,
-            end_date TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """)
+    def _get_test_session(self):
+        """Helper to get a session for test assertions."""
+        return self.TestingSessionLocal()
 
-        # Create syllabi table
-        self.cursor.execute("""
-        CREATE TABLE syllabi (
-            id INTEGER PRIMARY KEY,
-            course_id INTEGER NOT NULL,
-            content TEXT,
-            parsed_content TEXT,
-            is_parsed BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
-        )
-        """)
+    def test_parse_canvas_datetime(self):
+        """Test the datetime parsing helper."""
+        self.assertIsNone(parse_canvas_datetime(None))
+        self.assertIsNone(parse_canvas_datetime(""))
+        self.assertIsNone(parse_canvas_datetime("invalid date"))
+        dt_zulu = parse_canvas_datetime("2025-02-15T23:59:00Z")
+        self.assertEqual(dt_zulu, datetime(2025, 2, 15, 23, 59, 0))
+        dt_offset = parse_canvas_datetime("2025-02-15T18:59:00-05:00")
+        # Note: fromisoformat preserves offset, test against expected UTC or naive representation if needed
+        self.assertEqual(dt_offset.hour, 18)
+        self.assertEqual(dt_offset.minute, 59)
 
-        # Create assignments table
-        self.cursor.execute("""
-        CREATE TABLE assignments (
-            id INTEGER PRIMARY KEY,
-            course_id INTEGER NOT NULL,
-            canvas_assignment_id INTEGER,
-            title TEXT NOT NULL,
-            description TEXT,
-            assignment_type TEXT,
-            due_date TIMESTAMP,
-            available_from TIMESTAMP,
-            available_until TIMESTAMP,
-            points_possible REAL,
-            submission_types TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-            UNIQUE (course_id, canvas_assignment_id)
-        )
-        """)
-
-        # Create modules table
-        self.cursor.execute("""
-        CREATE TABLE modules (
-            id INTEGER PRIMARY KEY,
-            course_id INTEGER NOT NULL,
-            canvas_module_id INTEGER,
-            name TEXT NOT NULL,
-            description TEXT,
-            unlock_date TIMESTAMP,
-            position INTEGER,
-            require_sequential_progress BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-            UNIQUE (course_id, canvas_module_id)
-        )
-        """)
-
-        # Create calendar_events table
-        self.cursor.execute("""
-        CREATE TABLE calendar_events (
-            id INTEGER PRIMARY KEY,
-            course_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            event_type TEXT NOT NULL,
-            source_type TEXT,
-            source_id INTEGER,
-            event_date TIMESTAMP NOT NULL,
-            end_date TIMESTAMP,
-            all_day BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
-        )
-        """)
-
-        # Create user_courses table for opt-out functionality
-        self.cursor.execute("""
-        CREATE TABLE user_courses (
-            id INTEGER PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            course_id INTEGER NOT NULL,
-            indexing_opt_out BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
-            UNIQUE (user_id, course_id)
-        )
-        """)
-
-        # Create announcements table
-        self.cursor.execute("""
-        CREATE TABLE announcements (
-            id INTEGER PRIMARY KEY,
-            course_id INTEGER NOT NULL,
-            canvas_announcement_id INTEGER,
-            title TEXT NOT NULL,
-            content TEXT,
-            posted_by TEXT,
-            posted_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
-        )
-        """)
-
-        self.conn.commit()
-
-    def test_connect_db(self):
-        """Test that the database connection is successful."""
-        conn, cursor = self.client.connect_db()
-        self.assertIsInstance(conn, sqlite3.Connection)
-        self.assertIsInstance(cursor, sqlite3.Cursor)
-        conn.close()
 
     def test_sync_courses(self):
         """Test syncing courses from Canvas to the database."""
         # Mock user and courses
-        mock_user = MagicMock()
-        mock_user.id = "test_user_id"
+        mock_user = MagicMock(spec=CanvasUser) # Use spec for better mocking
+        mock_user.id = 999
         self.mock_canvas.get_current_user.return_value = mock_user
 
-        # Create mock courses
-        mock_course1 = MagicMock()
-        mock_course1.id = 12345
-        mock_course1.name = "Test Course 1"
-        mock_course1.course_code = "TST101"
+        mock_course1_api = MagicMock(spec=CanvasCourse)
+        mock_course1_api.id = 12345
+        mock_course1_api.name = "Test Course 1"
+        mock_course1_api.course_code = "TST101"
+        mock_course1_api.enrollment_term_id = 1
+        mock_course1_api.start_at = "2025-01-10T00:00:00Z"
+        mock_course1_api.end_at = "2025-05-10T00:00:00Z"
 
-        mock_course2 = MagicMock()
-        mock_course2.id = 67890
-        mock_course2.name = "Test Course 2"
-        mock_course2.course_code = "TST102"
+        mock_course2_api = MagicMock(spec=CanvasCourse)
+        mock_course2_api.id = 67890
+        mock_course2_api.name = "Test Course 2"
+        mock_course2_api.course_code = "TST102"
+        mock_course2_api.enrollment_term_id = 1
+        mock_course2_api.start_at = "2025-01-15T00:00:00Z"
+        mock_course2_api.end_at = "2025-05-15T00:00:00Z"
 
-        # Mock Canvas API responses - now user directly gets courses
-        self.mock_canvas.get_current_user.return_value.get_courses = MagicMock(
-            return_value=[mock_course1, mock_course2]
-        )
+        # Mock the user's get_courses method
+        mock_user.get_courses.return_value = [mock_course1_api, mock_course2_api]
 
-        # Mock detailed course info
-        mock_detailed_course1 = MagicMock()
-        mock_detailed_course1.teacher = "Test Instructor"
-        mock_detailed_course1.description = "Course description"
-        mock_detailed_course1.start_at = "2025-01-10T00:00:00Z"
-        mock_detailed_course1.end_at = "2025-05-10T00:00:00Z"
-        mock_detailed_course1.syllabus_body = "<p>This is the syllabus content</p>"
+        # Mock detailed course info (get_course call)
+        mock_teacher1 = MagicMock()
+        mock_teacher1.name = "Prof One"
+        mock_detailed_course1 = MagicMock(spec=CanvasCourse)
+        mock_detailed_course1.id = 12345 # Ensure ID matches
+        mock_detailed_course1.teachers = [mock_teacher1]
+        mock_detailed_course1.public_description = "Course 1 description"
+        mock_detailed_course1.syllabus_body = "<p>Syllabus 1</p>"
+        mock_detailed_course1.start_at = mock_course1_api.start_at
+        mock_detailed_course1.end_at = mock_course1_api.end_at
 
-        mock_detailed_course2 = MagicMock()
-        mock_detailed_course2.teacher = "Another Instructor"
-        mock_detailed_course2.description = "Another description"
-        mock_detailed_course2.start_at = "2025-01-15T00:00:00Z"
-        mock_detailed_course2.end_at = "2025-05-15T00:00:00Z"
-        mock_detailed_course2.syllabus_body = "<p>Another syllabus content</p>"
+        mock_teacher2 = MagicMock()
+        mock_teacher2.name = "Prof Two"
+        mock_detailed_course2 = MagicMock(spec=CanvasCourse)
+        mock_detailed_course2.id = 67890 # Ensure ID matches
+        mock_detailed_course2.teachers = [mock_teacher2]
+        mock_detailed_course2.public_description = "Course 2 description"
+        mock_detailed_course2.syllabus_body = "<p>Syllabus 2</p>"
+        mock_detailed_course2.start_at = mock_course2_api.start_at
+        mock_detailed_course2.end_at = mock_course2_api.end_at
 
-        # Configure mock to return detailed courses
-        def get_course_side_effect(course_id):
+        # Configure get_course mock to return detailed info based on ID
+        def get_course_side_effect(course_id, **kwargs):
             if course_id == 12345:
                 return mock_detailed_course1
             elif course_id == 67890:
                 return mock_detailed_course2
             else:
-                raise ValueError(f"Unknown course ID: {course_id}")
-
+                raise MockResourceDoesNotExist(f"Course {course_id} not found")
         self.mock_canvas.get_course.side_effect = get_course_side_effect
 
         # Run the sync
-        course_ids = self.client.sync_courses()
+        synced_ids = self.client.sync_courses()
 
-        # Verify courses were added to database
-        conn, cursor = self.client.connect_db()
-        cursor.execute("SELECT * FROM courses")
-        courses = cursor.fetchall()
+        # Verify API calls
+        self.mock_canvas.get_current_user.assert_called_once()
+        mock_user.get_courses.assert_called_once_with(include=["term", "teachers"])
+        self.assertEqual(self.mock_canvas.get_course.call_count, 2)
+        # Check that include flags were passed to get_course
+        self.mock_canvas.get_course.assert_any_call(12345, include=["syllabus_body", "teachers"])
+        self.mock_canvas.get_course.assert_any_call(67890, include=["syllabus_body", "teachers"])
+
+
+        # Verify database state
+        session = self._get_test_session()
+        courses = session.query(Course).order_by(Course.canvas_course_id).all()
+        syllabi = session.query(Syllabus).join(Course).order_by(Course.canvas_course_id).all()
+        session.close()
+
+        self.assertEqual(len(synced_ids), 2)
         self.assertEqual(len(courses), 2)
-
-        # Verify syllabus content was saved
-        cursor.execute("SELECT * FROM syllabi")
-        syllabi = cursor.fetchall()
         self.assertEqual(len(syllabi), 2)
 
-        conn.close()
+        # Check Course 1 data
+        self.assertEqual(courses[0].canvas_course_id, 12345)
+        self.assertEqual(courses[0].course_code, "TST101")
+        self.assertEqual(courses[0].instructor, "Prof One")
+        self.assertEqual(courses[0].description, "Course 1 description")
+        self.assertEqual(courses[0].start_date, datetime(2025, 1, 10))
+        self.assertEqual(syllabi[0].content, "<p>Syllabus 1</p>")
+        self.assertEqual(syllabi[0].course_id, courses[0].id)
+        self.assertIn(courses[0].id, synced_ids)
 
-        # Verify the API was called with expected parameters
-        self.mock_canvas.get_current_user.assert_called()
-        self.mock_canvas.get_current_user.return_value.get_courses.assert_called_once()
-        self.assertEqual(self.mock_canvas.get_course.call_count, 2)
+        # Check Course 2 data
+        self.assertEqual(courses[1].canvas_course_id, 67890)
+        self.assertEqual(courses[1].course_code, "TST102")
+        self.assertEqual(courses[1].instructor, "Prof Two")
+        self.assertEqual(courses[1].description, "Course 2 description")
+        self.assertEqual(courses[1].start_date, datetime(2025, 1, 15))
+        self.assertEqual(syllabi[1].content, "<p>Syllabus 2</p>")
+        self.assertEqual(syllabi[1].course_id, courses[1].id)
+        self.assertIn(courses[1].id, synced_ids)
 
-        # Verify correct return value
-        self.assertEqual(len(course_ids), 2)
 
     def test_sync_courses_with_term_filter(self):
         """Test syncing courses with term filtering."""
-        # Mock user and courses with term IDs
-        mock_user = MagicMock()
-        mock_user.id = "test_user_id"
+        mock_user = MagicMock(spec=CanvasUser)
+        mock_user.id = 999
         self.mock_canvas.get_current_user.return_value = mock_user
 
-        # Create mock courses with different enrollment term IDs
-        mock_course1 = MagicMock()
-        mock_course1.id = 12345
-        mock_course1.name = "Term 1 Course"
-        mock_course1.course_code = "TST101"
-        mock_course1.enrollment_term_id = 1
+        mock_course1 = MagicMock(spec=CanvasCourse, id=1, name="Term 1 Course", enrollment_term_id=10)
+        mock_course2 = MagicMock(spec=CanvasCourse, id=2, name="Term 2 Course", enrollment_term_id=20)
+        mock_course3 = MagicMock(spec=CanvasCourse, id=3, name="Term 3 Course", enrollment_term_id=30) # Latest
 
-        mock_course2 = MagicMock()
-        mock_course2.id = 67890
-        mock_course2.name = "Term 2 Course"
-        mock_course2.course_code = "TST102"
-        mock_course2.enrollment_term_id = 2
+        mock_user.get_courses.return_value = [mock_course1, mock_course2, mock_course3]
 
-        mock_course3 = MagicMock()
-        mock_course3.id = 13579
-        mock_course3.name = "Term 3 Course"
-        mock_course3.course_code = "TST103"
-        mock_course3.enrollment_term_id = 3  # Latest term
-
-        # Mock Canvas API responses
-        self.mock_canvas.get_current_user.return_value.get_courses = MagicMock(
-            return_value=[mock_course1, mock_course2, mock_course3]
-        )
-
-        # Mock detailed course info
-        mock_detailed_course1 = MagicMock()
-        mock_detailed_course1.teacher = "Test Instructor"
-        mock_detailed_course1.description = "Course description"
-
-        mock_detailed_course2 = MagicMock()
-        mock_detailed_course2.teacher = "Another Instructor"
-        mock_detailed_course2.description = "Another description"
-
-        mock_detailed_course3 = MagicMock()
-        mock_detailed_course3.teacher = "Latest Instructor"
-        mock_detailed_course3.description = "Latest description"
-
-        # Configure mock to return detailed courses
-        def get_course_side_effect(course_id):
-            if course_id == 12345:
-                return mock_detailed_course1
-            elif course_id == 67890:
-                return mock_detailed_course2
-            elif course_id == 13579:
-                return mock_detailed_course3
-            else:
-                raise ValueError(f"Unknown course ID: {course_id}")
-
+        # Mock get_course to return minimal info, focusing on filtering logic
+        def get_course_side_effect(course_id, **kwargs):
+            if course_id == 1: return MagicMock(spec=CanvasCourse, id=1, name="Term 1 Course", teachers=[], syllabus_body="")
+            if course_id == 2: return MagicMock(spec=CanvasCourse, id=2, name="Term 2 Course", teachers=[], syllabus_body="")
+            if course_id == 3: return MagicMock(spec=CanvasCourse, id=3, name="Term 3 Course", teachers=[], syllabus_body="")
+            raise MockResourceDoesNotExist()
         self.mock_canvas.get_course.side_effect = get_course_side_effect
 
-        # Test case 1: Filter for specific term (term_id=2)
-        self.client.sync_courses(term_id=2)
+        # Test case 1: Filter for specific term (term_id=20)
+        synced_ids_term20 = self.client.sync_courses(term_id=20)
 
-        # Verify only term 2 course was added
-        conn, cursor = self.client.connect_db()
-        cursor.execute("SELECT * FROM courses")
-        courses = cursor.fetchall()
-        self.assertEqual(len(courses), 1)
+        session = self._get_test_session()
+        courses_term20 = session.query(Course).all()
+        session.close()
+        self.assertEqual(len(synced_ids_term20), 1)
+        self.assertEqual(len(courses_term20), 1)
+        self.assertEqual(courses_term20[0].canvas_course_id, 2) # Course with term_id 20
 
-        # Reset database for next test
-        cursor.execute("DELETE FROM courses")
-        cursor.execute("DELETE FROM syllabi")
-        conn.commit()
+        # Clear DB for next test
+        Base.metadata.drop_all(self.engine)
+        Base.metadata.create_all(self.engine)
+        self.mock_canvas.get_course.reset_mock() # Reset call count
 
         # Test case 2: Filter for latest term (term_id=-1)
-        self.client.sync_courses(term_id=-1)
+        synced_ids_latest = self.client.sync_courses(term_id=-1)
 
-        # Verify only term 3 course (latest) was added
-        cursor.execute("SELECT * FROM courses")
-        courses = cursor.fetchall()
-        self.assertEqual(len(courses), 1)
+        session = self._get_test_session()
+        courses_latest = session.query(Course).all()
+        session.close()
+        self.assertEqual(len(synced_ids_latest), 1)
+        self.assertEqual(len(courses_latest), 1)
+        self.assertEqual(courses_latest[0].canvas_course_id, 3) # Course with max term_id 30
 
-        # Verify it's the correct course (term 3)
-        cursor.execute("SELECT canvas_course_id FROM courses")
-        canvas_id = cursor.fetchone()[0]
-        self.assertEqual(canvas_id, 13579)  # The ID of the term 3 course
-
-        conn.close()
 
     def test_sync_assignments(self):
         """Test syncing assignments from Canvas to the database."""
-        # First create a course in the database
-        conn, cursor = self.client.connect_db()
-        cursor.execute(
-            "INSERT INTO courses (canvas_course_id, course_code, course_name) VALUES (?, ?, ?)",
-            (12345, "TST101", "Test Course")
-        )
-        conn.commit()
-
-        # Get the local course ID
-        cursor.execute("SELECT id FROM courses WHERE canvas_course_id = ?", (12345,))
-        local_course_id = cursor.fetchone()[0]
-        conn.close()
+        # Setup: Create a course in the DB first
+        session = self._get_test_session()
+        local_course = Course(canvas_course_id=123, course_code="PRE101", course_name="Prereq Course")
+        session.add(local_course)
+        session.commit()
+        local_course_id = local_course.id
+        session.close()
 
         # Mock Canvas API course and assignments
-        mock_course = MagicMock()
+        mock_canvas_course = MagicMock(spec=CanvasCourse)
+        self.mock_canvas.get_course.return_value = mock_canvas_course
 
-        # Create mock assignments
-        mock_assignment1 = MagicMock()
-        mock_assignment1.id = 9876
-        mock_assignment1.name = "Assignment 1"
-        mock_assignment1.description = "Description for assignment 1"
-        mock_assignment1.due_at = "2025-02-15T23:59:00Z"
-        mock_assignment1.unlock_at = "2025-02-01T00:00:00Z"
-        mock_assignment1.lock_at = "2025-02-16T23:59:00Z"
-        mock_assignment1.points_possible = 100
-        mock_assignment1.submission_types = ["online_text_entry", "online_upload"]
+        mock_assignment1_api = MagicMock(spec=CanvasAssignment)
+        mock_assignment1_api.id = 9876
+        mock_assignment1_api.name = "Assignment 1"
+        mock_assignment1_api.description = "Desc 1"
+        mock_assignment1_api.due_at = "2025-02-15T23:59:00Z"
+        mock_assignment1_api.unlock_at = "2025-02-01T00:00:00Z"
+        mock_assignment1_api.lock_at = "2025-02-16T23:59:00Z"
+        mock_assignment1_api.points_possible = 100.0
+        mock_assignment1_api.submission_types = ["online_text_entry", "online_upload"]
 
-        mock_assignment2 = MagicMock()
-        mock_assignment2.id = 5432
-        mock_assignment2.name = "Quiz 1"
-        mock_assignment2.description = "Description for quiz 1"
-        mock_assignment2.due_at = "2025-03-01T23:59:00Z"
-        mock_assignment2.unlock_at = "2025-02-20T00:00:00Z"
-        mock_assignment2.lock_at = "2025-03-02T23:59:00Z"
-        mock_assignment2.points_possible = 50
-        mock_assignment2.submission_types = ["online_quiz"]
+        mock_assignment2_api = MagicMock(spec=CanvasAssignment)
+        mock_assignment2_api.id = 5432
+        mock_assignment2_api.name = "Quiz 1"
+        mock_assignment2_api.description = "Desc 2"
+        mock_assignment2_api.due_at = "2025-03-01T23:59:00Z"
+        mock_assignment2_api.unlock_at = None # Test None date
+        mock_assignment2_api.lock_at = None
+        mock_assignment2_api.points_possible = 50.5
+        mock_assignment2_api.submission_types = ["online_quiz"]
 
-        # Set up mock returns
-        self.mock_canvas.get_course.return_value = mock_course
-        mock_course.get_assignments.return_value = [mock_assignment1, mock_assignment2]
+        # Use MockPaginatedList for get_assignments
+        mock_canvas_course.get_assignments.return_value = MockPaginatedList([mock_assignment1_api, mock_assignment2_api])
 
-        # Run the sync
-        course_ids = [local_course_id]
-        assignment_count = self.client.sync_assignments(course_ids)
+        # Run the sync for the specific course
+        assignment_count = self.client.sync_assignments([local_course_id])
 
-        # Verify assignments were added to database
-        conn, cursor = self.client.connect_db()
-        cursor.execute("SELECT * FROM assignments")
-        assignments = cursor.fetchall()
-        self.assertEqual(len(assignments), 2)
+        # Verify API calls
+        self.mock_canvas.get_course.assert_called_once_with(123)
+        mock_canvas_course.get_assignments.assert_called_once()
 
-        # Verify calendar events were created
-        cursor.execute("SELECT * FROM calendar_events")
-        events = cursor.fetchall()
-        self.assertEqual(len(events), 2)
+        # Verify database state
+        session = self._get_test_session()
+        assignments = session.query(Assignment).filter_by(course_id=local_course_id).order_by(Assignment.canvas_assignment_id).all()
+        calendar_events = session.query(CalendarEvent).filter_by(course_id=local_course_id).order_by(CalendarEvent.event_date).all()
+        session.close()
 
-        conn.close()
-
-        # Verify correct return value
         self.assertEqual(assignment_count, 2)
+        self.assertEqual(len(assignments), 2)
+        self.assertEqual(len(calendar_events), 2) # One for each due date
+
+        # Check Assignment 1 data
+        self.assertEqual(assignments[1].canvas_assignment_id, 9876) # Order by canvas_id
+        self.assertEqual(assignments[1].title, "Assignment 1")
+        self.assertEqual(assignments[1].assignment_type, "assignment")
+        self.assertEqual(assignments[1].due_date, datetime(2025, 2, 15, 23, 59))
+        self.assertEqual(assignments[1].points_possible, 100.0)
+        self.assertEqual(assignments[1].submission_types, "online_text_entry,online_upload")
+
+        # Check Assignment 2 data
+        self.assertEqual(assignments[0].canvas_assignment_id, 5432) # Order by canvas_id
+        self.assertEqual(assignments[0].title, "Quiz 1")
+        self.assertEqual(assignments[0].assignment_type, "quiz")
+        self.assertEqual(assignments[0].due_date, datetime(2025, 3, 1, 23, 59))
+        self.assertEqual(assignments[0].points_possible, 50.5)
+        self.assertIsNone(assignments[0].available_from) # Check None date
+
+        # Check Calendar Events
+        self.assertEqual(calendar_events[0].source_type, "assignment")
+        self.assertEqual(calendar_events[0].source_id, assignments[1].id) # Event for assignment 1
+        self.assertEqual(calendar_events[0].event_date, assignments[1].due_date)
+        self.assertEqual(calendar_events[1].source_type, "assignment")
+        self.assertEqual(calendar_events[1].source_id, assignments[0].id) # Event for assignment 2
+        self.assertEqual(calendar_events[1].event_date, assignments[0].due_date)
+
 
     def test_sync_modules(self):
-        """Test syncing modules from Canvas to the database."""
-        # First create a course in the database
-        conn, cursor = self.client.connect_db()
-        cursor.execute(
-            "INSERT INTO courses (canvas_course_id, course_code, course_name) VALUES (?, ?, ?)",
-            (12345, "TST101", "Test Course")
-        )
-        conn.commit()
-
-        # Get the local course ID
-        cursor.execute("SELECT id FROM courses WHERE canvas_course_id = ?", (12345,))
-        local_course_id = cursor.fetchone()[0]
-        conn.close()
+        """Test syncing modules and items from Canvas to the database."""
+        # Setup: Create a course in the DB first
+        session = self._get_test_session()
+        local_course = Course(canvas_course_id=123, course_code="PRE101", course_name="Prereq Course")
+        session.add(local_course)
+        session.commit()
+        local_course_id = local_course.id
+        session.close()
 
         # Mock Canvas API course and modules
-        mock_course = MagicMock()
+        mock_canvas_course = MagicMock(spec=CanvasCourse)
+        self.mock_canvas.get_course.return_value = mock_canvas_course
 
-        # Create mock modules
-        mock_module1 = MagicMock()
-        mock_module1.id = 1111
-        mock_module1.name = "Module 1"
-        mock_module1.position = 1
+        mock_module1_api = MagicMock(spec=CanvasModule)
+        mock_module1_api.id = 111
+        mock_module1_api.name = "Module 1"
+        mock_module1_api.position = 1
+        mock_module1_api.unlock_at = "2025-01-20T00:00:00Z"
+        mock_module1_api.require_sequential_progress = False
 
-        mock_module2 = MagicMock()
-        mock_module2.id = 2222
-        mock_module2.name = "Module 2"
-        mock_module2.position = 2
+        mock_module2_api = MagicMock(spec=CanvasModule)
+        mock_module2_api.id = 222
+        mock_module2_api.name = "Module 2"
+        mock_module2_api.position = 2
+        mock_module2_api.unlock_at = None
+        mock_module2_api.require_sequential_progress = True
 
-        # Mock module items
-        mock_item1 = MagicMock()
-        mock_item1.id = 101
-        mock_item1.title = "Item 1"
-        mock_item1.type = "Assignment"
-        mock_item1.position = 1
+        mock_canvas_course.get_modules.return_value = MockPaginatedList([mock_module1_api, mock_module2_api])
 
-        mock_item2 = MagicMock()
-        mock_item2.id = 102
-        mock_item2.title = "Item 2"
-        mock_item2.type = "Page"
-        mock_item2.position = 2
+        # Mock Module Items
+        mock_item1_api = MagicMock(spec=CanvasModuleItem)
+        mock_item1_api.id = 101
+        mock_item1_api.title = "Item 1 Page"
+        mock_item1_api.type = "Page"
+        mock_item1_api.position = 1
+        mock_item1_api.content_id = 501
+        mock_item1_api.page_url = "item-1-page"
+        mock_item1_api.external_url = None
 
-        # Set up mock returns
-        self.mock_canvas.get_course.return_value = mock_course
-        mock_course.get_modules.return_value = [mock_module1, mock_module2]
+        mock_item2_api = MagicMock(spec=CanvasModuleItem)
+        mock_item2_api.id = 102
+        mock_item2_api.title = "Item 2 Assignment"
+        mock_item2_api.type = "Assignment"
+        mock_item2_api.position = 2
+        mock_item2_api.content_id = 9876 # Matches assignment ID from previous test if needed
+        mock_item2_api.page_url = None
+        mock_item2_api.external_url = None
 
-        # Create a table for module items
-        conn, cursor = self.client.connect_db()
-        cursor.execute("""
-        CREATE TABLE module_items (
-            id INTEGER PRIMARY KEY,
-            module_id INTEGER NOT NULL,
-            canvas_item_id INTEGER,
-            title TEXT NOT NULL,
-            item_type TEXT NOT NULL,
-            position INTEGER,
-            url TEXT,
-            page_url TEXT,
-            content_details TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
-        )
-        """)
-        conn.commit()
-        conn.close()
-
-        # Mock get_module_items method
-        mock_module1.get_module_items = MagicMock(return_value=[mock_item1, mock_item2])
-        mock_module2.get_module_items = MagicMock(return_value=[])
+        # Mock get_module_items for each module
+        mock_module1_api.get_module_items.return_value = MockPaginatedList([mock_item1_api, mock_item2_api])
+        mock_module2_api.get_module_items.return_value = MockPaginatedList([]) # Module 2 has no items
 
         # Run the sync
-        course_ids = [local_course_id]
-        module_count = self.client.sync_modules(course_ids)
+        module_count = self.client.sync_modules([local_course_id])
 
-        # Verify modules were added to database
-        conn, cursor = self.client.connect_db()
-        cursor.execute("SELECT * FROM modules")
-        modules = cursor.fetchall()
-        self.assertEqual(len(modules), 2)
+        # Verify API calls
+        self.mock_canvas.get_course.assert_called_once_with(123)
+        mock_canvas_course.get_modules.assert_called_once_with(include=["module_items"])
+        mock_module1_api.get_module_items.assert_called_once()
+        mock_module2_api.get_module_items.assert_called_once()
 
-        # Verify correct return value
+
+        # Verify database state
+        session = self._get_test_session()
+        modules = session.query(Module).filter_by(course_id=local_course_id).order_by(Module.position).all()
+        # Eager load items for verification
+        items = session.query(ModuleItem).join(Module).filter(Module.course_id==local_course_id).order_by(Module.position, ModuleItem.position).all()
+        session.close()
+
         self.assertEqual(module_count, 2)
+        self.assertEqual(len(modules), 2)
+        self.assertEqual(len(items), 2) # Only module 1 has items
 
-        conn.close()
+        # Check Module 1 data
+        self.assertEqual(modules[0].canvas_module_id, 111)
+        self.assertEqual(modules[0].name, "Module 1")
+        self.assertEqual(modules[0].unlock_date, datetime(2025, 1, 20))
+        self.assertFalse(modules[0].require_sequential_progress)
+
+        # Check Module 2 data
+        self.assertEqual(modules[1].canvas_module_id, 222)
+        self.assertEqual(modules[1].name, "Module 2")
+        self.assertIsNone(modules[1].unlock_date)
+        self.assertTrue(modules[1].require_sequential_progress)
+
+        # Check Module 1 Items
+        self.assertEqual(items[0].canvas_item_id, 101)
+        self.assertEqual(items[0].title, "Item 1 Page")
+        self.assertEqual(items[0].item_type, "Page")
+        self.assertEqual(items[0].module_id, modules[0].id)
+        self.assertEqual(items[0].page_url, "item-1-page")
+
+        self.assertEqual(items[1].canvas_item_id, 102)
+        self.assertEqual(items[1].title, "Item 2 Assignment")
+        self.assertEqual(items[1].item_type, "Assignment")
+        self.assertEqual(items[1].content_id, 9876)
+        self.assertEqual(items[1].module_id, modules[0].id)
+
 
     def test_sync_announcements(self):
         """Test syncing announcements from Canvas to the database."""
-        # First create a course in the database
-        conn, cursor = self.client.connect_db()
-        cursor.execute(
-            "INSERT INTO courses (canvas_course_id, course_code, course_name) VALUES (?, ?, ?)",
-            (12345, "TST101", "Test Course")
-        )
-        conn.commit()
+        # Setup: Create a course
+        session = self._get_test_session()
+        local_course = Course(canvas_course_id=123, course_code="PRE101", course_name="Prereq Course")
+        session.add(local_course)
+        session.commit()
+        local_course_id = local_course.id
+        session.close()
 
-        # Get the local course ID
-        cursor.execute("SELECT id FROM courses WHERE canvas_course_id = ?", (12345,))
-        local_course_id = cursor.fetchone()[0]
-        conn.close()
+        # Mock Canvas API announcements (retrieved via get_announcements)
+        mock_announcement1_api = MagicMock(spec=CanvasDiscussionTopic)
+        mock_announcement1_api.id = 333
+        mock_announcement1_api.title = "Announce 1"
+        mock_announcement1_api.message = "<p>Message 1</p>"
+        mock_announcement1_api.posted_at = "2025-01-15T10:00:00Z"
+        mock_announcement1_api.author = {"display_name": "Prof Smith"}
+        mock_announcement1_api.announcement = True # Mark as announcement
 
-        # Mock Canvas API course and announcements
-        mock_course = MagicMock()
+        mock_announcement2_api = MagicMock(spec=CanvasDiscussionTopic)
+        mock_announcement2_api.id = 444
+        mock_announcement2_api.title = "Announce 2"
+        mock_announcement2_api.message = "<p>Message 2</p>"
+        mock_announcement2_api.posted_at = "2025-01-20T14:30:00Z"
+        mock_announcement2_api.author = {"display_name": "TA Jane"}
+        mock_announcement2_api.announcement = True
 
-        # Create mock announcements
-        mock_announcement1 = MagicMock()
-        mock_announcement1.id = 3333
-        mock_announcement1.title = "Announcement 1"
-        mock_announcement1.message = "This is the first announcement"
-        mock_announcement1.posted_at = "2025-01-15T10:00:00Z"
-        mock_announcement1.author_name = "Professor Smith"
-
-        mock_announcement2 = MagicMock()
-        mock_announcement2.id = 4444
-        mock_announcement2.title = "Announcement 2"
-        mock_announcement2.message = "This is the second announcement"
-        mock_announcement2.posted_at = "2025-01-20T14:30:00Z"
-        mock_announcement2.author_name = "Professor Smith"
-
-        # Set up mock returns
-        self.mock_canvas.get_course.return_value = mock_course
-        mock_course.get_discussion_topics.return_value = [mock_announcement1, mock_announcement2]
+        context_code = f"course_{local_course.canvas_course_id}"
+        self.mock_canvas.get_announcements.return_value = MockPaginatedList([mock_announcement1_api, mock_announcement2_api])
 
         # Run the sync
-        course_ids = [local_course_id]
-        announcement_count = self.client.sync_announcements(course_ids)
+        announcement_count = self.client.sync_announcements([local_course_id])
 
-        # Verify announcements were added to database
-        conn, cursor = self.client.connect_db()
-        cursor.execute("SELECT * FROM announcements")
-        announcements = cursor.fetchall()
+        # Verify API calls
+        self.mock_canvas.get_announcements.assert_called_once_with(context_codes=[context_code])
+
+        # Verify database state
+        session = self._get_test_session()
+        announcements = session.query(Announcement).filter_by(course_id=local_course_id).order_by(Announcement.canvas_announcement_id).all()
+        session.close()
+
+        self.assertEqual(announcement_count, 2)
         self.assertEqual(len(announcements), 2)
 
-        # Verify correct return value
-        self.assertEqual(announcement_count, 2)
+        # Check Announcement 1
+        self.assertEqual(announcements[0].canvas_announcement_id, 333)
+        self.assertEqual(announcements[0].title, "Announce 1")
+        self.assertEqual(announcements[0].content, "<p>Message 1</p>")
+        self.assertEqual(announcements[0].posted_by, "Prof Smith")
+        self.assertEqual(announcements[0].posted_at, datetime(2025, 1, 15, 10, 0))
 
-        conn.close()
+        # Check Announcement 2
+        self.assertEqual(announcements[1].canvas_announcement_id, 444)
+        self.assertEqual(announcements[1].title, "Announce 2")
+        self.assertEqual(announcements[1].content, "<p>Message 2</p>")
+        self.assertEqual(announcements[1].posted_by, "TA Jane")
+        self.assertEqual(announcements[1].posted_at, datetime(2025, 1, 20, 14, 30))
+
 
     def test_sync_all(self):
-        """Test syncing all data from Canvas to the database."""
-        # Mock all necessary Canvas API responses
-        mock_user = MagicMock()
-        mock_user.id = "test_user_id"
-        self.mock_canvas.get_current_user.return_value = mock_user
+        """Test syncing all data using sync_all method."""
+        # Mock sync methods to verify they are called with correct IDs
+        with patch.object(self.client, 'sync_courses', return_value=[1, 2]) as mock_sync_courses, \
+             patch.object(self.client, 'sync_assignments', return_value=5) as mock_sync_assignments, \
+             patch.object(self.client, 'sync_modules', return_value=10) as mock_sync_modules, \
+             patch.object(self.client, 'sync_announcements', return_value=3) as mock_sync_announcements:
 
-        # Create mock courses
-        mock_course = MagicMock()
-        mock_course.id = 12345
-        mock_course.name = "Test Course"
-        mock_course.course_code = "TST101"
+            # Run sync_all with specific term
+            result = self.client.sync_all(user_id_str="user123", term_id=99)
 
-        # Mock get_courses directly on user now
-        self.mock_canvas.get_current_user.return_value.get_courses = MagicMock(
-            return_value=[mock_course]
-        )
+            # Verify sync_courses was called correctly
+            mock_sync_courses.assert_called_once_with(user_id_str="user123", term_id=99)
 
-        # Mock detailed course
-        mock_detailed_course = MagicMock()
-        mock_detailed_course.teacher = "Test Instructor"
-        mock_detailed_course.description = "Course description"
-        mock_detailed_course.start_at = "2025-01-10T00:00:00Z"
-        mock_detailed_course.end_at = "2025-05-10T00:00:00Z"
-        mock_detailed_course.syllabus_body = "<p>This is the syllabus content</p>"
+            # Verify subsequent sync methods were called with the IDs from sync_courses
+            mock_sync_assignments.assert_called_once_with([1, 2])
+            mock_sync_modules.assert_called_once_with([1, 2])
+            mock_sync_announcements.assert_called_once_with([1, 2])
 
-        self.mock_canvas.get_course.return_value = mock_detailed_course
+            # Verify the result dictionary
+            expected_result = {
+                "courses": 2,
+                "assignments": 5,
+                "modules": 10,
+                "announcements": 3
+            }
+            self.assertEqual(result, expected_result)
 
-        # Mock assignments
-        mock_assignment = MagicMock()
-        mock_assignment.id = 9876
-        mock_assignment.name = "Assignment 1"
-        mock_assignment.description = "Description for assignment 1"
-        mock_assignment.due_at = "2025-02-15T23:59:00Z"
-        mock_assignment.unlock_at = "2025-02-01T00:00:00Z"
-        mock_assignment.lock_at = "2025-02-16T23:59:00Z"
-        mock_assignment.points_possible = 100
-        mock_assignment.submission_types = ["online_text_entry", "online_upload"]
+    def test_sync_all_no_courses_synced(self):
+        """Test sync_all when sync_courses returns no IDs."""
+        with patch.object(self.client, 'sync_courses', return_value=[]) as mock_sync_courses, \
+             patch.object(self.client, 'sync_assignments') as mock_sync_assignments, \
+             patch.object(self.client, 'sync_modules') as mock_sync_modules, \
+             patch.object(self.client, 'sync_announcements') as mock_sync_announcements:
 
-        mock_detailed_course.get_assignments.return_value = [mock_assignment]
+            result = self.client.sync_all(term_id=-1)
 
-        # Mock modules
-        mock_module = MagicMock()
-        mock_module.id = 1111
-        mock_module.name = "Module 1"
-        mock_module.position = 1
-        mock_module.get_module_items = MagicMock(return_value=[])
+            mock_sync_courses.assert_called_once_with(user_id_str=None, term_id=-1)
+            # Ensure other syncs were NOT called
+            mock_sync_assignments.assert_not_called()
+            mock_sync_modules.assert_not_called()
+            mock_sync_announcements.assert_not_called()
 
-        mock_detailed_course.get_modules.return_value = [mock_module]
-
-        # Mock announcements
-        mock_announcement = MagicMock()
-        mock_announcement.id = 3333
-        mock_announcement.title = "Announcement 1"
-        mock_announcement.message = "This is an announcement"
-        mock_announcement.posted_at = "2025-01-15T10:00:00Z"
-        mock_announcement.author_name = "Professor Smith"
-
-        mock_detailed_course.get_discussion_topics.return_value = [mock_announcement]
-
-        # Run the sync_all method
-        result = self.client.sync_all()
-
-        # Verify data was added to database
-        conn, cursor = self.client.connect_db()
-
-        cursor.execute("SELECT COUNT(*) FROM courses")
-        course_count = cursor.fetchone()[0]
-        self.assertEqual(course_count, 1)
-
-        cursor.execute("SELECT COUNT(*) FROM syllabi")
-        syllabi_count = cursor.fetchone()[0]
-        self.assertEqual(syllabi_count, 1)
-
-        # Create module_items table if needed for testing
-        try:
-            cursor.execute("""
-            CREATE TABLE module_items (
-                id INTEGER PRIMARY KEY,
-                module_id INTEGER NOT NULL,
-                canvas_item_id INTEGER,
-                title TEXT NOT NULL,
-                item_type TEXT NOT NULL,
-                position INTEGER,
-                url TEXT,
-                page_url TEXT,
-                content_details TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
-            )
-            """)
-            conn.commit()
-        except sqlite3.OperationalError:
-            # Table already exists
-            pass
-
-        # Verify the result
-        self.assertEqual(result["courses"], 1)
-        self.assertEqual(result["assignments"], 1)
-        self.assertEqual(result["modules"], 1)
-        self.assertEqual(result["announcements"], 1)
-
-        conn.close()
-
-    def test_sync_all_with_term_filter(self):
-        """Test syncing all data with term filtering."""
-        # Mock user and courses with term IDs
-        mock_user = MagicMock()
-        mock_user.id = "test_user_id"
-        self.mock_canvas.get_current_user.return_value = mock_user
-
-        # Create mock courses with different enrollment term IDs
-        mock_course1 = MagicMock()
-        mock_course1.id = 12345
-        mock_course1.name = "Term 1 Course"
-        mock_course1.course_code = "TST101"
-        mock_course1.enrollment_term_id = 1
-
-        mock_course2 = MagicMock()
-        mock_course2.id = 67890
-        mock_course2.name = "Term 2 Course"
-        mock_course2.course_code = "TST102"
-        mock_course2.enrollment_term_id = 2
-
-        # Mock Canvas API responses
-        self.mock_canvas.get_current_user.return_value.get_courses = MagicMock(
-            return_value=[mock_course1, mock_course2]
-        )
-
-        # Mock detailed course info
-        mock_detailed_course1 = MagicMock()
-        mock_detailed_course1.teacher = "Test Instructor"
-        mock_detailed_course1.description = "Course description"
-        mock_detailed_course1.syllabus_body = "<p>Syllabus content</p>"
-        mock_detailed_course1.get_assignments = MagicMock(return_value=[])
-        mock_detailed_course1.get_modules = MagicMock(return_value=[])
-        mock_detailed_course1.get_discussion_topics = MagicMock(return_value=[])
-
-        mock_detailed_course2 = MagicMock()
-        mock_detailed_course2.teacher = "Term 2 Instructor"
-        mock_detailed_course2.description = "Term 2 description"
-        mock_detailed_course2.syllabus_body = "<p>Term 2 syllabus</p>"
-
-        # Set up mock assignment, module, and announcement for term 2 course only
-        mock_assignment = MagicMock()
-        mock_assignment.id = 9876
-        mock_assignment.name = "Assignment 1"
-        mock_assignment.due_at = "2025-02-15T23:59:00Z"
-        mock_assignment.submission_types = ["online_text_entry"]
-
-        mock_module = MagicMock()
-        mock_module.id = 1111
-        mock_module.name = "Module 1"
-        mock_module.position = 1
-        mock_module.get_module_items = MagicMock(return_value=[])
-
-        mock_announcement = MagicMock()
-        mock_announcement.id = 3333
-        mock_announcement.title = "Announcement 1"
-        mock_announcement.message = "This is an announcement"
-
-        # Add the mocks to the second course
-        mock_detailed_course2.get_assignments = MagicMock(return_value=[mock_assignment])
-        mock_detailed_course2.get_modules = MagicMock(return_value=[mock_module])
-        mock_detailed_course2.get_discussion_topics = MagicMock(return_value=[mock_announcement])
-
-        # Configure mock to return detailed courses
-        def get_course_side_effect(course_id):
-            if course_id == 12345:
-                return mock_detailed_course1
-            elif course_id == 67890:
-                return mock_detailed_course2
-            else:
-                raise ValueError(f"Unknown course ID: {course_id}")
-
-        self.mock_canvas.get_course.side_effect = get_course_side_effect
-
-        # Run sync_all with term_id=2 filter - should only include term 2 course
-        result = self.client.sync_all(term_id=2)
-
-        # Verify only term 2 data was synced
-        conn, cursor = self.client.connect_db()
-
-        # Should have 1 course
-        cursor.execute("SELECT COUNT(*) FROM courses")
-        course_count = cursor.fetchone()[0]
-        self.assertEqual(course_count, 1)
-
-        # Verify it's the correct course (term 2)
-        cursor.execute("SELECT canvas_course_id FROM courses")
-        canvas_id = cursor.fetchone()[0]
-        self.assertEqual(canvas_id, 67890)  # The ID of the term 2 course
-
-        # Verify the counts in the returned result
-        self.assertEqual(result["courses"], 1)  # Only 1 course
-        self.assertEqual(result["assignments"], 1)  # Only term 2's assignment
-        self.assertEqual(result["modules"], 1)  # Only term 2's module
-        self.assertEqual(result["announcements"], 1)  # Only term 2's announcement
-
-        conn.close()
+            expected_result = {"courses": 0, "assignments": 0, "modules": 0, "announcements": 0}
+            self.assertEqual(result, expected_result)
 
 
 if __name__ == "__main__":
