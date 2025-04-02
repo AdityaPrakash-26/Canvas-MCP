@@ -149,14 +149,16 @@ def mock_announcement() -> MagicMock:
 @pytest.fixture
 def sample_course(db_session: Session) -> Course:
     """Create a sample course in the database for testing."""
+    from datetime import datetime, date
+    
     course = Course(
         canvas_course_id=67890,
         course_code="TST101",
         course_name="Test Course",
         instructor="Professor Smith",
         description="Test course description",
-        start_date="2023-08-28",
-        end_date="2023-12-15"
+        start_date=date(2023, 8, 28),
+        end_date=date(2023, 12, 15)
     )
     db_session.add(course)
     db_session.commit()
@@ -166,13 +168,19 @@ def sample_course(db_session: Session) -> Course:
 @pytest.fixture
 def sample_assignment(db_session: Session, sample_course: Course) -> Assignment:
     """Create a sample assignment in the database for testing."""
+    from datetime import datetime
+    from canvas_mcp.canvas_client import parse_canvas_datetime
+    
+    # Parse ISO date format or create a datetime directly
+    due_date = datetime(2023, 9, 15, 23, 59, 59)
+    
     assignment = Assignment(
         course_id=sample_course.id,
         canvas_assignment_id=54321,
         title="Test Assignment",
         description="Test assignment description",
         assignment_type="assignment",
-        due_date="2023-09-15T23:59:59Z",
+        due_date=due_date,
         points_possible=100
     )
     db_session.add(assignment)
@@ -225,13 +233,15 @@ def sample_syllabus(db_session: Session, sample_course: Course) -> Syllabus:
 @pytest.fixture
 def sample_announcement(db_session: Session, sample_course: Course) -> Announcement:
     """Create a sample announcement in the database for testing."""
+    from datetime import datetime
+    
     announcement = Announcement(
         course_id=sample_course.id,
         canvas_announcement_id=24680,
         title="Test Announcement",
-        message="Test announcement message",
-        posted_at="2023-08-30T10:00:00Z",
-        author="Professor Smith"
+        content="Test announcement message",  # Changed from message to content to match model
+        posted_at=datetime(2023, 8, 30, 10, 0, 0),
+        posted_by="Professor Smith"  # Changed from author to posted_by to match model
     )
     db_session.add(announcement)
     db_session.commit()
