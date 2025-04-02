@@ -4,11 +4,9 @@ Canvas API client for synchronizing data with the local database using SQLAlchem
 import os
 import sys
 from datetime import datetime
-from typing import Any, List, Optional, Type
 
 from dotenv import load_dotenv
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 # Add project root to sys.path to allow importing database and models
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -61,7 +59,7 @@ except ImportError as e:
     raise
 
 
-def parse_canvas_datetime(date_str: Optional[str]) -> Optional[datetime]:
+def parse_canvas_datetime(date_str: str | None) -> datetime | None:
     """Safely parse ISO 8601 datetime strings from Canvas API."""
     if not date_str:
         return None
@@ -81,9 +79,9 @@ class CanvasClient:
 
     def __init__(
         self,
-        db_session_factory: Type[SessionLocal] = SessionLocal,
-        api_key: Optional[str] = None,
-        api_url: Optional[str] = None,
+        db_session_factory: type[SessionLocal] = SessionLocal,
+        api_key: str | None = None,
+        api_url: str | None = None,
     ):
         """
         Initialize the Canvas client.
@@ -97,10 +95,19 @@ class CanvasClient:
         load_dotenv()
         self.api_key = api_key or os.environ.get("CANVAS_API_KEY")
         self.api_url = api_url or os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
-        self.db_session_factory = db_session_factory
+        
+        # Store as session factory function, not a string
+        if isinstance(db_session_factory, str):
+            print(f"Warning: db_session_factory is a string: {db_session_factory}")
+            self.db_session_factory = SessionLocal
+        else:
+            self.db_session_factory = db_session_factory
+            
+        # For storing current user
+        self.user = None
 
         # Initialize canvasapi if available and configured
-        self.canvas: Optional[Canvas] = None
+        self.canvas: Canvas | None = None
         if Canvas is not None and self.api_key and self.api_url:
             try:
                 self.canvas = Canvas(self.api_url, self.api_key)
@@ -120,7 +127,7 @@ class CanvasClient:
         """Get a new database session."""
         return self.db_session_factory()
 
-    def sync_courses(self, user_id_str: Optional[str] = None, term_id: Optional[int] = None) -> List[int]:
+    def sync_courses(self, user_id_str: str | None = None, term_id: int | None = None) -> list[int]:
         """
         Synchronize course data from Canvas to the local database.
 
@@ -144,7 +151,7 @@ class CanvasClient:
             print(f"Starting course sync for user ID: {user_id_str}")
 
             # Get courses for the user
-            canvas_courses: List[CanvasCourse] = list(current_user.get_courses(include=["term", "teachers"]))
+            canvas_courses: list[CanvasCourse] = list(current_user.get_courses(include=["term", "teachers"]))
             print(f"Found {len(canvas_courses)} potential courses in Canvas.")
 
             # Filter by term if requested
@@ -259,7 +266,7 @@ class CanvasClient:
 
         return synced_course_ids
 
-    def sync_assignments(self, local_course_ids: Optional[List[int]] = None) -> int:
+    def sync_assignments(self, local_course_ids: list[int] | None = None) -> int:
         """
         Synchronize assignment data from Canvas to the local database.
 
@@ -368,7 +375,7 @@ class CanvasClient:
 
         return assignment_count
 
-    def sync_modules(self, local_course_ids: Optional[List[int]] = None) -> int:
+    def sync_modules(self, local_course_ids: list[int] | None = None) -> int:
         """
         Synchronize module data and module items from Canvas to the local database.
 
@@ -483,7 +490,7 @@ class CanvasClient:
 
         return module_count
 
-    def sync_announcements(self, local_course_ids: Optional[List[int]] = None) -> int:
+    def sync_announcements(self, local_course_ids: list[int] | None = None) -> int:
         """
         Synchronize announcement data from Canvas to the local database.
 
@@ -569,7 +576,7 @@ class CanvasClient:
         return announcement_count
 
 
-    def sync_all(self, user_id_str: Optional[str] = None, term_id: Optional[int] = -1) -> dict[str, int]:
+    def sync_all(self, user_id_str: str | None = None, term_id: int | None = -1) -> dict[str, int]:
         """
         Synchronize all relevant data from Canvas to the local database.
 
