@@ -6,6 +6,8 @@ This repository contains our project for building a **Model Context Protocol (MC
 
 ## Getting Started
 
+# Mac:
+
 0. Install `uv` if you haven't already:
 ```bash
 # if you're paranoid about piping to sh, go read the script by copy pasting the URL
@@ -47,8 +49,9 @@ To install this MCP server in Claude Desktop:
 
 1. Open Claude Desktop
 2. Go to Settings > Advanced > Edit Configuration
-3. Add the following to your `claude_desktop_config.json` file in the `tools` section:
+3. (MAC ONLY) Add the following to your `claude_desktop_config.json` file in the `tools` section:
 (it is a key under mcpServers)
+4. (WINDOWS ONLY) See instructions below
 
 
 REPLACE $DIR with the absolute path to the directory where you cloned this repo. (MANDATORY!!!!!)
@@ -79,6 +82,38 @@ which uv
 ```
 
 
+# Windows
+
+We recommend using WSL (Windows Subsystem for Linux) to use this software. Installation instructions can be founder [here](https://learn.microsoft.com/en-us/windows/wsl/install).
+
+- Once installed, set up a new user in `/home/<username>`
+- Once you have the virtual environment setup, modify your claude desktop app config to include the following:
+
+```json
+"Canvas MCP": {
+  "command": "wsl.exe",
+  "args": [
+    "-d",
+    "Ubuntu",
+    "--exec",
+    "/home/<USER>/.local/bin/uv",
+    "run",
+    "--with",
+    "canvasapi>=3.3.0",
+    "--with",
+    "mcp[cli]",
+    "--with",
+    "python-dotenv>=1.0.1",
+    "--with",
+    "structlog>=24.1.0",
+    "--directory",
+    "/home/<USER>/Canvas-MCP",
+    "src/canvas_mcp/server.py"
+  ]
+}
+```
+
+Replace `<USER>` with your username.
 
 
 ## Running
