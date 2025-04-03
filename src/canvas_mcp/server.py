@@ -615,6 +615,72 @@ def opt_out_course(
         "opted_out": opt_out,
     }
 
+@mcp.tool()
+def get_my_grades(course_id: int = None) -> list[dict[str, Any]]:
+    """
+    Get grades for the current user based on the API token.
+    
+    Args:
+        course_id: Optional course ID to filter grades by a specific course
+    
+    Returns:
+        List of assignments with grades
+    """
+    # Check if we have a valid API token
+    if not API_KEY:
+        return [{"error": "No Canvas API token found. Please set CANVAS_API_KEY environment variable."}]
+    
+    try:
+        # Use canvas_client to get the current user ID first
+        user_profile = canvas_client.get_current_user_profile()
+        if not user_profile or "id" not in user_profile:
+            return [{"error": "Could not identify user from API token"}]
+        
+        user_id = user_profile["id"]
+        
+        # Now use the existing function to get grades
+        conn, cursor = db_connect()
+        
+        # Build the query
+        query = """
+        SELECT
+            c.id as course_id,
+            c.course_code,
+            c.course_name,
+            a.id as assignment_id,
+            a.title as assignment_title,
+            g.grade,
+            g.feedback,
+            a.points_possible,
+            g.graded_at
+        FROM
+            grades g
+        JOIN
+            assignments a ON g.assignment_id = a.id
+        JOIN
+            courses c ON a.course_id = c.id
+        WHERE
+            g.student_id = ?
+        """
+        
+        params = [user_id]
+        
+        # Add course filter if specified
+        if course_id is not None:
+            query += " AND c.id = ?"
+            params.append(course_id)
+        
+        query += " ORDER BY c.course_code, a.due_date ASC"
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        result = [row_to_dict(row) for row in rows]
+        
+        conn.close()
+        return result
+        
+    except Exception as e:
+        return [{"error": f"Error fetching grades: {str(e)}"}]
 
 # MCP Resources
 
@@ -872,6 +938,136 @@ def get_assignments_resource(course_id: int) -> str:
 
     return content
 
+@mcp.resource("grades://my")
+def get_my_grades_resource() -> str:
+    """
+    Get formatted view of current user's grades across all courses.
+    
+    Returns:
+        A formatted string displaying the user's grades
+    """
+    grades = get_my_grades()
+    
+    if not grades:
+        return "No grades found for your account"
+    
+    if grades and "error" in grades[0]:
+        return f"Error: {grades[0]['error']}"
+    
+    # Group grades by course
+    courses = {}
+    for grade in grades:
+        course_id = grade.get("course_id")
+        if course_id not in courses:
+            courses[course_id] = {
+                "course_name": grade.get("course_name", "Unknown Course"),
+                "course_code": grade.get("course_code", ""),
+                "grades": [],
+                "total_points": 0,
+                "total_possible": 0
+            }
+        courses[course_id]["grades"].append(grade)
+        
+        # Add to totals if we have valid grade data
+        score = grade.get("grade")
+        points_possible = grade.get("points_possible")
+        if score is not None and points_possible is not None:
+            courses[course_id]["total_points"] += float(score)
+            courses[course_id]["total_possible"] += float(points_possible)
+    
+    content = "# My Grades\n\n"
+    
+    # Process each course
+    for course_data in courses.values():
+        course_name = course_data["course_name"]
+        course_code = course_data["course_code"]
+        
+        content += f"## {course_name} ({course_code})\n\n"
+        
+        # Calculate course percentage if possible
+        if course_data["total_possible"] > 0:
+            course_percentage = (course_data["total_points"] / course_data["total_possible"]) * 100
+            content += f"**Course Grade:** {course_data['total_points']:.1f}/{course_data['total_possible']:.1f} ({course_percentage:.1f}%)\n\n"
+        
+        # Process individual assignments
+        content += "| Assignment | Grade | Feedback |\n"
+        content += "| --- | --- | --- |\n"
+        
+        for entry in course_data["grades"]:
+            assignment = entry.get("assignment_title", "Unnamed Assignment")
+            score = entry.get("grade")
+            points_possible = entry.get("points_possible")
+            feedback = entry.get("feedback", "").replace("\n", "<br>")
+            
+            if score is not None and points_possible is not None:
+                percentage = (float(score) / float(points_possible)) * 100
+                score_display = f"{score}/{points_possible} ({percentage:.1f}%)"
+            else:
+                score_display = f"{score if score is not None else 'N/A'}/{points_possible if points_possible is not None else 'N/A'}"
+            
+            content += f"| {assignment} | {score_display} | {feedback} |\n"
+        
+        content += "\n"
+    
+    return content
+
+@mcp.resource("grades://{course_id}")
+def get_my_course_grades_resource(course_id: int) -> str:
+    """
+    Get formatted view of current user's grades for a specific course.
+    
+    Args:
+        course_id: The ID of the course
+    
+    Returns:
+        A formatted string displaying the user's grades for the specified course
+    """
+    grades = get_my_grades(course_id=course_id)
+    
+    if not grades:
+        return f"No grades found for course ID {course_id}"
+    
+    if "error" in grades[0]:
+        return f"Error: {grades[0]['error']}"
+    
+    # Get course information from the first grade entry
+    course_name = grades[0].get("course_name", "Unknown Course")
+    course_code = grades[0].get("course_code", "")
+    
+    content = f"# My Grades: {course_name} ({course_code})\n\n"
+    
+    # Calculate totals
+    total_points = 0
+    total_possible = 0
+    
+    # Format in table for better readability
+    content += "| Assignment | Grade | Feedback |\n"
+    content += "| --- | --- | --- |\n"
+    
+    for entry in grades:
+        assignment = entry.get("assignment_title", "Unnamed Assignment")
+        score = entry.get("grade")
+        points_possible = entry.get("points_possible")
+        feedback = entry.get("feedback", "").replace("\n", "<br>")
+        
+        if score is not None and points_possible is not None:
+            total_points += float(score)
+            total_possible += float(points_possible)
+            percentage = (float(score) / float(points_possible)) * 100
+            score_display = f"{score}/{points_possible} ({percentage:.1f}%)"
+        else:
+            score_display = f"{score if score is not None else 'N/A'}/{points_possible if points_possible is not None else 'N/A'}"
+        
+        content += f"| {assignment} | {score_display} | {feedback} |\n"
+    
+    # Add summary if we have usable points
+    if total_possible > 0:
+        overall_percentage = (total_points / total_possible) * 100
+        content += f"\n## Summary\n"
+        content += f"**Total Score:** {total_points:.1f}/{total_possible:.1f}\n"
+        content += f"**Overall Percentage:** {overall_percentage:.1f}%\n"
+    
+    return content
 
 if __name__ == "__main__":
     mcp.run()
