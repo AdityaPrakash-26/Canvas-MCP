@@ -84,6 +84,7 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
         id INTEGER PRIMARY KEY,
         course_id INTEGER NOT NULL,
         content TEXT,
+        content_type TEXT DEFAULT 'html',
         parsed_content TEXT,
         is_parsed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -8,14 +8,16 @@ structured access to course information.
 
 import os
 import sqlite3
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, List, Dict, Optional
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 from canvas_mcp.canvas_client import CanvasClient
+from canvas_mcp.utils.pdf_extractor import extract_text_from_pdf
 
 # Load environment variables
 load_dotenv()
@@ -82,6 +84,49 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     if row is None:
         return {}
     return {key: row[key] for key in row.keys()}
+
+
+def extract_links_from_content(content: str) -> List[Dict[str, str]]:
+    """
+    Extract links from HTML content.
+    
+    Args:
+        content: HTML content to parse
+        
+    Returns:
+        List of dictionaries with 'url' and 'text' keys
+    """
+    if not content or not isinstance(content, str):
+        return []
+        
+    links = []
+    try:
+        # Find <a> tags with href attributes
+        a_tag_pattern = re.compile(r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL)
+        for match in a_tag_pattern.finditer(content):
+            url = match.group(1)
+            text = re.sub(r'<[^>]*>', '', match.group(2)).strip()  # Remove nested HTML tags
+            if url:
+                links.append({"url": url, "text": text or url})
+                
+        # If no <a> tags found, look for bare URLs
+        if not links:
+            url_pattern = re.compile(r'https?://\S+')
+            for match in url_pattern.finditer(content):
+                url = match.group(0)
+                links.append({"url": url, "text": url})
+                
+    except Exception:
+        # Fall back to simple search if regex fails
+        if "href=" in content:
+            # Just extract the link without parsing
+            start = content.find('href="') + 6
+            end = content.find('"', start)
+            if start > 6 and end > start:
+                url = content[start:end]
+                links.append({"url": url, "text": "Link"})
+    
+    return links
 
 
 # MCP Tools
@@ -350,6 +395,7 @@ def get_syllabus(course_id: int, format: str = "raw") -> dict[str, Any]:
         """
     SELECT
         s.content,
+        s.content_type,
         s.parsed_content,
         s.is_parsed
     FROM
@@ -364,19 +410,30 @@ def get_syllabus(course_id: int, format: str = "raw") -> dict[str, Any]:
     syllabus = (
         row_to_dict(syllabus_row)
         if syllabus_row
-        else {"content": "", "parsed_content": "", "is_parsed": False}
+        else {"content": "", "content_type": "html", "parsed_content": "", "is_parsed": False}
     )
 
     result = {**course}
 
+    # Handle different content types
+    content_type = syllabus.get("content_type", "html")
+    
     if (
         format == "parsed"
         and syllabus.get("is_parsed")
         and syllabus.get("parsed_content")
     ):
         result["content"] = syllabus.get("parsed_content")
+        result["content_type"] = "text" 
     else:
         result["content"] = syllabus.get("content", "No syllabus available")
+        result["content_type"] = content_type
+        
+        # Add helpful message for non-HTML content types
+        if content_type == "pdf_link" and result["content"]:
+            result["content_note"] = "This syllabus is available as a PDF document. The link is included in the content."
+        elif content_type == "external_link" and result["content"]:
+            result["content_note"] = "This syllabus is available as an external link. The URL is included in the content."
 
     # Always ensure course_code is present for tests
     if "course_code" not in result:
@@ -426,6 +483,69 @@ def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, 
     conn.close()
     return result
 
+
+@mcp.tool()
+def get_course_pdf_files(course_id: int) -> list[dict[str, Any]]:
+    """
+    Get PDF files available in a specific course.
+
+    Args:
+        course_id: Course ID
+
+    Returns:
+        List of PDF files with URLs
+    """
+    try:
+        pdf_files = canvas_client.extract_pdf_files_from_course(course_id)
+        
+        # Add extraction URLs
+        result = []
+        for pdf in pdf_files:
+            result.append({
+                "name": pdf.get("name", "Unnamed PDF"),
+                "url": pdf.get("url", ""),
+                "source": pdf.get("source", "unknown"),
+                "extracted_text": None  # We'll fill this in later if requested
+            })
+            
+        return result
+    except Exception as e:
+        return [{"error": f"Error getting PDF files: {e}"}]
+
+@mcp.tool()
+def extract_text_from_course_pdf(course_id: int, pdf_url: str) -> dict[str, Any]:
+    """
+    Extract text from a PDF file in a course.
+
+    Args:
+        course_id: Course ID
+        pdf_url: URL of the PDF file
+
+    Returns:
+        Dictionary with extracted text and metadata
+    """
+    try:
+        text = extract_text_from_pdf(pdf_url)
+        
+        if text:
+            return {
+                "success": True,
+                "pdf_url": pdf_url,
+                "text_length": len(text),
+                "text": text
+            }
+        else:
+            return {
+                "success": False,
+                "pdf_url": pdf_url,
+                "error": "Failed to extract text from PDF"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "pdf_url": pdf_url,
+            "error": f"Error extracting text: {str(e)}"
+        }
 
 @mcp.tool()
 def search_course_content(
@@ -789,10 +909,156 @@ def get_syllabus_resource(course_id: int) -> str:
     if syllabus_data.get("instructor"):
         content += f"**Instructor:** {syllabus_data.get('instructor')}\n\n"
 
-    content += syllabus_data.get("content", "No syllabus content available")
+    # Handle different content types
+    content_type = syllabus_data.get("content_type", "html")
+    syllabus_content = syllabus_data.get("content", "")
+    
+    if content_type == "pdf_link":
+        content += "## Syllabus Document\n\n"
+        content += "The syllabus for this course is available as a PDF document.\n\n"
+        
+        # Extract links from the content
+        links = extract_links_from_content(syllabus_content)
+        if links:
+            content += "**PDF Links:**\n\n"
+            for i, link in enumerate(links):
+                content += f"{i+1}. [{link['text']}]({link['url']})\n"
+        else:
+            content += syllabus_content
+            
+        content += "\n\n_Note: You may need to access Canvas directly to view this PDF document._"
+    
+    elif content_type == "external_link":
+        content += "## Syllabus Link\n\n"
+        content += "The syllabus for this course is available as an external link.\n\n"
+        
+        # Extract links or just display the URL
+        links = extract_links_from_content(syllabus_content)
+        if links:
+            content += "**External Links:**\n\n"
+            for i, link in enumerate(links):
+                content += f"{i+1}. [{link['text']}]({link['url']})\n"
+        else:
+            # Check if the content itself is a URL
+            if syllabus_content.strip().startswith("http"):
+                content += f"[Access Syllabus]({syllabus_content.strip()})\n"
+            else:
+                content += syllabus_content
+                
+        content += "\n\n_Note: You may need to access this link directly to view the syllabus._"
+    
+    elif content_type == "json":
+        content += "## Syllabus Data\n\n"
+        content += "The syllabus for this course is provided in a structured format.\n\n"
+        
+        try:
+            import json
+            parsed_json = json.loads(syllabus_content)
+            # Format the JSON nicely for display
+            content += "```json\n"
+            content += json.dumps(parsed_json, indent=2)
+            content += "\n```\n"
+        except:
+            # If JSON parsing fails, just show the raw content
+            content += syllabus_content
+    
+    elif content_type == "empty":
+        content += "No syllabus content has been provided for this course in Canvas.\n\n"
+        content += "You may want to check the course information in Canvas directly, or contact your instructor for syllabus details."
+        
+    else:  # Default HTML or text
+        if syllabus_content and syllabus_content != "<p>No syllabus content available</p>":
+            content += syllabus_content
+            
+            # Extract and list links at the bottom if there are any
+            links = extract_links_from_content(syllabus_content)
+            if links:
+                content += "\n\n## Important Links\n\n"
+                for i, link in enumerate(links):
+                    content += f"{i+1}. [{link['text']}]({link['url']})\n"
+        else:
+            content += "No syllabus content has been provided for this course in Canvas.\n\n"
+            content += "You may want to check the course information in Canvas directly, or contact your instructor for syllabus details."
+        
+    # Add note if provided
+    if syllabus_data.get("content_note"):
+        content += f"\n\n_{syllabus_data.get('content_note')}_"
 
     return content
 
+
+@mcp.resource("pdfs://{course_id}")
+def get_pdfs_resource(course_id: int) -> str:
+    """
+    Get resource with course PDF files.
+
+    Args:
+        course_id: Course ID
+
+    Returns:
+        PDF files as formatted text
+    """
+    conn, cursor = db_connect()
+
+    # Get course information
+    cursor.execute(
+        """
+    SELECT course_code, course_name FROM courses WHERE id = ?
+    """,
+        (course_id,),
+    )
+    course = row_to_dict(cursor.fetchone() or {})
+
+    if not course:
+        conn.close()
+        return f"Course with ID {course_id} not found"
+
+    # Get PDF files
+    try:
+        pdf_files = canvas_client.extract_pdf_files_from_course(course_id)
+    except Exception as e:
+        conn.close()
+        return f"Error retrieving PDF files: {str(e)}"
+
+    conn.close()
+
+    if not pdf_files:
+        return f"No PDF files found for {course.get('course_name')} ({course.get('course_code')})"
+
+    content = f"# PDF Files: {course.get('course_name')} ({course.get('course_code')})\n\n"
+
+    # Group PDFs by source
+    source_groups = {}
+    for pdf in pdf_files:
+        source = pdf.get("source", "other")
+        if source not in source_groups:
+            source_groups[source] = []
+        source_groups[source].append(pdf)
+    
+    # Display PDFs by source
+    for source, pdfs in source_groups.items():
+        source_name = source.replace("_", " ").title()
+        content += f"## {source_name}s\n\n"
+        
+        for i, pdf in enumerate(pdfs):
+            name = pdf.get("name", "Unnamed PDF")
+            url = pdf.get("url", "")
+            content += f"{i+1}. [{name}]({url})\n"
+            
+            # Add module/assignment context if available
+            if "module_name" in pdf:
+                content += f"   - Module: {pdf.get('module_name')}\n"
+                
+            if "assignment_id" in pdf:
+                content += f"   - Assignment ID: {pdf.get('assignment_id')}\n"
+                
+        content += "\n"
+    
+    content += "\n## How to Access PDF Content\n\n"
+    content += "To access the content of these PDFs, use the `extract_text_from_course_pdf` tool with the course ID and PDF URL.\n"
+    content += "Example: `extract_text_from_course_pdf(course_id={}, pdf_url=\"URL_FROM_ABOVE\")`.".format(course_id)
+
+    return content
 
 @mcp.resource("assignments://{course_id}")
 def get_assignments_resource(course_id: int) -> str:
