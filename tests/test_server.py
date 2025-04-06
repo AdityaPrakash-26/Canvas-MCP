@@ -98,6 +98,7 @@ class TestMCPServer(unittest.TestCase):
             id INTEGER PRIMARY KEY,
             course_id INTEGER NOT NULL,
             content TEXT,
+            content_type TEXT DEFAULT 'html',
             parsed_content TEXT,
             is_parsed BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -231,13 +232,14 @@ class TestMCPServer(unittest.TestCase):
         cursor.execute(
             """
             INSERT INTO syllabi (
-                id, course_id, content, parsed_content, is_parsed
-            ) VALUES (?, ?, ?, ?, ?)
+                id, course_id, content, content_type, parsed_content, is_parsed
+            ) VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 1,
                 1,
                 "<p>This is the CS101 syllabus</p>",
+                "html",
                 "This is the CS101 syllabus in plain text format.",
                 True
             )
@@ -246,13 +248,14 @@ class TestMCPServer(unittest.TestCase):
         cursor.execute(
             """
             INSERT INTO syllabi (
-                id, course_id, content, parsed_content, is_parsed
-            ) VALUES (?, ?, ?, ?, ?)
+                id, course_id, content, content_type, parsed_content, is_parsed
+            ) VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 2,
                 2,
                 "<p>This is the MATH200 syllabus</p>",
+                "html",
                 "This is the MATH200 syllabus in plain text format.",
                 True
             )
@@ -487,6 +490,88 @@ class TestMCPServer(unittest.TestCase):
         self.assertEqual(modules[0]['items'][0]['title'], "Introduction Lecture")
         self.assertEqual(modules[0]['items'][1]['title'], "Getting Started with Python")
 
+    def test_get_syllabus_with_different_content_types(self):
+        """Test that syllabus content is correctly retrieved with different content types."""
+        # Create a real connection to use instead of the mock
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Temporarily modify our mock to return a new connection each time
+        def get_connection():
+            new_conn = sqlite3.connect(self.db_path)
+            new_conn.row_factory = sqlite3.Row
+            new_cursor = new_conn.cursor()
+            return new_conn, new_cursor
+            
+        self.mock_db_connect.side_effect = get_connection
+        
+        # First create additional courses for our syllabi
+        cursor.execute(
+            """
+            INSERT INTO courses (
+                id, canvas_course_id, course_code, course_name, instructor
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (3, 3333, "PDF101", "PDF Course", "PDF Instructor")
+        )
+        
+        cursor.execute(
+            """
+            INSERT INTO courses (
+                id, canvas_course_id, course_code, course_name, instructor
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (4, 4444, "EXT101", "External Course", "External Instructor")
+        )
+        
+        # First, create a PDF link syllabus
+        cursor.execute(
+            """
+            INSERT INTO syllabi (
+                id, course_id, content, content_type, parsed_content, is_parsed
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                3,
+                3,
+                "<a href='https://example.com/syllabus.pdf'>Download PDF Syllabus</a>",
+                "pdf_link",
+                "PDF syllabus available at: https://example.com/syllabus.pdf",
+                True
+            )
+        )
+        
+        # Then create an external link syllabus
+        cursor.execute(
+            """
+            INSERT INTO syllabi (
+                id, course_id, content, content_type, parsed_content, is_parsed
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                4,
+                4,
+                "https://example.com/external-syllabus",
+                "external_link",
+                "External syllabus available at: https://example.com/external-syllabus",
+                True
+            )
+        )
+        
+        # Commit the changes to the database
+        conn.commit()
+        
+        # Test PDF link syllabus
+        syllabus = get_syllabus(3, format="raw")
+        self.assertEqual(syllabus['content_type'], "pdf_link")
+        self.assertIn("Download PDF Syllabus", syllabus['content'])
+        
+        # Test external link syllabus
+        syllabus = get_syllabus(4, format="raw")
+        self.assertEqual(syllabus['content_type'], "external_link")
+        self.assertIn("https://example.com/external-syllabus", syllabus['content'])
+        
     def test_get_syllabus(self):
         """Test that syllabus content is correctly retrieved."""
         # Call the function with raw format
@@ -495,6 +580,7 @@ class TestMCPServer(unittest.TestCase):
         # Verify the result
         self.assertEqual(syllabus['course_code'], "CS101")
         self.assertEqual(syllabus['content'], "<p>This is the CS101 syllabus</p>")
+        self.assertEqual(syllabus['content_type'], "html")
 
         # Call the function with parsed format
         syllabus = get_syllabus(1, format="parsed")
@@ -502,6 +588,7 @@ class TestMCPServer(unittest.TestCase):
         # Verify the result
         self.assertEqual(syllabus['course_code'], "CS101")
         self.assertEqual(syllabus['content'], "This is the CS101 syllabus in plain text format.")
+        self.assertEqual(syllabus['content_type'], "text")
 
     def test_get_course_announcements(self):
         """Test that course announcements are correctly retrieved."""

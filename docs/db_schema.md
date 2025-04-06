@@ -50,7 +50,8 @@ Stores syllabus content for each course.
 CREATE TABLE syllabi (
     id INTEGER PRIMARY KEY,
     course_id INTEGER NOT NULL,
-    content TEXT,  -- HTML content from Canvas
+    content TEXT,  -- Content from Canvas (HTML, link, etc.)
+    content_type TEXT DEFAULT 'html', -- 'html', 'pdf_link', 'external_link', 'json', etc.
     parsed_content TEXT, -- Processed/extracted text
     is_parsed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
