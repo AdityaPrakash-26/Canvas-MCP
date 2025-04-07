@@ -1,3 +1,5 @@
-from .server import mcp
+"""
+Canvas MCP for accessing Canvas LMS data
+"""
 
-__all__ = ["mcp"]
+__all__ = []

@@ -1,4 +1,51 @@
-project_prompt = "Please check Claude.md for codebase rules and getting yourself oriented! If `task.md` exists, that's where you left off last. Please don't touch the server until you have a VERY good idea of what the MCP is. "
+project_prompt = """
+Welcome to Canvas-MCP, an API server for accessing Canvas LMS data.
+- Check CLAUDE.md for important development guidelines and commands
+- Review ARCHITECTURE.md for system architecture overview
+- Look at IMPROVEMENTS.md for recent enhancements
 
-test = ["./test.sh"]
-lint = ["./lint.sh"]
+Key features:
+- Syllabus and assignment extraction
+- PDF content analysis
+- Natural language query parsing
+- Caching and retry mechanisms
+"""
+
+# Required packages
+[dependencies]
+canvasapi = ">=3.3.0"
+mcp = { version = ">=1.5.0", extras = ["cli"] }
+python-dotenv = ">=1.0.1"
+structlog = ">=24.1.0"
+pdfplumber = ">=0.9.0"
+requests = ">=2.31.0"
+beautifulsoup4 = ">=4.12.0"
+python-docx = ">=0.8.11"
+
+# Development dependencies
+[dev-dependencies]
+pytest = ">=8.3.5"
+ruff = "latest"
+mypy = "latest"
+mock = ">=5.2.0"
+
+# Development commands
+test = ["uv run pytest"]
+lint = ["uv run ruff check ."]
+format = ["uv run ruff format ."]
+typecheck = ["uv run mypy src"]
+fix = ["uv run ruff check . --fix"]
+
+# Server commands
+run = ["uv run mcp dev src/canvas_mcp/server.py"]
+install = ["uv run mcp install src/canvas_mcp/server.py"]
+
+# Database commands
+init_db = ["uv run python init_db.py"]
+update_schema = ["uv run python update_database_schema.py"]
+
+# Custom command to run all checks
+validate = ["uv run pytest", "uv run ruff check .", "uv run mypy src"]
+
+# Sync data with Canvas LMS
+sync = ["uv run python -c \"from canvas_mcp.server import canvas_client; print(canvas_client.sync_all())\""]

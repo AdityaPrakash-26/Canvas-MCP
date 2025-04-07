@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from dotenv import load_dotenv
 
-from canvas_mcp.utils.pdf_extractor import extract_text_from_pdf
+from canvas_mcp.utils.file_extractor import extract_text_from_file
 
 # Make Canvas available for patching in tests
 try:
@@ -40,56 +40,43 @@ class CanvasClient:
         if not content or not isinstance(content, str):
             return []
             
-        pdf_links = []
-        try:
-            # Find <a> tags with href attributes pointing to PDFs
-            a_tag_pattern = re.compile(r'<a\s+[^>]*href="([^"]*\.pdf[^"]*)"[^>]*>', re.IGNORECASE)
-            for match in a_tag_pattern.finditer(content):
-                url = match.group(1)
-                if url:
-                    pdf_links.append(url)
-                    
-            # Also look for embedded PDFs
-            embed_pattern = re.compile(r'<embed\s+[^>]*src="([^"]*\.pdf[^"]*)"[^>]*>', re.IGNORECASE)
-            for match in embed_pattern.finditer(content):
-                url = match.group(1)
-                if url:
-                    pdf_links.append(url)
-                    
-            # Look for iframes with PDF sources
-            iframe_pattern = re.compile(r'<iframe\s+[^>]*src="([^"]*\.pdf[^"]*)"[^>]*>', re.IGNORECASE)
-            for match in iframe_pattern.finditer(content):
-                url = match.group(1)
-                if url:
-                    pdf_links.append(url)
-            
-            # Look for links that look like Canvas file downloads
-            canvas_file_pattern = re.compile(r'<a\s+[^>]*href="([^"]*\/files\/\d+\/download[^"]*)"[^>]*>', re.IGNORECASE)
-            for match in canvas_file_pattern.finditer(content):
-                url = match.group(1)
-                if url and ('.pdf' in url.lower() or 'pdf' in url.lower()):
-                    pdf_links.append(url)
-                    
+        # Patterns to find PDF links in different formats
+        patterns = [
+            # <a> tags with href attributes pointing to PDFs
+            (r'<a\s+[^>]*href="([^"]*\.pdf[^"]*)"[^>]*>', 1, False),
+            # Embedded PDFs
+            (r'<embed\s+[^>]*src="([^"]*\.pdf[^"]*)"[^>]*>', 1, False),
+            # iframes with PDF sources
+            (r'<iframe\s+[^>]*src="([^"]*\.pdf[^"]*)"[^>]*>', 1, False),
+            # Canvas file downloads that might be PDFs
+            (r'<a\s+[^>]*href="([^"]*\/files\/\d+\/download[^"]*)"[^>]*>', 1, True),
             # Direct PDF URLs in the text
-            if not pdf_links:
-                url_pattern = re.compile(r'https?://[^\s"\'<>]+\.pdf', re.IGNORECASE)
-                for match in url_pattern.finditer(content):
-                    url = match.group(0)
-                    pdf_links.append(url)
-                
-            # Look for Canvas file download URLs
-            if not pdf_links:
-                canvas_url_pattern = re.compile(r'https?://[^\s"\'<>]+/files/\d+/download', re.IGNORECASE)
-                for match in canvas_url_pattern.finditer(content):
-                    url = match.group(0)
-                    if 'pdf' in url.lower():
-                        pdf_links.append(url)
-                    
-        except Exception as e:
-            print(f"Error extracting PDF links: {e}")
-            # Fall back to simple string search
-            if ".pdf" in content.lower():
-                # Just extract the link without parsing
+            (r'https?://[^\s"\'<>]+\.pdf', 0, False),
+            # Canvas file download URLs
+            (r'https?://[^\s"\'<>]+/files/\d+/download', 0, True),
+            # Canvas file paths (need base URL)
+            (r'(/files/\d+/download)', 1, True),
+        ]
+        
+        pdf_links = []
+        
+        try:
+            # Try each pattern
+            for pattern, group, needs_pdf_check in patterns:
+                regex = re.compile(pattern, re.IGNORECASE)
+                for match in regex.finditer(content):
+                    url = match.group(group)
+                    if url:
+                        # For patterns that need PDF check, make sure it's a PDF
+                        if not needs_pdf_check or ('.pdf' in url.lower() or 'pdf' in url.lower()):
+                            # For file paths, add base URL
+                            if url.startswith('/files/'):
+                                base_url = self.api_url if hasattr(self, 'api_url') and self.api_url else "https://canvas.instructure.com"
+                                url = f"{base_url}{url}"
+                            pdf_links.append(url)
+            
+            # If no links found, try a simple string search as fallback
+            if not pdf_links and ".pdf" in content.lower():
                 lower_content = content.lower()
                 pdf_index = lower_content.find('.pdf')
                 if pdf_index > 0:
@@ -104,21 +91,11 @@ class CanvasClient:
                                 break
                         url = content[start:end]
                         pdf_links.append(url)
-        
-        # Also check for Canvas files URLs
-        if '/files/' in content and 'download' in content:
-            try:
-                canvas_file_pattern = re.compile(r'(/files/\d+/download)')
-                for match in canvas_file_pattern.finditer(content):
-                    file_path = match.group(1)
-                    # Build a complete URL if API URL is available
-                    base_url = self.api_url if hasattr(self, 'api_url') and self.api_url else "https://canvas.instructure.com"
-                    url = f"{base_url}{file_path}"
-                    pdf_links.append(url)
-            except Exception as e:
-                print(f"Error processing Canvas files URL: {e}")
                 
-        return pdf_links
+        except Exception as e:
+            print(f"Error extracting PDF links: {e}")
+                
+        return list(set(pdf_links))  # Remove duplicates
 
     @staticmethod
     def extract_links(content: str | None) -> list[dict[str, str]]:
@@ -136,15 +113,12 @@ class CanvasClient:
             
         links = []
         try:
-            # Simple regex pattern for links
-            import re
-            
             # Find <a> tags with href attributes
             a_tag_pattern = re.compile(r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL)
             for match in a_tag_pattern.finditer(content):
                 url = match.group(1)
                 text = re.sub(r'<[^>]*>', '', match.group(2)).strip()  # Remove nested HTML tags
-                if url:
+                if url and url not in [link["url"] for link in links]:
                     links.append({"url": url, "text": text or url})
                     
             # If no <a> tags found, look for bare URLs
@@ -152,9 +126,11 @@ class CanvasClient:
                 url_pattern = re.compile(r'https?://\S+')
                 for match in url_pattern.finditer(content):
                     url = match.group(0)
-                    links.append({"url": url, "text": url})
+                    if url not in [link["url"] for link in links]:
+                        links.append({"url": url, "text": url})
                     
-        except Exception:
+        except Exception as e:
+            print(f"Error extracting links: {e}")
             # Fall back to simple search if regex fails
             if "href=" in content:
                 # Just extract the link without parsing
@@ -180,30 +156,40 @@ class CanvasClient:
         if not content or not isinstance(content, str):
             return "html"  # Default for empty content
             
-        content_lower = content.lower()
+        # Strip whitespace for easier checks
+        stripped_content = content.strip()
+        content_lower = stripped_content.lower()
+        
+        # Check for empty content first
+        if stripped_content in ['<p></p>', '<div></div>', '']:
+            return "empty"
         
         # Check for PDF links
         if ".pdf" in content_lower and ("<a href=" in content_lower or "src=" in content_lower):
             return "pdf_link"
             
         # Check for external links (simple URLs with minimal formatting)
-        if ("http://" in content or "https://" in content) and len(content.strip()) < 1000 and content.count(" ") < 10:
+        if (content_lower.startswith("http://") or content_lower.startswith("https://") or
+                (("http://" in content or "https://" in content) and 
+                 len(stripped_content) < 1000 and 
+                 content.count(" ") < 10)):
             return "external_link"
             
         # Check for JSON content
-        if content.strip().startswith('{') and content.strip().endswith('}'):
+        if stripped_content.startswith('{') and stripped_content.endswith('}'):
             try:
                 import json
-                json.loads(content)
+                json.loads(stripped_content)
                 return "json"
             except (json.JSONDecodeError, ValueError):
                 pass  # Not valid JSON
                 
-        # Check for empty HTML
-        if content.strip() in ['<p></p>', '<div></div>', '']:
-            return "empty"
+        # Check for XML/HTML content
+        if (stripped_content.startswith('<') and stripped_content.endswith('>')) or \
+           ("<html" in content_lower or "<body" in content_lower or "<div" in content_lower):
+            return "html"
             
-        # Default to HTML
+        # Default to HTML for anything else
         return "html"
 
     def __init__(self, db_path: str, api_key: str | None = None, api_url: str | None = None):
@@ -393,9 +379,9 @@ class CanvasClient:
 
                     # Try to extract the PDF content
                     try:
-                        pdf_text = extract_text_from_pdf(pdf_url)
-                        if pdf_text:
-                            parsed_content = pdf_text
+                        extraction_result = extract_text_from_file(pdf_url, 'pdf')
+                        if extraction_result["success"]:
+                            parsed_content = extraction_result["text"]
                             is_parsed = True
                             print(f"Successfully extracted PDF content for course: {course_name}")
                         else:
@@ -819,13 +805,204 @@ class CanvasClient:
 
         return module_count
 
-    def extract_pdf_files_from_course(self, local_course_id: int) -> list[dict[str, Any]]:
+    def get_assignment_details(self, local_course_id: int, assignment_name: str) -> dict[str, Any]:
         """
-        Extract PDF files from a Canvas course.
+        Get detailed information about a specific assignment directly from Canvas API.
         
         Args:
             local_course_id: The local database ID for the course
+            assignment_name: Name or partial name of the assignment to find
             
+        Returns:
+            Dictionary with detailed assignment information
+        """
+        if self.canvas is None:
+            raise ImportError("canvasapi module is required for this operation")
+            
+        # Get Canvas course ID from local course ID
+        conn, cursor = self.connect_db()
+        cursor.execute(
+            "SELECT canvas_course_id FROM courses WHERE id = ?",
+            (local_course_id,)
+        )
+        row = cursor.fetchone()
+        
+        # Get local assignment ID
+        cursor.execute(
+            """
+            SELECT canvas_assignment_id 
+            FROM assignments 
+            WHERE course_id = ? AND title LIKE ?
+            """,
+            (local_course_id, f"%{assignment_name}%")
+        )
+        assignment_row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            print(f"Course with ID {local_course_id} not found in database")
+            return {"error": "Course not found"}
+            
+        canvas_course_id = row["canvas_course_id"]
+        canvas_assignment_id = assignment_row["canvas_assignment_id"] if assignment_row else None
+        
+        # Get course from Canvas
+        try:
+            canvas_course = self.canvas.get_course(canvas_course_id)
+            
+            # If we have the Canvas assignment ID, get it directly
+            if canvas_assignment_id:
+                try:
+                    assignment = canvas_course.get_assignment(canvas_assignment_id)
+                    assignment_data = {
+                        "title": assignment.name,
+                        "description": getattr(assignment, "description", ""),
+                        "due_date": getattr(assignment, "due_at", None),
+                        "points_possible": getattr(assignment, "points_possible", None),
+                        "submission_types": getattr(assignment, "submission_types", []),
+                        "canvas_assignment_id": assignment.id
+                    }
+                    
+                    # Check for additional details like rubrics
+                    if hasattr(assignment, "rubric"):
+                        assignment_data["rubric"] = assignment.rubric
+                    
+                    return {
+                        "success": True,
+                        "data": assignment_data
+                    }
+                except Exception as e:
+                    print(f"Error getting assignment {canvas_assignment_id}: {e}")
+            
+            # If we don't have the ID or couldn't fetch it directly, search for it
+            assignments = canvas_course.get_assignments()
+            for assignment in assignments:
+                if assignment_name.lower() in assignment.name.lower():
+                    assignment_data = {
+                        "title": assignment.name,
+                        "description": getattr(assignment, "description", ""),
+                        "due_date": getattr(assignment, "due_at", None),
+                        "points_possible": getattr(assignment, "points_possible", None),
+                        "submission_types": getattr(assignment, "submission_types", []),
+                        "canvas_assignment_id": assignment.id
+                    }
+                    
+                    # Check for additional details like rubrics
+                    if hasattr(assignment, "rubric"):
+                        assignment_data["rubric"] = assignment.rubric
+                    
+                    return {
+                        "success": True,
+                        "data": assignment_data
+                    }
+                    
+            return {
+                "success": False,
+                "error": f"Assignment '{assignment_name}' not found in Canvas course"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error fetching assignment: {str(e)}"
+            }
+    
+    def extract_files_from_course(self, local_course_id: int, filter_by_type: str = None) -> list[dict[str, Any]]:
+        """
+        Extract files from a Canvas course, optionally filtering by file type.
+
+        Args:
+            local_course_id: The local database ID for the course
+            filter_by_type: Optional file extension to filter by (e.g., 'pdf', 'docx')
+
+        Returns:
+            List of dictionaries with file information, including URLs
+        """
+        if self.canvas is None:
+            raise ImportError("canvasapi module is required for this operation")
+
+        # Get Canvas course ID from local course ID
+        conn, cursor = self.connect_db()
+        cursor.execute(
+            "SELECT canvas_course_id FROM courses WHERE id = ?",
+            (local_course_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            print(f"Course with ID {local_course_id} not found in database")
+            return []
+
+        canvas_course_id = row["canvas_course_id"]
+
+        # Get course from Canvas
+        canvas_course = self.canvas.get_course(canvas_course_id)
+        course_files = []
+
+        # Get files from the course
+        try:
+            files = canvas_course.get_files()
+            for file in files:
+                file_name = (
+                    file.display_name if hasattr(file, "display_name") else
+                    (file.filename if hasattr(file, "filename") else "Unnamed File")
+                )
+                
+                # Filter by file type if specified
+                if filter_by_type:
+                    # Special handling for common file types
+                    if filter_by_type.lower() == 'docx':
+                        # Check for both .docx and .doc extensions
+                        if not (file_name.lower().endswith('.docx') or file_name.lower().endswith('.doc')):
+                            continue
+                    elif filter_by_type.lower() == 'doc':
+                        # Check for both .docx and .doc extensions
+                        if not (file_name.lower().endswith('.docx') or file_name.lower().endswith('.doc')):
+                            continue
+                    elif filter_by_type.lower() == 'ppt':
+                        # Check for both .ppt and .pptx extensions
+                        if not (file_name.lower().endswith('.ppt') or file_name.lower().endswith('.pptx')):
+                            continue
+                    elif filter_by_type.lower() == 'pptx':
+                        # Check for both .ppt and .pptx extensions
+                        if not (file_name.lower().endswith('.ppt') or file_name.lower().endswith('.pptx')):
+                            continue
+                    elif filter_by_type.lower() == 'xls':
+                        # Check for both .xls and .xlsx extensions
+                        if not (file_name.lower().endswith('.xls') or file_name.lower().endswith('.xlsx')):
+                            continue
+                    elif filter_by_type.lower() == 'xlsx':
+                        # Check for both .xls and .xlsx extensions
+                        if not (file_name.lower().endswith('.xls') or file_name.lower().endswith('.xlsx')):
+                            continue
+                    else:
+                        # For other file types, just check the extension
+                        if not file_name.lower().endswith(f".{filter_by_type.lower()}"):
+                            continue
+                    
+                course_files.append({
+                    "name": file_name,
+                    "url": file.url if hasattr(file, "url") else None,
+                    "id": file.id if hasattr(file, "id") else None,
+                    "size": file.size if hasattr(file, "size") else None,
+                    "content_type": file.content_type if hasattr(file, "content_type") else None,
+                    "created_at": file.created_at if hasattr(file, "created_at") else None,
+                    "updated_at": file.updated_at if hasattr(file, "updated_at") else None,
+                    "source": "files"
+                })
+        except Exception as e:
+            print(f"Error getting files for course {canvas_course_id}: {e}")
+
+        return course_files
+
+    def extract_pdf_files_from_course(self, local_course_id: int) -> list[dict[str, Any]]:
+        """
+        Extract PDF files from a Canvas course.
+
+        Args:
+            local_course_id: The local database ID for the course
+
         Returns:
             List of dictionaries with PDF file information, including URLs
         """
