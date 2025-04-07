@@ -1,11 +1,12 @@
 """
 Canvas API client for synchronizing data with the local database.
 """
+
 import os
 import sqlite3
 import re
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -26,20 +27,20 @@ class CanvasClient:
     """
     Client for interacting with the Canvas LMS API and syncing data to the local database.
     """
-    
+
     def extract_pdf_links(self, content: str | None) -> list[str]:
         """
         Extract PDF links from content.
-        
+
         Args:
             content: HTML content to parse
-            
+
         Returns:
             List of PDF URLs
         """
         if not content or not isinstance(content, str):
             return []
-            
+
         # Patterns to find PDF links in different formats
         patterns = [
             # <a> tags with href attributes pointing to PDFs
@@ -55,11 +56,11 @@ class CanvasClient:
             # Canvas file download URLs
             (r'https?://[^\s"\'<>]+/files/\d+/download', 0, True),
             # Canvas file paths (need base URL)
-            (r'(/files/\d+/download)', 1, True),
+            (r"(/files/\d+/download)", 1, True),
         ]
-        
+
         pdf_links = []
-        
+
         try:
             # Try each pattern
             for pattern, group, needs_pdf_check in patterns:
@@ -68,67 +69,83 @@ class CanvasClient:
                     url = match.group(group)
                     if url:
                         # For patterns that need PDF check, make sure it's a PDF
-                        if not needs_pdf_check or ('.pdf' in url.lower() or 'pdf' in url.lower()):
+                        if not needs_pdf_check or (
+                            ".pdf" in url.lower() or "pdf" in url.lower()
+                        ):
                             # For file paths, add base URL
-                            if url.startswith('/files/'):
-                                base_url = self.api_url if hasattr(self, 'api_url') and self.api_url else "https://canvas.instructure.com"
+                            if url.startswith("/files/"):
+                                base_url = (
+                                    self.api_url
+                                    if hasattr(self, "api_url") and self.api_url
+                                    else "https://canvas.instructure.com"
+                                )
                                 url = f"{base_url}{url}"
                             pdf_links.append(url)
-            
+
             # If no links found, try a simple string search as fallback
             if not pdf_links and ".pdf" in content.lower():
                 lower_content = content.lower()
-                pdf_index = lower_content.find('.pdf')
+                pdf_index = lower_content.find(".pdf")
                 if pdf_index > 0:
                     # Look backwards for http
-                    start = lower_content.rfind('http', 0, pdf_index)
+                    start = lower_content.rfind("http", 0, pdf_index)
                     if start >= 0:
                         # Look forward for the end of URL (space, quote, etc.)
                         end = pdf_index + 4  # Include .pdf
                         for i in range(end, min(end + 100, len(content))):
-                            if i < len(content) and content[i] in [' ', '"', "'", '>', '<']:
+                            if i < len(content) and content[i] in [
+                                " ",
+                                '"',
+                                "'",
+                                ">",
+                                "<",
+                            ]:
                                 end = i
                                 break
                         url = content[start:end]
                         pdf_links.append(url)
-                
+
         except Exception as e:
             print(f"Error extracting PDF links: {e}")
-                
+
         return list(set(pdf_links))  # Remove duplicates
 
     @staticmethod
     def extract_links(content: str | None) -> list[dict[str, str]]:
         """
         Extract links from HTML content.
-        
+
         Args:
             content: HTML content to parse
-            
+
         Returns:
             List of dictionaries with 'url' and 'text' keys
         """
         if not content or not isinstance(content, str):
             return []
-            
+
         links = []
         try:
             # Find <a> tags with href attributes
-            a_tag_pattern = re.compile(r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL)
+            a_tag_pattern = re.compile(
+                r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL
+            )
             for match in a_tag_pattern.finditer(content):
                 url = match.group(1)
-                text = re.sub(r'<[^>]*>', '', match.group(2)).strip()  # Remove nested HTML tags
+                text = re.sub(
+                    r"<[^>]*>", "", match.group(2)
+                ).strip()  # Remove nested HTML tags
                 if url and url not in [link["url"] for link in links]:
                     links.append({"url": url, "text": text or url})
-                    
+
             # If no <a> tags found, look for bare URLs
             if not links:
-                url_pattern = re.compile(r'https?://\S+')
+                url_pattern = re.compile(r"https?://\S+")
                 for match in url_pattern.finditer(content):
                     url = match.group(0)
                     if url not in [link["url"] for link in links]:
                         links.append({"url": url, "text": url})
-                    
+
         except Exception as e:
             print(f"Error extracting links: {e}")
             # Fall back to simple search if regex fails
@@ -139,84 +156,125 @@ class CanvasClient:
                 if start > 6 and end > start:
                     url = content[start:end]
                     links.append({"url": url, "text": "Link"})
-        
+
         return links
 
     @staticmethod
     def detect_content_type(content: str | None) -> str:
         """
         Detect the content type from the given content string.
-        
+
         Args:
             content: The content string to analyze
-            
+
         Returns:
             String indicating the content type ('html', 'pdf_link', 'external_link', 'json', etc.)
         """
         if not content or not isinstance(content, str):
             return "html"  # Default for empty content
-            
+
         # Strip whitespace for easier checks
         stripped_content = content.strip()
         content_lower = stripped_content.lower()
-        
+
         # Check for empty content first
-        if stripped_content in ['<p></p>', '<div></div>', '']:
+        if stripped_content in ["<p></p>", "<div></div>", ""]:
             return "empty"
-        
+
         # Check for PDF links
-        if ".pdf" in content_lower and ("<a href=" in content_lower or "src=" in content_lower):
+        if ".pdf" in content_lower and (
+            "<a href=" in content_lower or "src=" in content_lower
+        ):
             return "pdf_link"
-            
+
         # Check for external links (simple URLs with minimal formatting)
-        if (content_lower.startswith("http://") or content_lower.startswith("https://") or
-                (("http://" in content or "https://" in content) and 
-                 len(stripped_content) < 1000 and 
-                 content.count(" ") < 10)):
+        if (
+            content_lower.startswith("http://")
+            or content_lower.startswith("https://")
+            or (
+                ("http://" in content or "https://" in content)
+                and len(stripped_content) < 1000
+                and content.count(" ") < 10
+            )
+        ):
             return "external_link"
-            
+
         # Check for JSON content
-        if stripped_content.startswith('{') and stripped_content.endswith('}'):
+        if stripped_content.startswith("{") and stripped_content.endswith("}"):
             try:
                 import json
+
                 json.loads(stripped_content)
                 return "json"
             except (json.JSONDecodeError, ValueError):
                 pass  # Not valid JSON
-                
+
         # Check for XML/HTML content
-        if (stripped_content.startswith('<') and stripped_content.endswith('>')) or \
-           ("<html" in content_lower or "<body" in content_lower or "<div" in content_lower):
+        if (stripped_content.startswith("<") and stripped_content.endswith(">")) or (
+            "<html" in content_lower
+            or "<body" in content_lower
+            or "<div" in content_lower
+        ):
             return "html"
-            
+
         # Default to HTML for anything else
         return "html"
 
-    def __init__(self, db_path: str, api_key: str | None = None, api_url: str | None = None):
+    def __init__(
+        self, db_path: str, api_key: str | None = None, api_url: str | None = None
+    ):
         """
         Initialize the Canvas client.
 
         Args:
-            db_path: Path to the SQLite database
+            db_path: Path to the SQLite database (REQUIRED)
             api_key: Canvas API key (if None, will look for CANVAS_API_KEY in environment)
             api_url: Canvas API URL (if None, will use default Canvas URL)
         """
-        # Load environment variables if api_key not provided
+        # Load environment variables ONLY for API key/URL if not provided
+        load_dotenv()
         if api_key is None:
-            load_dotenv()
             api_key = os.environ.get("CANVAS_API_KEY")
+            if not api_key:
+                print("Warning: CANVAS_API_KEY not found in environment.")
+
+        # The db_path provided should be the definitive path
+        # Removed check for CANVAS_MCP_TEST_DB as it should be handled before client creation
 
         self.api_key = api_key
-        self.api_url = api_url or "https://canvas.instructure.com"
+        self.api_url = api_url or os.environ.get(
+            "CANVAS_API_URL", "https://canvas.instructure.com"
+        )
         self.db_path = db_path
+
+        print(
+            f"CanvasClient initialized with DB: {self.db_path}, URL: {self.api_url}, Key Present: {bool(self.api_key)}"
+        )
 
         # Import canvasapi here to avoid making it a hard dependency
         try:
             from canvasapi import Canvas
-            self.canvas = Canvas(self.api_url, self.api_key)
+
+            # Only initialize canvas object if we have an API key
+            if self.api_key:
+                self.canvas = Canvas(self.api_url, self.api_key)
+                print("canvasapi.Canvas object created.")
+            else:
+                self.canvas = None
+                print(
+                    "Warning: No API key provided. Canvas API operations will be disabled."
+                )
+
         except ImportError:
             self.canvas = None
-            print("Warning: canvasapi module not found. Some features will be limited.")
+            print(
+                "Warning: canvasapi module not found. Canvas API operations will be disabled."
+            )
+        except Exception as e:
+            self.canvas = None
+            print(
+                f"Error initializing canvasapi: {e}. Canvas API operations will be disabled."
+            )
 
     def connect_db(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
         """
@@ -230,7 +288,9 @@ class CanvasClient:
         cursor = conn.cursor()
         return conn, cursor
 
-    def sync_courses(self, user_id: str | None = None, term_id: int | None = None) -> list[int]:
+    def sync_courses(
+        self, user_id: str | None = None, term_id: int | None = None
+    ) -> list[int]:
         """
         Synchronize course data from Canvas to the local database.
 
@@ -250,7 +310,9 @@ class CanvasClient:
             user = self.canvas.get_current_user()
             user_id = str(user.id)
         else:
-            user = self.canvas.get_current_user()  # Always use current user for authentication
+            user = (
+                self.canvas.get_current_user()
+            )  # Always use current user for authentication
 
         # Get courses from Canvas directly using the user object
         # This fixes the authentication issue reported in integration testing
@@ -260,20 +322,29 @@ class CanvasClient:
         if term_id is not None:
             if term_id == -1:
                 # Get the most recent term (maximum term_id)
-                term_ids = [getattr(course, 'enrollment_term_id', 0) for course in courses]
+                term_ids = [
+                    getattr(course, "enrollment_term_id", 0) for course in courses
+                ]
                 if term_ids:
-                    max_term_id = max(filter(lambda x: x is not None, term_ids), default=None)
+                    max_term_id = max(
+                        filter(lambda x: x is not None, term_ids), default=None
+                    )
                     if max_term_id is not None:
-                        print(f"Filtering to only include the most recent term (ID: {max_term_id})")
+                        print(
+                            f"Filtering to only include the most recent term (ID: {max_term_id})"
+                        )
                         courses = [
-                            course for course in courses
-                            if getattr(course, 'enrollment_term_id', None) == max_term_id
+                            course
+                            for course in courses
+                            if getattr(course, "enrollment_term_id", None)
+                            == max_term_id
                         ]
             else:
                 # Filter for the specific term requested
                 courses = [
-                    course for course in courses
-                    if getattr(course, 'enrollment_term_id', None) == term_id
+                    course
+                    for course in courses
+                    if getattr(course, "enrollment_term_id", None) == term_id
                 ]
 
         # Connect to database
@@ -284,7 +355,7 @@ class CanvasClient:
             # Check if user has opted out of this course
             cursor.execute(
                 "SELECT indexing_opt_out FROM user_courses WHERE user_id = ? AND course_id = ?",
-                (user_id, course.id)
+                (user_id, course.id),
             )
             row = cursor.fetchone()
             if row and row["indexing_opt_out"]:
@@ -296,17 +367,36 @@ class CanvasClient:
 
             # Properly convert all MagicMock attributes to appropriate types for SQLite
             course_id = int(course.id) if hasattr(course, "id") else None
-            course_code = str(getattr(course, "course_code", "")) if getattr(course, "course_code", None) is not None else ""
+            course_code = (
+                str(getattr(course, "course_code", ""))
+                if getattr(course, "course_code", None) is not None
+                else ""
+            )
             course_name = str(course.name) if hasattr(course, "name") else ""
-            instructor = str(getattr(detailed_course, "teacher", "")) if getattr(detailed_course, "teacher", None) is not None else None
-            description = str(getattr(detailed_course, "description", "")) if getattr(detailed_course, "description", None) is not None else None
-            start_date = str(getattr(detailed_course, "start_at", "")) if getattr(detailed_course, "start_at", None) is not None else None
-            end_date = str(getattr(detailed_course, "end_at", "")) if getattr(detailed_course, "end_at", None) is not None else None
+            instructor = (
+                str(getattr(detailed_course, "teacher", ""))
+                if getattr(detailed_course, "teacher", None) is not None
+                else None
+            )
+            description = (
+                str(getattr(detailed_course, "description", ""))
+                if getattr(detailed_course, "description", None) is not None
+                else None
+            )
+            start_date = (
+                str(getattr(detailed_course, "start_at", ""))
+                if getattr(detailed_course, "start_at", None) is not None
+                else None
+            )
+            end_date = (
+                str(getattr(detailed_course, "end_at", ""))
+                if getattr(detailed_course, "end_at", None) is not None
+                else None
+            )
 
             # Check if course exists
             cursor.execute(
-                "SELECT id FROM courses WHERE canvas_course_id = ?",
-                (course_id,)
+                "SELECT id FROM courses WHERE canvas_course_id = ?", (course_id,)
             )
             existing_course = cursor.fetchone()
 
@@ -332,8 +422,8 @@ class CanvasClient:
                         start_date,
                         end_date,
                         datetime.now().isoformat(),
-                        course_id
-                    )
+                        course_id,
+                    ),
                 )
                 local_course_id = existing_course["id"]
             else:
@@ -353,19 +443,25 @@ class CanvasClient:
                         description,
                         start_date,
                         end_date,
-                        datetime.now().isoformat()
-                    )
+                        datetime.now().isoformat(),
+                    ),
                 )
                 local_course_id = cursor.lastrowid
             course_ids.append(local_course_id)
 
-        # Store or update syllabus
+            # Store or update syllabus
             # Check if syllabus body is available
             syllabus_body = getattr(detailed_course, "syllabus_body", None)
-            
+
             # Always create a syllabus entry, even if empty
-            content = syllabus_body if syllabus_body else "<p>No syllabus content available</p>"
-            content_type = self.detect_content_type(content) if syllabus_body else "empty"
+            content = (
+                syllabus_body
+                if syllabus_body
+                else "<p>No syllabus content available</p>"
+            )
+            content_type = (
+                self.detect_content_type(content) if syllabus_body else "empty"
+            )
             parsed_content = None
             is_parsed = False
 
@@ -379,20 +475,25 @@ class CanvasClient:
 
                     # Try to extract the PDF content
                     try:
-                        extraction_result = extract_text_from_file(pdf_url, 'pdf')
+                        extraction_result = extract_text_from_file(pdf_url, "pdf")
                         if extraction_result["success"]:
                             parsed_content = extraction_result["text"]
                             is_parsed = True
-                            print(f"Successfully extracted PDF content for course: {course_name}")
+                            print(
+                                f"Successfully extracted PDF content for course: {course_name}"
+                            )
                         else:
-                            print(f"Failed to extract content from PDF for course: {course_name}")
+                            print(
+                                f"Failed to extract content from PDF for course: {course_name}"
+                            )
                     except Exception as e:
-                        print(f"Error extracting PDF content for course {course_name}: {e}")
-                
+                        print(
+                            f"Error extracting PDF content for course {course_name}: {e}"
+                        )
+
             # Check if syllabus exists
             cursor.execute(
-                "SELECT id FROM syllabi WHERE course_id = ?",
-                (local_course_id,)
+                "SELECT id FROM syllabi WHERE course_id = ?", (local_course_id,)
             )
             existing_syllabus = cursor.fetchone()
 
@@ -409,8 +510,14 @@ class CanvasClient:
                             updated_at = ?
                         WHERE course_id = ?
                         """,
-                        (content, content_type, parsed_content, is_parsed,
-                         datetime.now().isoformat(), local_course_id)
+                        (
+                            content,
+                            content_type,
+                            parsed_content,
+                            is_parsed,
+                            datetime.now().isoformat(),
+                            local_course_id,
+                        ),
                     )
                 else:
                     cursor.execute(
@@ -421,7 +528,12 @@ class CanvasClient:
                             updated_at = ?
                         WHERE course_id = ?
                         """,
-                        (content, content_type, datetime.now().isoformat(), local_course_id)
+                        (
+                            content,
+                            content_type,
+                            datetime.now().isoformat(),
+                            local_course_id,
+                        ),
                     )
             else:
                 # Insert new syllabus
@@ -432,8 +544,14 @@ class CanvasClient:
                         (course_id, content, content_type, parsed_content, is_parsed, updated_at)
                         VALUES (?, ?, ?, ?, ?, ?)
                         """,
-                        (local_course_id, content, content_type, parsed_content, is_parsed,
-                         datetime.now().isoformat())
+                        (
+                            local_course_id,
+                            content,
+                            content_type,
+                            parsed_content,
+                            is_parsed,
+                            datetime.now().isoformat(),
+                        ),
                     )
                 else:
                     cursor.execute(
@@ -441,7 +559,12 @@ class CanvasClient:
                         INSERT INTO syllabi (course_id, content, content_type, updated_at)
                         VALUES (?, ?, ?, ?)
                         """,
-                        (local_course_id, content, content_type, datetime.now().isoformat())
+                        (
+                            local_course_id,
+                            content,
+                            content_type,
+                            datetime.now().isoformat(),
+                        ),
                     )
 
         conn.commit()
@@ -474,7 +597,7 @@ class CanvasClient:
             for course_id in course_ids:
                 cursor.execute(
                     "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,)
+                    (course_id,),
                 )
                 course = cursor.fetchone()
                 if course:
@@ -494,12 +617,14 @@ class CanvasClient:
 
                 for assignment in assignments:
                     # Convert submission_types to string
-                    submission_types = ",".join(getattr(assignment, "submission_types", []))
+                    submission_types = ",".join(
+                        getattr(assignment, "submission_types", [])
+                    )
 
                     # Check if assignment exists
                     cursor.execute(
                         "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
-                        (local_course_id, assignment.id)
+                        (local_course_id, assignment.id),
                     )
                     existing_assignment = cursor.fetchone()
 
@@ -529,8 +654,8 @@ class CanvasClient:
                                 getattr(assignment, "points_possible", None),
                                 submission_types,
                                 datetime.now().isoformat(),
-                                existing_assignment["id"]
-                            )
+                                existing_assignment["id"],
+                            ),
                         )
                         assignment_id = existing_assignment["id"]
                     else:
@@ -554,8 +679,8 @@ class CanvasClient:
                                 getattr(assignment, "lock_at", None),
                                 getattr(assignment, "points_possible", None),
                                 submission_types,
-                                datetime.now().isoformat()
-                            )
+                                datetime.now().isoformat(),
+                            ),
                         )
                         assignment_id = cursor.lastrowid
                     assignment_count += 1
@@ -568,7 +693,7 @@ class CanvasClient:
                             SELECT id FROM calendar_events
                             WHERE course_id = ? AND source_type = ? AND source_id = ?
                             """,
-                            (local_course_id, "assignment", assignment_id)
+                            (local_course_id, "assignment", assignment_id),
                         )
                         existing_event = cursor.fetchone()
 
@@ -588,8 +713,8 @@ class CanvasClient:
                                     f"Due date for assignment: {assignment.name}",
                                     assignment.due_at,
                                     datetime.now().isoformat(),
-                                    existing_event["id"]
-                                )
+                                    existing_event["id"],
+                                ),
                             )
                         else:
                             # Insert new event
@@ -608,8 +733,8 @@ class CanvasClient:
                                     "assignment",
                                     assignment_id,
                                     assignment.due_at,
-                                    datetime.now().isoformat()
-                                )
+                                    datetime.now().isoformat(),
+                                ),
                             )
             except Exception as e:
                 print(f"Error syncing assignments for course {canvas_course_id}: {e}")
@@ -644,7 +769,7 @@ class CanvasClient:
             for course_id in course_ids:
                 cursor.execute(
                     "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,)
+                    (course_id,),
                 )
                 course = cursor.fetchone()
                 if course:
@@ -664,19 +789,35 @@ class CanvasClient:
 
                 for module in modules:
                     # Convert boolean attribute to integer for SQLite
-                    require_sequential_progress = 1 if getattr(module, "require_sequential_progress", False) else 0
+                    require_sequential_progress = (
+                        1
+                        if getattr(module, "require_sequential_progress", False)
+                        else 0
+                    )
 
                     # Properly convert all MagicMock attributes to appropriate types for SQLite
                     module_id = int(module.id) if hasattr(module, "id") else None
                     module_name = str(module.name) if hasattr(module, "name") else ""
-                    module_description = str(getattr(module, "description", "")) if getattr(module, "description", None) is not None else None
-                    module_unlock_at = str(getattr(module, "unlock_at", "")) if getattr(module, "unlock_at", None) is not None else None
-                    module_position = int(getattr(module, "position", 0)) if getattr(module, "position", None) is not None else None
+                    module_description = (
+                        str(getattr(module, "description", ""))
+                        if getattr(module, "description", None) is not None
+                        else None
+                    )
+                    module_unlock_at = (
+                        str(getattr(module, "unlock_at", ""))
+                        if getattr(module, "unlock_at", None) is not None
+                        else None
+                    )
+                    module_position = (
+                        int(getattr(module, "position", 0))
+                        if getattr(module, "position", None) is not None
+                        else None
+                    )
 
                     # Check if module exists
                     cursor.execute(
                         "SELECT id FROM modules WHERE course_id = ? AND canvas_module_id = ?",
-                        (local_course_id, module_id)
+                        (local_course_id, module_id),
                     )
                     existing_module = cursor.fetchone()
 
@@ -700,8 +841,8 @@ class CanvasClient:
                                 module_position,
                                 require_sequential_progress,
                                 datetime.now().isoformat(),
-                                existing_module["id"]
-                            )
+                                existing_module["id"],
+                            ),
                         )
                         local_module_id = existing_module["id"]
                     else:
@@ -721,8 +862,8 @@ class CanvasClient:
                                 module_unlock_at,
                                 module_position,
                                 require_sequential_progress,
-                                datetime.now().isoformat()
-                            )
+                                datetime.now().isoformat(),
+                            ),
                         )
                         local_module_id = cursor.lastrowid
                     module_count += 1
@@ -733,19 +874,41 @@ class CanvasClient:
                         for item in items:
                             # Properly convert all MagicMock attributes to appropriate types for SQLite
                             item_id = int(item.id) if hasattr(item, "id") else None
-                            item_title = str(getattr(item, "title", "")) if getattr(item, "title", None) is not None else None
-                            item_type = str(getattr(item, "type", "")) if getattr(item, "type", None) is not None else None
-                            item_position = int(getattr(item, "position", 0)) if getattr(item, "position", None) is not None else None
-                            item_url = str(getattr(item, "external_url", "")) if getattr(item, "external_url", None) is not None else None
-                            item_page_url = str(getattr(item, "page_url", "")) if getattr(item, "page_url", None) is not None else None
+                            item_title = (
+                                str(getattr(item, "title", ""))
+                                if getattr(item, "title", None) is not None
+                                else None
+                            )
+                            item_type = (
+                                str(getattr(item, "type", ""))
+                                if getattr(item, "type", None) is not None
+                                else None
+                            )
+                            item_position = (
+                                int(getattr(item, "position", 0))
+                                if getattr(item, "position", None) is not None
+                                else None
+                            )
+                            item_url = (
+                                str(getattr(item, "external_url", ""))
+                                if getattr(item, "external_url", None) is not None
+                                else None
+                            )
+                            item_page_url = (
+                                str(getattr(item, "page_url", ""))
+                                if getattr(item, "page_url", None) is not None
+                                else None
+                            )
 
                             # Convert the content_details to a string representation
-                            content_details = str(item) if hasattr(item, "__dict__") else None
+                            content_details = (
+                                str(item) if hasattr(item, "__dict__") else None
+                            )
 
                             # Check if module item exists
                             cursor.execute(
                                 "SELECT id FROM module_items WHERE module_id = ? AND canvas_item_id = ?",
-                                (local_module_id, item_id)
+                                (local_module_id, item_id),
                             )
                             existing_item = cursor.fetchone()
 
@@ -771,8 +934,8 @@ class CanvasClient:
                                         item_page_url,
                                         content_details,
                                         datetime.now().isoformat(),
-                                        existing_item["id"]
-                                    )
+                                        existing_item["id"],
+                                    ),
                                 )
                             else:
                                 # Insert new item
@@ -792,8 +955,8 @@ class CanvasClient:
                                         item_url,
                                         item_page_url,
                                         content_details,
-                                        datetime.now().isoformat()
-                                    )
+                                        datetime.now().isoformat(),
+                                    ),
                                 )
                     except Exception as e:
                         print(f"Error syncing module items for module {module.id}: {e}")
@@ -805,51 +968,54 @@ class CanvasClient:
 
         return module_count
 
-    def get_assignment_details(self, local_course_id: int, assignment_name: str) -> dict[str, Any]:
+    def get_assignment_details(
+        self, local_course_id: int, assignment_name: str
+    ) -> dict[str, Any]:
         """
         Get detailed information about a specific assignment directly from Canvas API.
-        
+
         Args:
             local_course_id: The local database ID for the course
             assignment_name: Name or partial name of the assignment to find
-            
+
         Returns:
             Dictionary with detailed assignment information
         """
         if self.canvas is None:
             raise ImportError("canvasapi module is required for this operation")
-            
+
         # Get Canvas course ID from local course ID
         conn, cursor = self.connect_db()
         cursor.execute(
-            "SELECT canvas_course_id FROM courses WHERE id = ?",
-            (local_course_id,)
+            "SELECT canvas_course_id FROM courses WHERE id = ?", (local_course_id,)
         )
         row = cursor.fetchone()
-        
+
         # Get local assignment ID
         cursor.execute(
             """
-            SELECT canvas_assignment_id 
-            FROM assignments 
+            SELECT canvas_assignment_id
+            FROM assignments
             WHERE course_id = ? AND title LIKE ?
             """,
-            (local_course_id, f"%{assignment_name}%")
+            (local_course_id, f"%{assignment_name}%"),
         )
         assignment_row = cursor.fetchone()
         conn.close()
-        
+
         if not row:
             print(f"Course with ID {local_course_id} not found in database")
             return {"error": "Course not found"}
-            
+
         canvas_course_id = row["canvas_course_id"]
-        canvas_assignment_id = assignment_row["canvas_assignment_id"] if assignment_row else None
-        
+        canvas_assignment_id = (
+            assignment_row["canvas_assignment_id"] if assignment_row else None
+        )
+
         # Get course from Canvas
         try:
             canvas_course = self.canvas.get_course(canvas_course_id)
-            
+
             # If we have the Canvas assignment ID, get it directly
             if canvas_assignment_id:
                 try:
@@ -860,20 +1026,17 @@ class CanvasClient:
                         "due_date": getattr(assignment, "due_at", None),
                         "points_possible": getattr(assignment, "points_possible", None),
                         "submission_types": getattr(assignment, "submission_types", []),
-                        "canvas_assignment_id": assignment.id
+                        "canvas_assignment_id": assignment.id,
                     }
-                    
+
                     # Check for additional details like rubrics
                     if hasattr(assignment, "rubric"):
                         assignment_data["rubric"] = assignment.rubric
-                    
-                    return {
-                        "success": True,
-                        "data": assignment_data
-                    }
+
+                    return {"success": True, "data": assignment_data}
                 except Exception as e:
                     print(f"Error getting assignment {canvas_assignment_id}: {e}")
-            
+
             # If we don't have the ID or couldn't fetch it directly, search for it
             assignments = canvas_course.get_assignments()
             for assignment in assignments:
@@ -884,30 +1047,26 @@ class CanvasClient:
                         "due_date": getattr(assignment, "due_at", None),
                         "points_possible": getattr(assignment, "points_possible", None),
                         "submission_types": getattr(assignment, "submission_types", []),
-                        "canvas_assignment_id": assignment.id
+                        "canvas_assignment_id": assignment.id,
                     }
-                    
+
                     # Check for additional details like rubrics
                     if hasattr(assignment, "rubric"):
                         assignment_data["rubric"] = assignment.rubric
-                    
-                    return {
-                        "success": True,
-                        "data": assignment_data
-                    }
-                    
+
+                    return {"success": True, "data": assignment_data}
+
             return {
                 "success": False,
-                "error": f"Assignment '{assignment_name}' not found in Canvas course"
+                "error": f"Assignment '{assignment_name}' not found in Canvas course",
             }
-            
+
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"Error fetching assignment: {str(e)}"
-            }
-    
-    def extract_files_from_course(self, local_course_id: int, filter_by_type: str = None) -> list[dict[str, Any]]:
+            return {"success": False, "error": f"Error fetching assignment: {str(e)}"}
+
+    def extract_files_from_course(
+        self, local_course_id: int, filter_by_type: str = None
+    ) -> list[dict[str, Any]]:
         """
         Extract files from a Canvas course, optionally filtering by file type.
 
@@ -924,8 +1083,7 @@ class CanvasClient:
         # Get Canvas course ID from local course ID
         conn, cursor = self.connect_db()
         cursor.execute(
-            "SELECT canvas_course_id FROM courses WHERE id = ?",
-            (local_course_id,)
+            "SELECT canvas_course_id FROM courses WHERE id = ?", (local_course_id,)
         )
         row = cursor.fetchone()
         conn.close()
@@ -945,58 +1103,89 @@ class CanvasClient:
             files = canvas_course.get_files()
             for file in files:
                 file_name = (
-                    file.display_name if hasattr(file, "display_name") else
-                    (file.filename if hasattr(file, "filename") else "Unnamed File")
+                    file.display_name
+                    if hasattr(file, "display_name")
+                    else (
+                        file.filename if hasattr(file, "filename") else "Unnamed File"
+                    )
                 )
-                
+
                 # Filter by file type if specified
                 if filter_by_type:
                     # Special handling for common file types
-                    if filter_by_type.lower() == 'docx':
+                    if filter_by_type.lower() == "docx":
                         # Check for both .docx and .doc extensions
-                        if not (file_name.lower().endswith('.docx') or file_name.lower().endswith('.doc')):
+                        if not (
+                            file_name.lower().endswith(".docx")
+                            or file_name.lower().endswith(".doc")
+                        ):
                             continue
-                    elif filter_by_type.lower() == 'doc':
+                    elif filter_by_type.lower() == "doc":
                         # Check for both .docx and .doc extensions
-                        if not (file_name.lower().endswith('.docx') or file_name.lower().endswith('.doc')):
+                        if not (
+                            file_name.lower().endswith(".docx")
+                            or file_name.lower().endswith(".doc")
+                        ):
                             continue
-                    elif filter_by_type.lower() == 'ppt':
+                    elif filter_by_type.lower() == "ppt":
                         # Check for both .ppt and .pptx extensions
-                        if not (file_name.lower().endswith('.ppt') or file_name.lower().endswith('.pptx')):
+                        if not (
+                            file_name.lower().endswith(".ppt")
+                            or file_name.lower().endswith(".pptx")
+                        ):
                             continue
-                    elif filter_by_type.lower() == 'pptx':
+                    elif filter_by_type.lower() == "pptx":
                         # Check for both .ppt and .pptx extensions
-                        if not (file_name.lower().endswith('.ppt') or file_name.lower().endswith('.pptx')):
+                        if not (
+                            file_name.lower().endswith(".ppt")
+                            or file_name.lower().endswith(".pptx")
+                        ):
                             continue
-                    elif filter_by_type.lower() == 'xls':
+                    elif filter_by_type.lower() == "xls":
                         # Check for both .xls and .xlsx extensions
-                        if not (file_name.lower().endswith('.xls') or file_name.lower().endswith('.xlsx')):
+                        if not (
+                            file_name.lower().endswith(".xls")
+                            or file_name.lower().endswith(".xlsx")
+                        ):
                             continue
-                    elif filter_by_type.lower() == 'xlsx':
+                    elif filter_by_type.lower() == "xlsx":
                         # Check for both .xls and .xlsx extensions
-                        if not (file_name.lower().endswith('.xls') or file_name.lower().endswith('.xlsx')):
+                        if not (
+                            file_name.lower().endswith(".xls")
+                            or file_name.lower().endswith(".xlsx")
+                        ):
                             continue
                     else:
                         # For other file types, just check the extension
                         if not file_name.lower().endswith(f".{filter_by_type.lower()}"):
                             continue
-                    
-                course_files.append({
-                    "name": file_name,
-                    "url": file.url if hasattr(file, "url") else None,
-                    "id": file.id if hasattr(file, "id") else None,
-                    "size": file.size if hasattr(file, "size") else None,
-                    "content_type": file.content_type if hasattr(file, "content_type") else None,
-                    "created_at": file.created_at if hasattr(file, "created_at") else None,
-                    "updated_at": file.updated_at if hasattr(file, "updated_at") else None,
-                    "source": "files"
-                })
+
+                course_files.append(
+                    {
+                        "name": file_name,
+                        "url": file.url if hasattr(file, "url") else None,
+                        "id": file.id if hasattr(file, "id") else None,
+                        "size": file.size if hasattr(file, "size") else None,
+                        "content_type": file.content_type
+                        if hasattr(file, "content_type")
+                        else None,
+                        "created_at": file.created_at
+                        if hasattr(file, "created_at")
+                        else None,
+                        "updated_at": file.updated_at
+                        if hasattr(file, "updated_at")
+                        else None,
+                        "source": "files",
+                    }
+                )
         except Exception as e:
             print(f"Error getting files for course {canvas_course_id}: {e}")
 
         return course_files
 
-    def extract_pdf_files_from_course(self, local_course_id: int) -> list[dict[str, Any]]:
+    def extract_pdf_files_from_course(
+        self, local_course_id: int
+    ) -> list[dict[str, Any]]:
         """
         Extract PDF files from a Canvas course.
 
@@ -1008,60 +1197,76 @@ class CanvasClient:
         """
         if self.canvas is None:
             raise ImportError("canvasapi module is required for this operation")
-            
+
         # Get Canvas course ID from local course ID
         conn, cursor = self.connect_db()
         cursor.execute(
-            "SELECT canvas_course_id FROM courses WHERE id = ?",
-            (local_course_id,)
+            "SELECT canvas_course_id FROM courses WHERE id = ?", (local_course_id,)
         )
         row = cursor.fetchone()
         conn.close()
-        
+
         if not row:
             print(f"Course with ID {local_course_id} not found in database")
             return []
-            
+
         canvas_course_id = row["canvas_course_id"]
-        
+
         # Get course from Canvas
         canvas_course = self.canvas.get_course(canvas_course_id)
         pdf_files = []
-        
+
         # Get files from the course
         try:
             files = canvas_course.get_files()
             for file in files:
                 # Check if file is a PDF by various attributes or filename extension
                 is_pdf = False
-                
+
                 # Check content-type or content_type attribute
-                if hasattr(file, "content-type") and "pdf" in getattr(file, "content-type").lower():
+                if (
+                    hasattr(file, "content-type")
+                    and "pdf" in getattr(file, "content-type").lower()
+                ):
                     is_pdf = True
-                elif hasattr(file, "content_type") and "pdf" in getattr(file, "content_type", "").lower():
+                elif (
+                    hasattr(file, "content_type")
+                    and "pdf" in getattr(file, "content_type", "").lower()
+                ):
                     is_pdf = True
-                
+
                 # Check by filename extension as a fallback
-                elif hasattr(file, "filename") and str(file.filename).lower().endswith(".pdf"):
+                elif hasattr(file, "filename") and str(file.filename).lower().endswith(
+                    ".pdf"
+                ):
                     is_pdf = True
-                elif hasattr(file, "display_name") and str(file.display_name).lower().endswith(".pdf"):
+                elif hasattr(file, "display_name") and str(
+                    file.display_name
+                ).lower().endswith(".pdf"):
                     is_pdf = True
-                
+
                 # If it's a PDF, add it to the list
                 if is_pdf:
                     file_name = (
-                        file.display_name if hasattr(file, "display_name") else 
-                        (file.filename if hasattr(file, "filename") else "Unnamed PDF")
+                        file.display_name
+                        if hasattr(file, "display_name")
+                        else (
+                            file.filename
+                            if hasattr(file, "filename")
+                            else "Unnamed PDF"
+                        )
                     )
-                    pdf_files.append({
-                        "name": file_name,
-                        "url": file.url if hasattr(file, "url") else None,
-                        "id": file.id if hasattr(file, "id") else None,
-                        "source": "files"
-                    })
+                    pdf_files.append(
+                        {
+                            "name": file_name,
+                            "url": file.url if hasattr(file, "url") else None,
+                            "id": file.id if hasattr(file, "id") else None,
+                            "source": "files",
+                        }
+                    )
         except Exception as e:
             print(f"Error getting files for course {canvas_course_id}: {e}")
-            
+
         # Get files from assignments
         try:
             assignments = canvas_course.get_assignments()
@@ -1070,82 +1275,123 @@ class CanvasClient:
                 if hasattr(assignment, "description") and assignment.description:
                     # First, check for PDF links in the description
                     pdf_links = self.extract_pdf_links(assignment.description)
-                    
+
                     # Also check for Canvas file URLs in the description
-                    if '/files/' in assignment.description:
+                    if "/files/" in assignment.description:
                         # Extract file IDs from the description
                         try:
                             import re
-                            file_id_pattern = re.compile(r'/files/(\d+)')
+
+                            file_id_pattern = re.compile(r"/files/(\d+)")
                             file_ids = file_id_pattern.findall(assignment.description)
-                            
+
                             # Check each file to see if it's a PDF
                             for file_id in file_ids:
                                 try:
                                     file = canvas_course.get_file(file_id)
                                     # Check if it's a PDF by name
-                                    if (hasattr(file, "filename") and str(file.filename).lower().endswith(".pdf")) or \
-                                       (hasattr(file, "display_name") and str(file.display_name).lower().endswith(".pdf")):
+                                    if (
+                                        hasattr(file, "filename")
+                                        and str(file.filename).lower().endswith(".pdf")
+                                    ) or (
+                                        hasattr(file, "display_name")
+                                        and str(file.display_name)
+                                        .lower()
+                                        .endswith(".pdf")
+                                    ):
                                         file_name = (
-                                            file.display_name if hasattr(file, "display_name") else 
-                                            (file.filename if hasattr(file, "filename") else f"File from {assignment.name}")
+                                            file.display_name
+                                            if hasattr(file, "display_name")
+                                            else (
+                                                file.filename
+                                                if hasattr(file, "filename")
+                                                else f"File from {assignment.name}"
+                                            )
                                         )
-                                        pdf_files.append({
-                                            "name": file_name,
-                                            "url": file.url if hasattr(file, "url") else None,
-                                            "id": file.id,
-                                            "source": "assignment_file_reference",
-                                            "assignment_id": assignment.id,
-                                            "assignment_name": assignment.name
-                                        })
+                                        pdf_files.append(
+                                            {
+                                                "name": file_name,
+                                                "url": file.url
+                                                if hasattr(file, "url")
+                                                else None,
+                                                "id": file.id,
+                                                "source": "assignment_file_reference",
+                                                "assignment_id": assignment.id,
+                                                "assignment_name": assignment.name,
+                                            }
+                                        )
                                 except Exception as e:
-                                    print(f"Error getting file {file_id} referenced in assignment {assignment.id}: {e}")
+                                    print(
+                                        f"Error getting file {file_id} referenced in assignment {assignment.id}: {e}"
+                                    )
                         except Exception as e:
-                            print(f"Error parsing file IDs from assignment {assignment.id}: {e}")
-                    
+                            print(
+                                f"Error parsing file IDs from assignment {assignment.id}: {e}"
+                            )
+
                     # Add any direct PDF links found
                     for link in pdf_links:
-                        pdf_files.append({
-                            "name": f"PDF link from assignment: {assignment.name}",
-                            "url": link,
-                            "id": None,
-                            "source": "assignment_link",
-                            "assignment_id": assignment.id,
-                            "assignment_name": assignment.name
-                        })
-                        
+                        pdf_files.append(
+                            {
+                                "name": f"PDF link from assignment: {assignment.name}",
+                                "url": link,
+                                "id": None,
+                                "source": "assignment_link",
+                                "assignment_id": assignment.id,
+                                "assignment_name": assignment.name,
+                            }
+                        )
+
                 # Check for attachments
                 if hasattr(assignment, "attachments"):
                     for attachment in assignment.attachments:
                         # Check if attachment is a PDF
                         is_pdf = False
-                        
+
                         # Check content_type attribute
-                        if hasattr(attachment, "content_type") and "pdf" in getattr(attachment, "content_type", "").lower():
+                        if (
+                            hasattr(attachment, "content_type")
+                            and "pdf" in getattr(attachment, "content_type", "").lower()
+                        ):
                             is_pdf = True
-                        
+
                         # Check by filename extension as a fallback
-                        elif hasattr(attachment, "filename") and str(attachment.filename).lower().endswith(".pdf"):
+                        elif hasattr(attachment, "filename") and str(
+                            attachment.filename
+                        ).lower().endswith(".pdf"):
                             is_pdf = True
-                        elif hasattr(attachment, "display_name") and str(attachment.display_name).lower().endswith(".pdf"):
+                        elif hasattr(attachment, "display_name") and str(
+                            attachment.display_name
+                        ).lower().endswith(".pdf"):
                             is_pdf = True
-                        
+
                         # If it's a PDF, add it to the list
                         if is_pdf:
                             att_name = (
-                                attachment.display_name if hasattr(attachment, "display_name") else 
-                                (attachment.filename if hasattr(attachment, "filename") else f"Attachment from {assignment.name}")
+                                attachment.display_name
+                                if hasattr(attachment, "display_name")
+                                else (
+                                    attachment.filename
+                                    if hasattr(attachment, "filename")
+                                    else f"Attachment from {assignment.name}"
+                                )
                             )
-                            pdf_files.append({
-                                "name": att_name,
-                                "url": attachment.url if hasattr(attachment, "url") else None,
-                                "id": attachment.id if hasattr(attachment, "id") else None,
-                                "source": "assignment_attachment",
-                                "assignment_id": assignment.id
-                            })
+                            pdf_files.append(
+                                {
+                                    "name": att_name,
+                                    "url": attachment.url
+                                    if hasattr(attachment, "url")
+                                    else None,
+                                    "id": attachment.id
+                                    if hasattr(attachment, "id")
+                                    else None,
+                                    "source": "assignment_attachment",
+                                    "assignment_id": assignment.id,
+                                }
+                            )
         except Exception as e:
             print(f"Error getting assignments for course {canvas_course_id}: {e}")
-            
+
         # Get files from modules
         try:
             modules = canvas_course.get_modules()
@@ -1162,40 +1408,65 @@ class CanvasClient:
                                     file = canvas_course.get_file(file_id)
                                     # Check if file is a PDF
                                     is_pdf = False
-                                    
+
                                     # Check content-type or content_type attribute
-                                    if hasattr(file, "content_type") and "pdf" in getattr(file, "content_type", "").lower():
+                                    if (
+                                        hasattr(file, "content_type")
+                                        and "pdf"
+                                        in getattr(file, "content_type", "").lower()
+                                    ):
                                         is_pdf = True
-                                    elif hasattr(file, "content-type") and "pdf" in getattr(file, "content-type", "").lower():
+                                    elif (
+                                        hasattr(file, "content-type")
+                                        and "pdf"
+                                        in getattr(file, "content-type", "").lower()
+                                    ):
                                         is_pdf = True
-                                    
+
                                     # Check by filename extension as a fallback
-                                    elif hasattr(file, "filename") and str(file.filename).lower().endswith(".pdf"):
+                                    elif hasattr(file, "filename") and str(
+                                        file.filename
+                                    ).lower().endswith(".pdf"):
                                         is_pdf = True
-                                    elif hasattr(file, "display_name") and str(file.display_name).lower().endswith(".pdf"):
+                                    elif hasattr(file, "display_name") and str(
+                                        file.display_name
+                                    ).lower().endswith(".pdf"):
                                         is_pdf = True
-                                    
+
                                     # If it's a PDF, add it to the list
                                     if is_pdf:
                                         file_name = (
-                                            file.display_name if hasattr(file, "display_name") else 
-                                            (file.filename if hasattr(file, "filename") else f"File from {module.name}")
+                                            file.display_name
+                                            if hasattr(file, "display_name")
+                                            else (
+                                                file.filename
+                                                if hasattr(file, "filename")
+                                                else f"File from {module.name}"
+                                            )
                                         )
-                                        pdf_files.append({
-                                            "name": file_name,
-                                            "url": file.url if hasattr(file, "url") else None,
-                                            "id": file.id if hasattr(file, "id") else None,
-                                            "source": "module_file",
-                                            "module_id": module.id,
-                                            "module_name": module.name
-                                        })
+                                        pdf_files.append(
+                                            {
+                                                "name": file_name,
+                                                "url": file.url
+                                                if hasattr(file, "url")
+                                                else None,
+                                                "id": file.id
+                                                if hasattr(file, "id")
+                                                else None,
+                                                "source": "module_file",
+                                                "module_id": module.id,
+                                                "module_name": module.name,
+                                            }
+                                        )
                                 except Exception as e:
-                                    print(f"Error getting file {file_id} for module {module.id}: {e}")
+                                    print(
+                                        f"Error getting file {file_id} for module {module.id}: {e}"
+                                    )
                 except Exception as e:
                     print(f"Error getting items for module {module.id}: {e}")
         except Exception as e:
             print(f"Error getting modules for course {canvas_course_id}: {e}")
-            
+
         return pdf_files
 
     def sync_announcements(self, course_ids: list[int] | None = None) -> int:
@@ -1223,7 +1494,7 @@ class CanvasClient:
             for course_id in course_ids:
                 cursor.execute(
                     "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,)
+                    (course_id,),
                 )
                 course = cursor.fetchone()
                 if course:
@@ -1239,13 +1510,15 @@ class CanvasClient:
                 canvas_course = self.canvas.get_course(canvas_course_id)
 
                 # Get announcements for the course
-                announcements = canvas_course.get_discussion_topics(only_announcements=True)
+                announcements = canvas_course.get_discussion_topics(
+                    only_announcements=True
+                )
 
                 for announcement in announcements:
                     # Check if announcement exists
                     cursor.execute(
                         "SELECT id FROM announcements WHERE course_id = ? AND canvas_announcement_id = ?",
-                        (local_course_id, announcement.id)
+                        (local_course_id, announcement.id),
                     )
                     existing_announcement = cursor.fetchone()
 
@@ -1267,8 +1540,8 @@ class CanvasClient:
                                 getattr(announcement, "author_name", None),
                                 getattr(announcement, "posted_at", None),
                                 datetime.now().isoformat(),
-                                existing_announcement["id"]
-                            )
+                                existing_announcement["id"],
+                            ),
                         )
                     else:
                         # Insert new announcement
@@ -1286,8 +1559,8 @@ class CanvasClient:
                                 getattr(announcement, "message", None),
                                 getattr(announcement, "author_name", None),
                                 getattr(announcement, "posted_at", None),
-                                datetime.now().isoformat()
-                            )
+                                datetime.now().isoformat(),
+                            ),
                         )
 
                     announcement_count += 1
@@ -1302,16 +1575,15 @@ class CanvasClient:
     def parse_existing_pdf_syllabi(self) -> int:
         """
         Parse existing PDF syllabi that haven't been parsed yet.
-        
+
         Returns:
             Number of successfully parsed syllabi
         """
-        if not extract_text_from_pdf:
-            print("PDF extraction not available. Install pdfplumber and requests packages.")
-            return 0
-            
+        # Import the correct function from file_extractor
+        from canvas_mcp.utils.file_extractor import extract_text_from_pdf_url
+
         conn, cursor = self.connect_db()
-        
+
         # Find syllabi of type pdf_link that haven't been parsed
         cursor.execute("""
             SELECT s.id, s.course_id, s.content, c.course_name
@@ -1319,46 +1591,51 @@ class CanvasClient:
             JOIN courses c ON s.course_id = c.id
             WHERE s.content_type = 'pdf_link' AND (s.is_parsed = 0 OR s.is_parsed IS NULL)
         """)
-        
+
         pdf_syllabi = cursor.fetchall()
         parsed_count = 0
-        
+
         for syllabus in pdf_syllabi:
             syllabus_id = syllabus[0]
             content = syllabus[2]
             course_name = syllabus[3]
-            
+
             # Extract PDF links from the content
             pdf_links = self.extract_pdf_links(content)
-            
+
             if not pdf_links:
                 continue
-                
+
             # Try to extract text from the first PDF link
             try:
-                pdf_text = extract_text_from_pdf(pdf_links[0])
-                
+                pdf_text = extract_text_from_pdf_url(pdf_links[0])
+
                 if pdf_text:
                     # Update the syllabus with the parsed content
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         UPDATE syllabi SET
                             parsed_content = ?,
                             is_parsed = 1,
                             updated_at = ?
                         WHERE id = ?
-                    """, (pdf_text, datetime.now().isoformat(), syllabus_id))
-                    
+                    """,
+                        (pdf_text, datetime.now().isoformat(), syllabus_id),
+                    )
+
                     parsed_count += 1
                     print(f"Successfully parsed PDF syllabus for course: {course_name}")
             except Exception as e:
                 print(f"Error parsing PDF syllabus for course {course_name}: {e}")
-                
+
         conn.commit()
         conn.close()
-        
+
         return parsed_count
 
-    def sync_all(self, user_id: str | None = None, term_id: int | None = -1) -> dict[str, int]:
+    def sync_all(
+        self, user_id: str | None = None, term_id: int | None = -1
+    ) -> dict[str, int]:
         """
         Synchronize all data from Canvas to the local database.
 
@@ -1384,13 +1661,13 @@ class CanvasClient:
             pdf_count = self.parse_existing_pdf_syllabi()
         except Exception as e:
             print(f"Error parsing PDF syllabi: {e}")
-            
+
         return {
             "courses": len(course_ids),
             "assignments": assignment_count,
             "modules": module_count,
             "announcements": announcement_count,
-            "pdf_syllabi_parsed": pdf_count
+            "pdf_syllabi_parsed": pdf_count,
         }
 
     def _get_assignment_type(self, assignment: Any) -> str:
