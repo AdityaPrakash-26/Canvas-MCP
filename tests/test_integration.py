@@ -25,11 +25,13 @@ from init_db import create_database  # Import database creation function
 from src.canvas_mcp.server import (
     extract_text_from_course_file,
     get_assignment_details,
+    get_course_announcements,
     get_course_assignments,
     get_course_files,
     get_course_list,
     get_course_modules,
     get_syllabus,
+    get_syllabus_file,
     get_upcoming_deadlines,
     search_course_content,
     sync_canvas_data,
@@ -477,6 +479,63 @@ class TestCanvasMCPIntegration(unittest.TestCase):
         print(
             f"Found {len(course_deadlines)} upcoming deadlines for course {self.__class__.target_course_id}"
         )
+
+    def test_11_get_course_announcements(self):
+        """Test getting course announcements."""
+        # Ensure we have the target course ID
+        self.assertIsNotNone(
+            self.__class__.target_course_id, "Target course ID is required"
+        )
+
+        # Get announcements for the target course
+        announcements = get_course_announcements(self.__class__.target_course_id)
+
+        # Check that we got a list of announcements
+        self.assertIsInstance(announcements, list)
+        print(
+            f"Found {len(announcements)} announcements for course {self.__class__.target_course_id}"
+        )
+
+        # It's okay if there are no announcements, but we should still get a list
+        if len(announcements) > 0:
+            # Check the structure of the first announcement
+            first_announcement = announcements[0]
+            self.assertIn("title", first_announcement)
+            self.assertIn("content", first_announcement)
+            self.assertIn("posted_at", first_announcement)
+            print(f"First announcement: {first_announcement.get('title')}")
+
+    def test_12_get_syllabus_file(self):
+        """Test getting syllabus file for a course."""
+        # Ensure we have the target course ID
+        self.assertIsNotNone(
+            self.__class__.target_course_id, "Target course ID is required"
+        )
+
+        # Get syllabus file for the target course
+        result = get_syllabus_file(
+            self.__class__.target_course_id, extract_content=False
+        )
+
+        # Check that we got a result
+        self.assertIsInstance(result, dict)
+        print(f"Syllabus file search result: {result.get('success', False)}")
+
+        # It's okay if no syllabus file is found, but we should still get a valid result
+        if result.get("success", False):
+            # Check the structure of the result
+            self.assertIn("syllabus_file", result)
+            self.assertIn("all_syllabus_files", result)
+
+            # Check the structure of the syllabus file
+            syllabus_file = result["syllabus_file"]
+            self.assertIn("name", syllabus_file)
+            self.assertIn("url", syllabus_file)
+            print(f"Found syllabus file: {syllabus_file.get('name')}")
+        else:
+            # If no syllabus file was found, check that we got an error message
+            self.assertIn("error", result)
+            print(f"No syllabus file found: {result.get('error')}")
 
 
 if __name__ == "__main__":
