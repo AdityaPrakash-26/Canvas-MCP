@@ -615,6 +615,49 @@ def opt_out_course(
         "opted_out": opt_out,
     }
 
+@mcp.tool()
+def get_my_grades(course_id: int = None) -> list[dict[str, Any]]:
+    """
+    Get grades across all courses or for a specific course.
+
+    Args:
+        course_id: Optional course ID to filter by
+    Returns:
+        List of grades
+    """
+    conn, cursor = db_connect()
+
+    # Prepare query
+    query = """
+    SELECT
+        c.id AS course_id,
+        c.course_code,
+        c.course_name,
+        a.title AS assignment_title,
+        a.points_possible,
+        g.grade,
+        g.feedback
+    FROM
+        grades g
+    JOIN
+        assignments a ON g.assignment_id = a.id
+    JOIN
+        courses c ON a.course_id = c.id
+    """
+
+    params = []
+
+    if course_id is not None:
+        query += " WHERE c.id = ?"
+        params.append(course_id)
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    result = [row_to_dict(row) for row in rows]
+
+    conn.close()
+    return result
 
 # MCP Resources
 
@@ -869,6 +912,61 @@ def get_assignments_resource(course_id: int) -> str:
                 content += f"{description}\n\n"
             else:
                 content += "No description available.\n\n"
+
+    return content
+
+@mcp.resource("grades://{course_id}")
+def get_grades_resource(course_id: int) -> str:
+    """
+    Get resource with course grades.
+
+    Args:
+        course_id: Course ID
+
+    Returns:
+        Grades as formatted text
+    """
+    grades = get_my_grades(course_id)
+
+    if not grades:
+        return f"No grades found for course ID {course_id}"
+
+    content = f"# Grades for Course ID {course_id}\n\n"
+
+    for grade in grades:
+        content += (
+            f"## {grade.get('assignment_title')} ({grade.get('points_possible')} points)\n"
+        )
+        content += f"- Grade: {grade.get('grade')}\n"
+        content += f"- Feedback: {grade.get('feedback')}\n\n"
+
+    return content
+
+@mcp.resource("grades://my_grades")
+def get_my_grades_resource() -> str:
+    """
+    Get resource with my grades across all courses.
+
+    Returns:
+        My grades as formatted text
+    """
+    grades = get_my_grades()
+
+    if not grades:
+        return "No grades found"
+
+    content = "# My Grades\n\n"
+
+    for grade in grades:
+        content += (
+            f"## {grade.get('course_name')} ({grade.get('course_code')})\n"
+        )
+        content += (
+            f"- Assignment: {grade.get('assignment_title')} "
+            f"({grade.get('points_possible')} points)\n"
+        )
+        content += f"- Grade: {grade.get('grade')}\n"
+        content += f"- Feedback: {grade.get('feedback')}\n\n"
 
     return content
 
