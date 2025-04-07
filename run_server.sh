@@ -1,6 +1,9 @@
 #!/bin/bash
 # Script to run the Canvas MCP server
 
+# Kill any existing MCP processes
+lsof -i :5173 -i :3000 | grep node | awk '{print $2}' | xargs kill 2>/dev/null || true
+
 # Get the directory of this script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
@@ -20,5 +23,3 @@ echo "--------------------------------"
 
 # Run the server with uv
 uv run mcp dev src/canvas_mcp/server.py
-
-exit 0

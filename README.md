@@ -39,6 +39,14 @@ The project addresses the challenge of navigating Canvas for information by auto
 
 ### Installation
 
+# Mac:
+
+0. Install `uv` if you haven't already:
+```bash
+# if you're paranoid about piping to sh, go read the script by copy pasting the URL
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 1. Clone the repository:
 
 ```bash
@@ -46,13 +54,19 @@ git clone https://github.com/AdityaPrakash-26/Canvas-MCP.git
 cd Canvas-MCP
 ```
 
-2. Install UV if you haven't already:
+2. Create the virtual environment:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv --seed
 ```
 
-3. Install dependencies:
+3. Activate the virtual environment:
+
+```bash
+source .venv/bin/activate
+```
+
+4. Install dependencies:
 
 ```bash
 uv sync
@@ -73,13 +87,21 @@ uv run python init_db.py
 
 ### Running the Server
 
-To run the MCP server in development mode:
+1. Open Claude Desktop
+2. Go to Settings > Advanced > Edit Configuration
+3. (MAC ONLY) Add the following to your `claude_desktop_config.json` file in the `tools` section:
+(it is a key under mcpServers)
+4. (WINDOWS ONLY) See instructions below
 
 ```bash
 uv run mcp dev src/canvas_mcp/server.py
 ```
 
-This will start the MCP Inspector at http://127.0.0.1:6274, which you can use to test the server functionality.
+REPLACE $DIR with the absolute path to the directory where you cloned this repo. (MANDATORY!!!!!)
+REPLACE $DIR_uv with the uv path. (MANDATORY!!!!!) you can find it by running
+```bash
+which uv
+```
 
 ### Installing to Claude Desktop
 
@@ -109,6 +131,39 @@ This will start the MCP Inspector at http://127.0.0.1:6274, which you can use to
 
 ## Development
 
+# Windows
+
+We recommend using WSL (Windows Subsystem for Linux) to use this software. Installation instructions can be founder [here](https://learn.microsoft.com/en-us/windows/wsl/install).
+
+- Once installed, set up a new user in `/home/<username>`
+- Once you have the virtual environment setup, modify your claude desktop app config to include the following:
+
+```json
+"Canvas MCP": {
+  "command": "wsl.exe",
+  "args": [
+    "-d",
+    "Ubuntu",
+    "--exec",
+    "/home/<USER>/.local/bin/uv",
+    "run",
+    "--with",
+    "canvasapi>=3.3.0",
+    "--with",
+    "mcp[cli]",
+    "--with",
+    "python-dotenv>=1.0.1",
+    "--with",
+    "structlog>=24.1.0",
+    "--directory",
+    "/home/<USER>/Canvas-MCP",
+    "src/canvas_mcp/server.py"
+  ]
+}
+```
+
+Replace `<USER>` with your username.
+
 ### Available Commands
 
 ```bash
@@ -135,28 +190,7 @@ uv run ruff check . --fix
 uv run mypy src
 ```
 
-### Project Structure
-
-```
-Canvas-MCP/
-├── data/                   # Database files
-├── docs/                   # Documentation files
-│   └── db_schema.md        # Database schema documentation
-├── src/                    # Source code
-│   └── canvas_mcp/         # Main package
-│       ├── utils/          # Utility modules
-│       │   └── pdf_extractor.py # PDF handling utilities
-│       ├── canvas_client.py # Canvas API client
-│       └── server.py       # MCP server implementation
-├── tests/                  # Test suite
-│   ├── test_canvas_client.py
-│   ├── test_init_db.py
-│   └── test_server.py
-├── .env                    # Environment variables (create from template)
-├── init_db.py              # Database initialization script
-├── pyproject.toml          # Project configuration
-└── README.md               # Project documentation
-```
+## Testing
 
 ### Database Schema
 

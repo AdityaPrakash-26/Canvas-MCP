@@ -1,9 +1,15 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
 .mcp.json
 downloaded_files/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+**/*.db
 
 # C extensions
 *.so
@@ -131,6 +137,7 @@ celerybeat.pid
 
 # Environments
 .env
+.envrc
 .venv
 env/
 venv/
@@ -174,3 +181,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# data
+data/
