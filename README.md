@@ -47,12 +47,19 @@ The project addresses the challenge of navigating Canvas for information by auto
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
+# Mac:
+
+0. Install `uv` if you haven't already:
+```bash
+uv venv --seed
+```
+
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/AdityaPrakash-26/Canvas-MCP.git
-cd Canvas-MCP
+git clone https://github.com/AdityaPrakash-26/Canvas-MCP.git && cd Canvas-MCP
 ```
+
 
 2. Create the virtual environment:
 
@@ -66,7 +73,7 @@ uv venv --seed
 source .venv/bin/activate
 ```
 
-4. Install dependencies:
+4. Install the dependencies:
 
 ```bash
 uv sync
@@ -134,6 +141,38 @@ which uv
 # Windows
 
 We recommend using WSL (Windows Subsystem for Linux) to use this software. Installation instructions can be founder [here](https://learn.microsoft.com/en-us/windows/wsl/install).
+# Windows
+
+We recommend using WSL (Windows Subsystem for Linux) to use this software. Installation instructions can be founder [here](https://learn.microsoft.com/en-us/windows/wsl/install).
+
+- Once installed, set up a new user in `/home/<username>`
+- Once you have the virtual environment setup, modify your claude desktop app config to include the following:
+
+```json
+"Canvas MCP": {
+  "command": "wsl.exe",
+  "args": [
+    "-d",
+    "Ubuntu",
+    "--exec",
+    "/home/<USER>/.local/bin/uv",
+    "run",
+    "--with",
+    "canvasapi>=3.3.0",
+    "--with",
+    "mcp[cli]",
+    "--with",
+    "python-dotenv>=1.0.1",
+    "--with",
+    "structlog>=24.1.0",
+    "--directory",
+    "/home/<USER>/Canvas-MCP",
+    "src/canvas_mcp/server.py"
+  ]
+}
+```
+
+Replace `<USER>` with your username.
 
 - Once installed, set up a new user in `/home/<username>`
 - Once you have the virtual environment setup, modify your claude desktop app config to include the following:
