@@ -18,6 +18,10 @@ from mcp.server.fastmcp import FastMCP
 
 from canvas_mcp.canvas_client import CanvasClient
 from canvas_mcp.utils.pdf_extractor import extract_text_from_pdf
+from canvas_mcp.utils.file_downloader import (
+    download_course_files,
+    download_multiple_courses,
+)
 
 # Load environment variables
 load_dotenv()
