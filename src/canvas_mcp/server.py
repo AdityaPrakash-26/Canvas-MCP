@@ -6,8 +6,9 @@ It integrates with the Canvas API and local SQLite database to provide
 structured access to course information.
 """
 
+import logging
 import os
-import sqlite3
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -15,18 +16,35 @@ from typing import Any
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-from canvas_mcp.canvas_client import CanvasClient
+from canvas_mcp.utils.db_manager import DatabaseManager
+from canvas_mcp.utils.file_extractor import extract_text_from_file
+
+try:
+    from .canvas_client import CanvasClient
+except ImportError:
+    from canvas_mcp.canvas_client import CanvasClient
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("canvas_mcp")
 
 # Configure paths
 PROJECT_DIR = Path(__file__).parent.parent.parent
 DB_DIR = PROJECT_DIR / "data"
 DB_PATH = DB_DIR / "canvas_mcp.db"
 
+# Allow overriding the database path for testing
+if os.environ.get("CANVAS_MCP_TEST_DB"):
+    DB_PATH = Path(os.environ.get("CANVAS_MCP_TEST_DB"))
+    print(f"Using test database: {DB_PATH}")
+
 # Ensure directories exist
-os.makedirs(DB_DIR, exist_ok=True)
+os.makedirs(DB_PATH.parent, exist_ok=True)
 
 # Initialize database if it doesn't exist
 if not DB_PATH.exists():
@@ -37,51 +55,91 @@ if not DB_PATH.exists():
 
     create_database(str(DB_PATH))
 
+print(f"Database initialized at {DB_PATH}")
+
 # Create Canvas client (will connect to API if canvasapi is installed)
 API_KEY = os.environ.get("CANVAS_API_KEY")
 API_URL = os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
-canvas_client = CanvasClient(str(DB_PATH), API_KEY, API_URL)
+
+try:
+    canvas_client = CanvasClient(str(DB_PATH), API_KEY, API_URL)
+    logger.info(f"Canvas client initialized successfully with database: {DB_PATH}")
+except Exception as e:
+    logger.error(f"Error initializing Canvas client: {e}")
+    # Create a dummy client that will use database-only operations
+    canvas_client = CanvasClient(str(DB_PATH), None, None)
+    logger.warning("Created database-only Canvas client due to initialization error")
+
+# Initialize database manager
+db_manager = DatabaseManager(str(DB_PATH))
+
+# Cache for course code to ID mapping (to reduce database lookups)
+course_code_cache = {}
 
 # Create an MCP server
 mcp = FastMCP(
     "Canvas MCP",
-    dependencies=["canvasapi>=3.3.0", "structlog>=24.1.0", "python-dotenv>=1.0.1"],
+    dependencies=[
+        "canvasapi>=3.3.0",
+        "structlog>=24.1.0",
+        "python-dotenv>=1.0.1",
+        "pdfplumber>=0.7.0",
+        "beautifulsoup4>=4.12.0",
+        "python-docx>=0.8.11",
+    ],
+    description="A Canvas integration for accessing course information, assignments, and resources.",
 )
 
 
-# Helper functions for database access
+# Create custom DatabaseManager instance for this module
+db_manager = DatabaseManager(DB_PATH)
 
 
-def db_connect() -> tuple[sqlite3.Connection, sqlite3.Cursor]:
+def extract_links_from_content(content: str) -> list[dict[str, str]]:
     """
-    Connect to the SQLite database.
-
-    Returns:
-        Tuple of (connection, cursor)
-    """
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    # Enable foreign keys
-    cursor.execute("PRAGMA foreign_keys = ON")
-
-    return conn, cursor
-
-
-def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
-    """
-    Convert a SQLite Row to a dictionary.
+    Extract links from HTML content.
 
     Args:
-        row: SQLite Row object
+        content: HTML content to parse
 
     Returns:
-        Dictionary representation of the row
+        List of dictionaries with 'url' and 'text' keys
     """
-    if row is None:
-        return {}
-    return {key: row[key] for key in row.keys()}
+    if not content or not isinstance(content, str):
+        return []
+
+    links = []
+    try:
+        # Find <a> tags with href attributes
+        a_tag_pattern = re.compile(
+            r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL
+        )
+        for match in a_tag_pattern.finditer(content):
+            url = match.group(1)
+            text = re.sub(
+                r"<[^>]*>", "", match.group(2)
+            ).strip()  # Remove nested HTML tags
+            if url:
+                links.append({"url": url, "text": text or url})
+
+        # If no <a> tags found, look for bare URLs
+        if not links:
+            url_pattern = re.compile(r"https?://\S+")
+            for match in url_pattern.finditer(content):
+                url = match.group(0)
+                links.append({"url": url, "text": url})
+
+    except Exception:
+        # Fall back to simple search if regex fails
+        if "href=" in content:
+            # Just extract the link without parsing
+            start = content.find('href="') + 6
+            end = content.find('"', start)
+            if start > 6 and end > start:
+                url = content[start:end]
+                links.append({"url": url, "text": "Link"})
+
+    return links
 
 
 # MCP Tools
@@ -99,10 +157,14 @@ def sync_canvas_data(force: bool = False) -> dict[str, int]:
         Dictionary with counts of synced items
     """
     try:
+        # Use the global canvas_client that was initialized with the correct DB_PATH
         result = canvas_client.sync_all()
         return result
     except ImportError:
         return {"error": "canvasapi module is required for this operation"}
+    except Exception as e:
+        logger.error(f"Error syncing Canvas data: {e}")
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -119,52 +181,57 @@ def get_upcoming_deadlines(
     Returns:
         List of upcoming deadlines
     """
-    conn, cursor = db_connect()
+    # Get database connection
+    conn, cursor = db_manager.connect()
 
-    # Calculate the date range
-    now = datetime.now()
-    end_date = now + timedelta(days=days)
+    try:
+        # Calculate the date range
+        now = datetime.now()
+        end_date = now + timedelta(days=days)
 
-    # Convert dates to strings in ISO format
-    now.isoformat()
-    end_date.isoformat()
+        # Format dates for SQLite comparison
+        # Note: For test data in future dates (2025), this will still work
+        # as we're using relative dates from the current date
+        now_str = now.strftime("%Y-%m-%d")
+        end_date_str = end_date.strftime("%Y-%m-%d")
 
-    # Build the query with simple date string comparison for better compatibility
-    # The test data is in future dates (2025) so we want all assignments regardless of current date
-    query = """
-    SELECT
-        c.course_code,
-        c.course_name,
-        a.title AS assignment_title,
-        a.assignment_type,
-        a.due_date,
-        a.points_possible
-    FROM
-        assignments a
-    JOIN
-        courses c ON a.course_id = c.id
-    WHERE
-        a.due_date IS NOT NULL
-    """
+        # Build the query with simple date string comparison for better compatibility
+        query = """
+        SELECT
+            c.course_code,
+            c.course_name,
+            a.title AS assignment_title,
+            a.assignment_type,
+            a.due_date,
+            a.points_possible
+        FROM
+            assignments a
+        JOIN
+            courses c ON a.course_id = c.id
+        WHERE
+            a.due_date IS NOT NULL
+            AND date(a.due_date) >= date(?)
+            AND date(a.due_date) <= date(?)
+        """
 
-    params: list[Any] = []
+        params: list[Any] = [now_str, end_date_str]
 
-    # Add course filter if specified
-    if course_id is not None:
-        query += " AND c.id = ?"
-        params.append(course_id)
+        # Add course filter if specified
+        if course_id is not None:
+            query += " AND c.id = ?"
+            params.append(course_id)
 
-    query += " ORDER BY a.due_date ASC"
+        query += " ORDER BY a.due_date ASC"
 
-    # Execute query
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
+        # Execute query
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
 
-    # Convert to list of dictionaries
-    result = [row_to_dict(row) for row in rows]
-
-    conn.close()
-    return result
+        # Convert to list of dictionaries
+        return db_manager.rows_to_dicts(rows)
+    finally:
+        # Close the connection
+        conn.close()
 
 
 @mcp.tool()
@@ -175,28 +242,28 @@ def get_course_list() -> list[dict[str, Any]]:
     Returns:
         List of course information
     """
-    conn, cursor = db_connect()
+    conn, cursor = db_manager.connect()
 
-    cursor.execute("""
-    SELECT
-        c.id,
-        c.canvas_course_id,
-        c.course_code,
-        c.course_name,
-        c.instructor,
-        c.start_date,
-        c.end_date
-    FROM
-        courses c
-    ORDER BY
-        c.start_date DESC
-    """)
+    try:
+        cursor.execute("""
+        SELECT
+            c.id,
+            c.canvas_course_id,
+            c.course_code,
+            c.course_name,
+            c.instructor,
+            c.start_date,
+            c.end_date
+        FROM
+            courses c
+        ORDER BY
+            c.start_date DESC
+        """)
 
-    rows = cursor.fetchall()
-    result = [row_to_dict(row) for row in rows]
-
-    conn.close()
-    return result
+        rows = cursor.fetchall()
+        return db_manager.rows_to_dicts(rows)
+    finally:
+        conn.close()
 
 
 @mcp.tool()
@@ -210,36 +277,36 @@ def get_course_assignments(course_id: int) -> list[dict[str, Any]]:
     Returns:
         List of assignments
     """
-    conn, cursor = db_connect()
+    conn, cursor = db_manager.connect()
 
-    cursor.execute(
-        """
-    SELECT
-        a.id,
-        a.canvas_assignment_id,
-        a.title,
-        a.description,
-        a.assignment_type,
-        a.due_date,
-        a.available_from,
-        a.available_until,
-        a.points_possible,
-        a.submission_types
-    FROM
-        assignments a
-    WHERE
-        a.course_id = ?
-    ORDER BY
-        a.due_date ASC
-    """,
-        (course_id,),
-    )
+    try:
+        cursor.execute(
+            """
+        SELECT
+            a.id,
+            a.canvas_assignment_id,
+            a.title,
+            a.description,
+            a.assignment_type,
+            a.due_date,
+            a.available_from,
+            a.available_until,
+            a.points_possible,
+            a.submission_types
+        FROM
+            assignments a
+        WHERE
+            a.course_id = ?
+        ORDER BY
+            a.due_date ASC
+        """,
+            (course_id,),
+        )
 
-    rows = cursor.fetchall()
-    result = [row_to_dict(row) for row in rows]
-
-    conn.close()
-    return result
+        rows = cursor.fetchall()
+        return db_manager.rows_to_dicts(rows)
+    finally:
+        conn.close()
 
 
 @mcp.tool()
@@ -256,57 +323,59 @@ def get_course_modules(
     Returns:
         List of modules
     """
-    conn, cursor = db_connect()
+    conn, cursor = db_manager.connect()
 
-    cursor.execute(
-        """
-    SELECT
-        m.id,
-        m.canvas_module_id,
-        m.name,
-        m.description,
-        m.unlock_date,
-        m.position
-    FROM
-        modules m
-    WHERE
-        m.course_id = ?
-    ORDER BY
-        m.position ASC
-    """,
-        (course_id,),
-    )
+    try:
+        cursor.execute(
+            """
+        SELECT
+            m.id,
+            m.canvas_module_id,
+            m.name,
+            m.description,
+            m.unlock_date,
+            m.position
+        FROM
+            modules m
+        WHERE
+            m.course_id = ?
+        ORDER BY
+            m.position ASC
+        """,
+            (course_id,),
+        )
 
-    modules = [row_to_dict(row) for row in cursor.fetchall()]
+        modules = db_manager.rows_to_dicts(cursor.fetchall())
 
-    # Include module items if requested
-    if include_items:
-        for module in modules:
-            cursor.execute(
-                """
-            SELECT
-                mi.id,
-                mi.canvas_item_id,
-                mi.title,
-                mi.item_type,
-                mi.position,
-                mi.url,
-                mi.page_url,
-                mi.content_details
-            FROM
-                module_items mi
-            WHERE
-                mi.module_id = ?
-            ORDER BY
-                mi.position ASC
-            """,
-                (module["id"],),
-            )
+        # Include module items if requested
+        if include_items:
+            for module in modules:
+                cursor.execute(
+                    """
+                SELECT
+                    mi.id,
+                    mi.canvas_item_id,
+                    mi.title,
+                    mi.item_type,
+                    mi.position,
+                    mi.url,
+                    mi.page_url,
+                    mi.content_details
+                FROM
+                    module_items mi
+                WHERE
+                    mi.module_id = ?
+                ORDER BY
+                    mi.position ASC
+                """,
+                    (module["id"],),
+                )
 
-            module["items"] = [row_to_dict(row) for row in cursor.fetchall()]
+                module["items"] = db_manager.rows_to_dicts(cursor.fetchall())
 
-    conn.close()
-    return modules
+        return modules
+    finally:
+        conn.close()
 
 
 @mcp.tool()
@@ -321,69 +390,125 @@ def get_syllabus(course_id: int, format: str = "raw") -> dict[str, Any]:
     Returns:
         Dictionary with syllabus content
     """
-    conn, cursor = db_connect()
+    conn, cursor = db_manager.connect()
 
-    # Get course information
-    cursor.execute(
-        """
-    SELECT
-        c.course_code,
-        c.course_name,
-        c.instructor
-    FROM
-        courses c
-    WHERE
-        c.id = ?
-    """,
-        (course_id,),
-    )
+    try:
+        # Get course information
+        cursor.execute(
+            """
+        SELECT
+            c.course_code,
+            c.course_name,
+            c.instructor
+        FROM
+            courses c
+        WHERE
+            c.id = ?
+        """,
+            (course_id,),
+        )
 
-    course_row = cursor.fetchone()
-    course = (
-        row_to_dict(course_row)
-        if course_row
-        else {"course_code": "", "course_name": "", "instructor": ""}
-    )
+        course_row = cursor.fetchone()
+        course = (
+            db_manager.row_to_dict(course_row)
+            if course_row
+            else {"course_code": "", "course_name": "", "instructor": ""}
+        )
 
-    # Get syllabus content
-    cursor.execute(
-        """
-    SELECT
-        s.content,
-        s.parsed_content,
-        s.is_parsed
-    FROM
-        syllabi s
-    WHERE
-        s.course_id = ?
-    """,
-        (course_id,),
-    )
+        # Get syllabus content
+        cursor.execute(
+            """
+        SELECT
+            s.content,
+            s.content_type,
+            s.parsed_content,
+            s.is_parsed
+        FROM
+            syllabi s
+        WHERE
+            s.course_id = ?
+        """,
+            (course_id,),
+        )
 
-    syllabus_row = cursor.fetchone()
-    syllabus = (
-        row_to_dict(syllabus_row)
-        if syllabus_row
-        else {"content": "", "parsed_content": "", "is_parsed": False}
-    )
+        syllabus_row = cursor.fetchone()
+        syllabus = (
+            db_manager.row_to_dict(syllabus_row)
+            if syllabus_row
+            else {
+                "content": "",
+                "content_type": "html",
+                "parsed_content": "",
+                "is_parsed": False,
+            }
+        )
 
-    result = {**course}
+        result = {**course}
 
-    if (
-        format == "parsed"
-        and syllabus.get("is_parsed")
-        and syllabus.get("parsed_content")
-    ):
-        result["content"] = syllabus.get("parsed_content")
-    else:
-        result["content"] = syllabus.get("content", "No syllabus available")
+        # Handle different content types
+        content_type = syllabus.get("content_type", "html")
 
-    # Always ensure course_code is present for tests
-    if "course_code" not in result:
-        result["course_code"] = ""
+        if (
+            format == "parsed"
+            and syllabus.get("is_parsed")
+            and syllabus.get("parsed_content")
+        ):
+            result["content"] = syllabus.get("parsed_content")
+            result["content_type"] = "text"
+        else:
+            result["content"] = syllabus.get("content", "No syllabus available")
+            result["content_type"] = content_type
 
-    conn.close()
-    return result
+            # Add helpful message for non-HTML content types
+            if content_type == "pdf_link" and result["content"]:
+                result["content_note"] = (
+                    "This syllabus is available as a PDF document. The link is included in the content."
+                )
+            elif content_type == "external_link" and result["content"]:
+                result["content_note"] = (
+                    "This syllabus is available as an external link. The URL is included in the content."
+                )
+            elif content_type.startswith("extracted_"):
+                # For extracted content types, provide a helpful note
+                file_type = content_type.replace("extracted_", "")
+                result["content_note"] = (
+                    f"This syllabus content was extracted from a {file_type.upper()} file."
+                )
+
+                # If we're displaying raw content but have parsed content available,
+                # mention that the parsed version is available
+                if (
+                    format == "raw"
+                    and syllabus.get("is_parsed")
+                    and syllabus.get("parsed_content")
+                ):
+                    result["format_note"] = (
+                        "A plain text version of this syllabus is available by setting format='parsed'."
+                    )
+
+                # If the content is very large, add a note about that
+                if len(result["content"]) > 10000:
+                    result["size_note"] = (
+                        "This syllabus content is quite large. Consider using the parsed format for a cleaner view."
+                    )
+
+        # Always ensure course_code is present for tests
+        if "course_code" not in result:
+            result["course_code"] = ""
+
+        # If we have no content but files might be available, suggest checking for a syllabus file
+        if result["content"] in [
+            "",
+            "No syllabus available",
+            "<p>No syllabus content available</p>",
+        ]:
+            result["suggestion"] = (
+                "No syllabus content found in the database. Try using get_syllabus_file() to find and extract a syllabus file."
+            )
+
+        return result
+    finally:
+        conn.close()
 
 
 @mcp.tool()
@@ -398,33 +523,508 @@ def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, 
     Returns:
         List of announcements
     """
-    conn, cursor = db_connect()
+    conn, cursor = db_manager.connect()
 
-    cursor.execute(
-        """
-    SELECT
-        a.id,
-        a.canvas_announcement_id,
-        a.title,
-        a.content,
-        a.posted_by,
-        a.posted_at
-    FROM
-        announcements a
-    WHERE
-        a.course_id = ?
-    ORDER BY
-        a.posted_at DESC
-    LIMIT ?
-    """,
-        (course_id, limit),
-    )
+    try:
+        cursor.execute(
+            """
+        SELECT
+            a.id,
+            a.canvas_announcement_id,
+            a.title,
+            a.content,
+            a.posted_by,
+            a.posted_at
+        FROM
+            announcements a
+        WHERE
+            a.course_id = ?
+        ORDER BY
+            a.posted_at DESC
+        LIMIT ?
+        """,
+            (course_id, limit),
+        )
 
-    rows = cursor.fetchall()
-    result = [row_to_dict(row) for row in rows]
+        rows = cursor.fetchall()
+        return db_manager.rows_to_dicts(rows)
+    finally:
+        conn.close()
 
-    conn.close()
-    return result
+
+@mcp.tool()
+def get_course_files(course_id: int, file_type: str = None) -> list[dict[str, Any]]:
+    """
+    Get all files available in a specific course, with optional filtering by file type.
+
+    Args:
+        course_id: Course ID
+        file_type: Optional file extension to filter by (e.g., 'pdf', 'docx')
+
+    Returns:
+        List of files with URLs
+    """
+    try:
+        files = canvas_client.extract_files_from_course(course_id, file_type)
+
+        # Add extraction URLs if needed
+        result = []
+        for file in files:
+            # Add a property to identify if this might be a syllabus
+            is_syllabus = "syllabus" in file.get("name", "").lower()
+
+            result.append(
+                {
+                    "name": file.get("name", "Unnamed File"),
+                    "url": file.get("url", ""),
+                    "content_type": file.get("content_type", ""),
+                    "size": file.get("size", ""),
+                    "created_at": file.get("created_at", ""),
+                    "updated_at": file.get("updated_at", ""),
+                    "source": file.get("source", "unknown"),
+                    "is_syllabus": is_syllabus,
+                }
+            )
+
+        return result
+    except Exception as e:
+        return [{"error": f"Error getting files: {e}"}]
+
+
+@mcp.tool()
+def get_syllabus_file(course_id: int, extract_content: bool = True) -> dict[str, Any]:
+    """
+    Attempt to find a syllabus file for a specific course.
+
+    Args:
+        course_id: Course ID
+        extract_content: Whether to extract and store content from the syllabus file
+
+    Returns:
+        Dictionary with syllabus file information or error
+    """
+    try:
+        # Use the global canvas_client instance directly
+        if canvas_client.canvas is None:
+            logger.warning("Canvas API not available in get_syllabus_file")
+            return {
+                "success": False,
+                "course_id": course_id,
+                "error": "Canvas API connection not available",
+            }
+
+        # Get all files in the course using the global client
+        files = canvas_client.extract_files_from_course(course_id)
+
+        # Look for files with "syllabus" in the name
+        syllabus_files = []
+        for file in files:
+            if "syllabus" in file["name"].lower():
+                syllabus_files.append(file)
+
+        if not syllabus_files:
+            return {
+                "success": False,
+                "course_id": course_id,
+                "error": "No syllabus file found",
+            }
+
+        # Get the first syllabus file found
+        syllabus_file = syllabus_files[0]
+        result = {
+            "success": True,
+            "course_id": course_id,
+            "syllabus_file": syllabus_file,
+            "all_syllabus_files": syllabus_files,
+        }
+
+        # Extract content if requested
+        if extract_content and "url" in syllabus_file:
+            file_url = syllabus_file["url"]
+            file_name = syllabus_file["name"]
+
+            # Determine file type
+            file_type = None
+            if file_name.lower().endswith(".pdf"):
+                file_type = "pdf"
+            elif file_name.lower().endswith((".docx", ".doc")):
+                file_type = "docx"
+
+            # Extract content
+            extraction = extract_text_from_file(file_url, file_type)
+
+            if extraction["success"]:
+                # Store the extracted content in the database
+                conn, cursor = db_manager.connect()
+
+                try:
+                    # Check if there's already a syllabus entry
+                    cursor.execute(
+                        "SELECT id, content_type FROM syllabi WHERE course_id = ?",
+                        (course_id,),
+                    )
+                    syllabus_row = cursor.fetchone()
+
+                    # Get the original syllabus content
+                    original_content = ""
+                    content_type = "html"
+
+                    if syllabus_row:
+                        # Get current content
+                        cursor.execute(
+                            "SELECT content FROM syllabi WHERE id = ?",
+                            (syllabus_row["id"],),
+                        )
+                        content_row = cursor.fetchone()
+                        if content_row:
+                            original_content = content_row["content"]
+                            content_type = syllabus_row["content_type"]
+
+                    # Format the content to include the original syllabus
+                    # along with the extracted file content
+                    extracted_content = extraction["text"]
+
+                    # Add metadata about the file source
+                    full_content = f"""
+                    <div class="syllabus-extracted-file">
+                        <p><strong>Extracted from: </strong>{file_name}</p>
+                        <hr/>
+                        <pre>{extracted_content}</pre>
+                    </div>
+                    """
+
+                    # Combine with original content if we're not replacing it completely
+                    if (
+                        original_content
+                        and content_type in ["html", "empty"]
+                        and "No syllabus content available" not in original_content
+                    ):
+                        full_content = f"{original_content}\n<hr/>\n{full_content}"
+
+                    # Determine what content type to set
+                    new_content_type = f"extracted_{extraction['file_type']}"
+
+                    if syllabus_row:
+                        # Update the syllabus entry
+                        cursor.execute(
+                            """
+                            UPDATE syllabi SET
+                                content = ?,
+                                content_type = ?,
+                                parsed_content = ?,
+                                is_parsed = 1,
+                                updated_at = ?
+                            WHERE id = ?
+                            """,
+                            (
+                                full_content,
+                                new_content_type,
+                                extracted_content,
+                                datetime.now().isoformat(),
+                                syllabus_row["id"],
+                            ),
+                        )
+                    else:
+                        # Insert a new syllabus entry
+                        cursor.execute(
+                            """
+                            INSERT INTO syllabi
+                            (course_id, content, content_type, parsed_content, is_parsed, updated_at)
+                            VALUES (?, ?, ?, ?, 1, ?)
+                            """,
+                            (
+                                course_id,
+                                full_content,
+                                new_content_type,
+                                extracted_content,
+                                datetime.now().isoformat(),
+                            ),
+                        )
+
+                    conn.commit()
+
+                    # Add the extracted content to the result
+                    result["extracted_content"] = {
+                        "success": True,
+                        "file_type": extraction["file_type"],
+                        "text_preview": (extracted_content[:500] + "...")
+                        if len(extracted_content) > 500
+                        else extracted_content,
+                    }
+
+                except Exception as db_error:
+                    conn.rollback()
+                    logger.error(
+                        f"Database error while storing extracted content: {str(db_error)}"
+                    )
+                    result["extraction_db_error"] = str(db_error)
+                finally:
+                    conn.close()
+            else:
+                # Content extraction failed
+                result["extracted_content"] = {
+                    "success": False,
+                    "error": extraction["error"],
+                }
+
+        return result
+    except Exception as e:
+        logger.error(f"Error in get_syllabus_file: {str(e)}")
+        return {
+            "success": False,
+            "course_id": course_id,
+            "error": f"Error searching for syllabus file: {e}",
+        }
+
+
+@mcp.tool()
+def get_assignment_details(
+    course_id: int, assignment_name: str, include_canvas_data: bool = True
+) -> dict[str, Any]:
+    """
+    Get comprehensive information about a specific assignment by name.
+    This function consolidates the functionality of get_course_assignment and get_assignment_by_name.
+
+    Args:
+        course_id: Course ID
+        assignment_name: Name or partial name of the assignment
+        include_canvas_data: Whether to include data from Canvas API if available
+
+    Returns:
+        Dictionary with assignment details and related resources
+    """
+    try:
+        if not assignment_name or not course_id:
+            return {
+                "error": "Missing required parameters: course_id and assignment_name must be provided"
+            }
+
+        conn, cursor = db_manager.connect()
+
+        try:
+            # Get course information
+            cursor.execute(
+                """
+            SELECT
+                c.course_code,
+                c.course_name,
+                c.canvas_course_id
+            FROM
+                courses c
+            WHERE
+                c.id = ?
+            """,
+                (course_id,),
+            )
+            course_row = cursor.fetchone()
+            if not course_row:
+                return {
+                    "error": f"Course with ID {course_id} not found",
+                    "course_id": course_id,
+                }
+
+            course = db_manager.row_to_dict(course_row)
+
+            # Search for the assignment with fuzzy matching
+            search_term = f"%{assignment_name}%"
+            cursor.execute(
+                """
+            SELECT
+                a.id,
+                a.canvas_assignment_id,
+                a.title,
+                a.description,
+                a.assignment_type,
+                a.due_date,
+                a.available_from,
+                a.available_until,
+                a.points_possible,
+                a.submission_types
+            FROM
+                assignments a
+            WHERE
+                a.course_id = ? AND (a.title LIKE ? OR a.description LIKE ?)
+            ORDER BY
+                CASE WHEN a.title LIKE ? THEN 0 ELSE 1 END,
+                a.due_date ASC
+            LIMIT 1
+            """,
+                (course_id, search_term, search_term, search_term),
+            )
+
+            assignment_row = cursor.fetchone()
+            if not assignment_row:
+                return {
+                    "error": f"No assignment matching '{assignment_name}' found in course {course_id}",
+                    "course_id": course_id,
+                    "course_name": course.get("course_name"),
+                    "course_code": course.get("course_code"),
+                    "assignment_name": assignment_name,
+                }
+
+            assignment = db_manager.row_to_dict(assignment_row)
+
+            # Add course information to the result
+            result = {
+                "course_code": course.get("course_code"),
+                "course_name": course.get("course_name"),
+                "assignment": assignment,
+            }
+
+            # Get related PDF files
+            pdf_files = []
+            try:
+                # Use the global canvas_client instance
+                all_pdfs = canvas_client.extract_pdf_files_from_course(course_id)
+
+                # Filter PDFs that might be related to this assignment
+                for pdf in all_pdfs:
+                    if (
+                        "assignment_id" in pdf
+                        and str(pdf["assignment_id"])
+                        == str(assignment.get("canvas_assignment_id"))
+                        or assignment.get("title") in pdf.get("name", "")
+                        or assignment_name.lower() in pdf.get("name", "").lower()
+                    ):
+                        pdf_files.append(
+                            {
+                                "name": pdf.get("name", ""),
+                                "url": pdf.get("url", ""),
+                                "source": pdf.get("source", ""),
+                            }
+                        )
+            except Exception as e:
+                logger.error(f"Error retrieving PDF files: {str(e)}")
+                pdf_files = [{"error": f"Error retrieving PDF files: {str(e)}"}]
+
+            result["pdf_files"] = pdf_files
+
+            # Extract links from assignment description
+            if assignment.get("description"):
+                try:
+                    result["links"] = extract_links_from_content(
+                        assignment.get("description", "")
+                    )
+                except Exception as e:
+                    logger.error(f"Error extracting links: {str(e)}")
+                    result["links"] = []
+                    result["links_error"] = f"Error extracting links: {str(e)}"
+
+            # Get module information where this assignment might be referenced
+            try:
+                cursor.execute(
+                    """
+                SELECT
+                    m.id,
+                    m.name,
+                    mi.title,
+                    mi.item_type
+                FROM
+                    modules m
+                JOIN
+                    module_items mi ON m.id = mi.module_id
+                WHERE
+                    m.course_id = ? AND mi.content_details LIKE ?
+                """,
+                    (course_id, f"%{assignment.get('canvas_assignment_id')}%"),
+                )
+
+                modules = [db_manager.row_to_dict(row) for row in cursor.fetchall()]
+                if modules:
+                    result["modules"] = modules
+            except Exception as e:
+                logger.error(f"Error retrieving module information: {str(e)}")
+                result["modules_error"] = (
+                    f"Error retrieving module information: {str(e)}"
+                )
+
+        except Exception as e:
+            logger.error(
+                f"Database error while retrieving assignment details: {str(e)}"
+            )
+            return {
+                "error": f"Database error: {str(e)}",
+                "course_id": course_id,
+                "assignment_name": assignment_name,
+            }
+        finally:
+            conn.close()
+
+        # If requested and the assignment was found, try to get additional info from Canvas API
+        if include_canvas_data and "error" not in result:
+            try:
+                canvas_info = canvas_client.get_assignment_details(
+                    course_id, assignment_name
+                )
+                if canvas_info and canvas_info.get("success", False):
+                    # Merge the Canvas data with our database data
+                    result["canvas_details"] = canvas_info.get("data", {})
+            except ImportError:
+                # Canvas API not available, continue with database info
+                logger.warning(
+                    "Canvas API not available - proceeding with database info only"
+                )
+                result["canvas_api_status"] = "unavailable"
+            except Exception as e:
+                logger.error(f"Canvas API error: {str(e)}")
+                result["canvas_api_error"] = str(e)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Unexpected error in get_assignment_details: {str(e)}")
+        return {
+            "error": f"Unexpected error: {str(e)}",
+            "course_id": course_id,
+            "assignment_name": assignment_name,
+        }
+
+
+@mcp.tool()
+def extract_text_from_course_file(
+    file_url: str, file_type: str = None
+) -> dict[str, Any]:
+    """
+    Extract text from a file.
+
+    Args:
+        file_url: URL of the file
+        file_type: Optional file type to override auto-detection ('pdf', 'docx', 'url')
+
+    Returns:
+        Dictionary with extracted text and metadata
+    """
+    try:
+        result = extract_text_from_file(file_url, file_type)
+
+        if result["success"]:
+            return {
+                "success": True,
+                "file_url": file_url,
+                "file_type": result["file_type"],
+                "text_length": len(result["text"]),
+                "text": result["text"],
+            }
+        else:
+            return {
+                "success": False,
+                "file_url": file_url,
+                "file_type": result.get("file_type"),
+                "error": result.get("error", "Failed to extract text from file"),
+            }
+    except Exception as e:
+        logger.error(f"Error in extract_text_from_course_file: {str(e)}")
+        return {
+            "success": False,
+            "file_url": file_url,
+            "error": f"Error extracting text: {str(e)}",
+        }
+
+
+# This function was removed as it duplicates extract_text_from_course_file
+
+
+# These functions were removed as they duplicate get_assignment_details
 
 
 @mcp.tool()
@@ -441,7 +1041,7 @@ def search_course_content(
     Returns:
         List of matching items
     """
-    conn, cursor = db_connect()
+    conn, cursor = db_manager.connect()
 
     # Prepare search parameters
     search_term = f"%{query}%"
@@ -473,7 +1073,7 @@ def search_course_content(
         [search_term, search_term] + params,
     )
 
-    assignments = [row_to_dict(row) for row in cursor.fetchall()]
+    assignments = [db_manager.row_to_dict(row) for row in cursor.fetchall()]
 
     # Search in modules
     cursor.execute(
@@ -496,7 +1096,7 @@ def search_course_content(
         [search_term, search_term] + params,
     )
 
-    modules = [row_to_dict(row) for row in cursor.fetchall()]
+    modules = [db_manager.row_to_dict(row) for row in cursor.fetchall()]
 
     # Search in module items
     cursor.execute(
@@ -521,7 +1121,7 @@ def search_course_content(
         [search_term, search_term] + params,
     )
 
-    module_items = [row_to_dict(row) for row in cursor.fetchall()]
+    module_items = [db_manager.row_to_dict(row) for row in cursor.fetchall()]
 
     # Search in syllabi
     cursor.execute(
@@ -544,333 +1144,13 @@ def search_course_content(
         [search_term] + params,
     )
 
-    syllabi = [row_to_dict(row) for row in cursor.fetchall()]
+    syllabi = [db_manager.row_to_dict(row) for row in cursor.fetchall()]
 
     # Combine results
     results = assignments + modules + module_items + syllabi
 
     conn.close()
     return results
-
-
-@mcp.tool()
-def opt_out_course(
-    course_id: int, user_id: str, opt_out: bool = True
-) -> dict[str, Any]:
-    """
-    Opt out of indexing a specific course.
-
-    Args:
-        course_id: Course ID
-        user_id: User ID
-        opt_out: Whether to opt out (True) or opt in (False)
-
-    Returns:
-        Status of the operation
-    """
-    conn, cursor = db_connect()
-
-    # Check if course exists
-    cursor.execute("SELECT id FROM courses WHERE id = ?", (course_id,))
-    if not cursor.fetchone():
-        conn.close()
-        return {"success": False, "message": f"Course with ID {course_id} not found"}
-
-    # Check if user_course record exists
-    cursor.execute(
-        "SELECT id FROM user_courses WHERE user_id = ? AND course_id = ?",
-        (user_id, course_id),
-    )
-    existing_record = cursor.fetchone()
-
-    if existing_record:
-        # Update existing record
-        cursor.execute(
-            """
-        UPDATE user_courses SET
-            indexing_opt_out = ?,
-            updated_at = ?
-        WHERE user_id = ? AND course_id = ?
-        """,
-            (opt_out, datetime.now().isoformat(), user_id, course_id),
-        )
-    else:
-        # Insert new record
-        cursor.execute(
-            """
-        INSERT INTO user_courses (user_id, course_id, indexing_opt_out, updated_at)
-        VALUES (?, ?, ?, ?)
-        """,
-            (user_id, course_id, opt_out, datetime.now().isoformat()),
-        )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "success": True,
-        "message": f"Course {course_id} {'opted out' if opt_out else 'opted in'} successfully",
-        "course_id": course_id,
-        "user_id": user_id,
-        "opted_out": opt_out,
-    }
-
-
-# MCP Resources
-
-
-@mcp.resource("course://{course_id}")
-def get_course_resource(course_id: int) -> str:
-    """
-    Get resource with course information.
-
-    Args:
-        course_id: Course ID
-
-    Returns:
-        Course information as formatted text
-    """
-    conn, cursor = db_connect()
-
-    # Get course details
-    cursor.execute(
-        """
-    SELECT
-        c.id,
-        c.canvas_course_id,
-        c.course_code,
-        c.course_name,
-        c.instructor,
-        c.description,
-        c.start_date,
-        c.end_date
-    FROM
-        courses c
-    WHERE
-        c.id = ?
-    """,
-        (course_id,),
-    )
-
-    course = row_to_dict(cursor.fetchone() or {})
-
-    if not course:
-        conn.close()
-        return f"Course with ID {course_id} not found"
-
-    # Get assignment count
-    cursor.execute(
-        """
-    SELECT COUNT(*) as count FROM assignments WHERE course_id = ?
-    """,
-        (course_id,),
-    )
-    assignment_count = cursor.fetchone()["count"]
-
-    # Get module count
-    cursor.execute(
-        """
-    SELECT COUNT(*) as count FROM modules WHERE course_id = ?
-    """,
-        (course_id,),
-    )
-    module_count = cursor.fetchone()["count"]
-
-    # Get next due assignment
-    cursor.execute(
-        """
-    SELECT
-        title,
-        due_date
-    FROM
-        assignments
-    WHERE
-        course_id = ?
-        AND due_date > ?
-    ORDER BY
-        due_date ASC
-    LIMIT 1
-    """,
-        (course_id, datetime.now().isoformat()),
-    )
-
-    next_assignment = row_to_dict(cursor.fetchone() or {})
-
-    conn.close()
-
-    # Format the information
-    content = f"""# {course.get("course_name")} ({course.get("course_code")})
-
-**Instructor:** {course.get("instructor", "Not specified")}
-**Canvas ID:** {course.get("canvas_course_id")}
-**Start Date:** {course.get("start_date", "Not specified")}
-**End Date:** {course.get("end_date", "Not specified")}
-
-## Description
-{course.get("description", "No description available")}
-
-## Course Information
-- **Assignments:** {assignment_count}
-- **Modules:** {module_count}
-
-## Next Due Assignment
-"""
-
-    if next_assignment:
-        content += f"- **{next_assignment.get('title')}** - Due: {next_assignment.get('due_date')}"
-    else:
-        content += "- No upcoming assignments"
-
-    return content
-
-
-@mcp.resource("deadlines://{days}")
-def get_deadlines_resource(days: int = 7) -> str:
-    """
-    Get resource with upcoming deadlines.
-
-    Args:
-        days: Number of days to look ahead
-
-    Returns:
-        Upcoming deadlines as formatted text
-    """
-    deadlines = get_upcoming_deadlines(days)
-
-    if not deadlines:
-        return f"No deadlines in the next {days} days"
-
-    content = f"# Upcoming Deadlines (Next {days} Days)\n\n"
-
-    current_course = None
-    for item in deadlines:
-        # Add course header if it changed
-        if current_course != item.get("course_code"):
-            current_course = item.get("course_code")
-            content += f"\n## {item.get('course_name')} ({current_course})\n\n"
-
-        # Add deadline
-        due_date = item.get("due_date", "No due date")
-        if due_date and due_date != "No due date":
-            try:
-                due_datetime = datetime.fromisoformat(due_date)
-                formatted_date = due_datetime.strftime("%A, %B %d, %Y %I:%M %p")
-            except (ValueError, TypeError):
-                formatted_date = due_date
-        else:
-            formatted_date = "No due date"
-
-        points = item.get("points_possible")
-        points_str = f" ({points} points)" if points else ""
-
-        content += f"- **{item.get('assignment_title')}**{points_str} - Due: {formatted_date}\n"
-
-    return content
-
-
-@mcp.resource("syllabus://{course_id}")
-def get_syllabus_resource(course_id: int) -> str:
-    """
-    Get resource with course syllabus.
-
-    Args:
-        course_id: Course ID
-
-    Returns:
-        Syllabus as formatted text
-    """
-    syllabus_data = get_syllabus(course_id, format="parsed")
-
-    if not syllabus_data:
-        return f"Syllabus for course ID {course_id} not found"
-
-    content = f"# Syllabus: {syllabus_data.get('course_name')} ({syllabus_data.get('course_code')})\n\n"
-
-    if syllabus_data.get("instructor"):
-        content += f"**Instructor:** {syllabus_data.get('instructor')}\n\n"
-
-    content += syllabus_data.get("content", "No syllabus content available")
-
-    return content
-
-
-@mcp.resource("assignments://{course_id}")
-def get_assignments_resource(course_id: int) -> str:
-    """
-    Get resource with course assignments.
-
-    Args:
-        course_id: Course ID
-
-    Returns:
-        Assignments as formatted text
-    """
-    conn, cursor = db_connect()
-
-    # Get course information
-    cursor.execute(
-        """
-    SELECT course_code, course_name FROM courses WHERE id = ?
-    """,
-        (course_id,),
-    )
-    course = row_to_dict(cursor.fetchone() or {})
-
-    if not course:
-        conn.close()
-        return f"Course with ID {course_id} not found"
-
-    # Get assignments
-    assignments = get_course_assignments(course_id)
-
-    conn.close()
-
-    if not assignments:
-        return f"No assignments found for {course.get('course_name')} ({course.get('course_code')})"
-
-    content = (
-        f"# Assignments: {course.get('course_name')} ({course.get('course_code')})\n\n"
-    )
-
-    # Group assignments by type
-    assignment_types: dict[str, list[dict[str, Any]]] = {}
-    for assignment in assignments:
-        assignment_type = assignment.get("assignment_type", "Other")
-        if assignment_type not in assignment_types:
-            assignment_types[assignment_type] = []
-        assignment_types[assignment_type].append(assignment)
-
-    # Format each type
-    for assignment_type, items in assignment_types.items():
-        content += f"## {assignment_type.capitalize()}s\n\n"
-
-        for item in items:
-            # Format dates
-            due_date = item.get("due_date", "No due date")
-            if due_date and due_date != "No due date":
-                try:
-                    due_datetime = datetime.fromisoformat(due_date)
-                    formatted_date = due_datetime.strftime("%A, %B %d, %Y %I:%M %p")
-                except (ValueError, TypeError):
-                    formatted_date = due_date
-            else:
-                formatted_date = "No due date"
-
-            # Add assignment details
-            points = item.get("points_possible")
-            points_str = f" ({points} points)" if points else ""
-
-            content += f"### {item.get('title')}{points_str}\n\n"
-            content += f"**Due Date:** {formatted_date}\n\n"
-
-            # Add description if available
-            description = item.get("description")
-            if description:
-                content += f"{description}\n\n"
-            else:
-                content += "No description available.\n\n"
-
-    return content
 
 
 if __name__ == "__main__":

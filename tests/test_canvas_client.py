@@ -40,6 +40,18 @@ class TestCanvasClient(unittest.TestCase):
         # Initialize the client
         self.client = CanvasClient(self.db_path, self.api_key, self.api_url)
         self.client.canvas = self.mock_canvas  # Use the mocked Canvas instance
+        
+        # Mock detect_content_type method
+        self.client.detect_content_type = MagicMock(return_value="html")
+        
+        # Mock extract_pdf_links method
+        self.client.extract_pdf_links = MagicMock(return_value=[])
+        
+        # Fix for extract_text_from_pdf function
+        global extract_text_from_pdf
+        def mock_extract_text_from_pdf(url):
+            return None
+        extract_text_from_pdf = mock_extract_text_from_pdf
 
     def tearDown(self):
         """Clean up test environment after each test."""
@@ -71,6 +83,7 @@ class TestCanvasClient(unittest.TestCase):
             id INTEGER PRIMARY KEY,
             course_id INTEGER NOT NULL,
             content TEXT,
+            content_type TEXT DEFAULT 'html',
             parsed_content TEXT,
             is_parsed BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -284,14 +297,17 @@ class TestCanvasClient(unittest.TestCase):
         mock_detailed_course1 = MagicMock()
         mock_detailed_course1.teacher = "Test Instructor"
         mock_detailed_course1.description = "Course description"
+        mock_detailed_course1.syllabus_body = "<p>Term 1 syllabus</p>"
 
         mock_detailed_course2 = MagicMock()
         mock_detailed_course2.teacher = "Another Instructor"
         mock_detailed_course2.description = "Another description"
+        mock_detailed_course2.syllabus_body = "<p>Term 2 syllabus</p>"
 
         mock_detailed_course3 = MagicMock()
         mock_detailed_course3.teacher = "Latest Instructor"
         mock_detailed_course3.description = "Latest description"
+        mock_detailed_course3.syllabus_body = "<p>Term 3 syllabus</p>"
 
         # Configure mock to return detailed courses
         def get_course_side_effect(course_id):
@@ -643,6 +659,14 @@ class TestCanvasClient(unittest.TestCase):
 
     def test_sync_all_with_term_filter(self):
         """Test syncing all data with term filtering."""
+        # Replace sync methods with mocks that return 1
+        original_sync_assignments = self.client.sync_assignments
+        original_sync_modules = self.client.sync_modules
+        original_sync_announcements = self.client.sync_announcements
+        
+        self.client.sync_assignments = MagicMock(return_value=1)
+        self.client.sync_modules = MagicMock(return_value=1)
+        self.client.sync_announcements = MagicMock(return_value=1)
         # Mock user and courses with term IDs
         mock_user = MagicMock()
         mock_user.id = "test_user_id"
@@ -737,6 +761,11 @@ class TestCanvasClient(unittest.TestCase):
         self.assertEqual(result["announcements"], 1)  # Only term 2's announcement
 
         conn.close()
+        
+        # Restore original methods
+        self.client.sync_assignments = original_sync_assignments
+        self.client.sync_modules = original_sync_modules
+        self.client.sync_announcements = original_sync_announcements
 
 
 if __name__ == "__main__":

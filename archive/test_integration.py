@@ -13,7 +13,10 @@ project_dir = Path(__file__).parent
 sys.path.insert(0, str(project_dir))
 
 from dotenv import load_dotenv
-from src.canvas_mcp.canvas_client import CanvasClient
+
+# Import canvas_client directly to avoid the mcp dependency in server.py
+sys.path.insert(0, str(project_dir / "src"))
+from canvas_mcp.canvas_client import CanvasClient
 
 # Load environment variables
 load_dotenv()
@@ -61,6 +64,7 @@ CREATE TABLE syllabi (
     id INTEGER PRIMARY KEY,
     course_id INTEGER NOT NULL,
     content TEXT,
+    content_type TEXT DEFAULT 'html',
     parsed_content TEXT,
     is_parsed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
