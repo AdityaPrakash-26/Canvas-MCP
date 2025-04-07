@@ -3,11 +3,9 @@ Tests for database initialization script using SQLAlchemy.
 """
 import sqlite3
 
-import pytest
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import inspect
 
 # Adjust import path based on the new location
-from canvas_mcp.database import init_db
 from canvas_mcp.models import (
     Assignment,
     Course,

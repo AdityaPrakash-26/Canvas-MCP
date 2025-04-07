@@ -2,13 +2,11 @@
 Server-specific test fixtures.
 """
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
-from canvas_mcp.database import init_db
 from canvas_mcp.models import (
     Announcement,
     Assignment,
@@ -16,7 +14,6 @@ from canvas_mcp.models import (
     Module,
     ModuleItem,
     Syllabus,
-    UserCourse,
 )
 
 
@@ -26,14 +23,14 @@ def server_session(db_engine):
     # Create a session factory bound to the test engine
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
     session = TestingSessionLocal()
-    
+
     # Populate the session with test data
     _populate_test_data(session)
-    
+
     # Patch SessionLocal in the server module to use our test session
     with patch('canvas_mcp.server.SessionLocal', TestingSessionLocal):
         yield session
-    
+
     session.close()
 
 
@@ -48,7 +45,7 @@ def _populate_test_data(session):
     """Create test data for server tests."""
     # Current time for assignments
     now = datetime.now()
-    
+
     # Courses
     course1 = Course(
         id=1, # Explicitly set IDs for predictable FKs
@@ -122,15 +119,15 @@ def _populate_test_data(session):
 
     # Module Items
     item1 = ModuleItem(
-        id=1, module_id=module1.id, canvas_item_id=1001, title="Intro Lecture Notes", 
+        id=1, module_id=module1.id, canvas_item_id=1001, title="Intro Lecture Notes",
         item_type="File", position=1, content_details="Some details about the file."
     )
     item2 = ModuleItem(
-        id=2, module_id=module1.id, canvas_item_id=1002, title="Setup Python Environment", 
+        id=2, module_id=module1.id, canvas_item_id=1002, title="Setup Python Environment",
         item_type="Page", position=2, page_url="setup-python"
     )
     item3 = ModuleItem( # Link to an assignment
-        id=3, module_id=module2.id, canvas_item_id=1003, title=assignment1.title, 
+        id=3, module_id=module2.id, canvas_item_id=1003, title=assignment1.title,
         item_type="Assignment", position=1, content_id=assignment1.canvas_assignment_id
     )
     session.add_all([item1, item2, item3])

@@ -4,18 +4,17 @@ Configuration file for pytest.
 import os
 import sys
 import tempfile
-from typing import Generator, Any
+from collections.abc import Generator
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from canvas_mcp.database import Base, init_db
+from canvas_mcp.database import init_db
 from canvas_mcp.models import (
     Announcement,
     Assignment,
-    CalendarEvent,
     Course,
     Module,
     ModuleItem,
@@ -36,12 +35,12 @@ def db_engine() -> Generator[Engine, None, None]:
     temp_db_file.close()
     db_url = f"sqlite:///{db_path}"
     engine = create_engine(db_url)
-    
+
     # Initialize the database
     init_db(engine)
-    
+
     yield engine
-    
+
     # Cleanup
     engine.dispose()
     if os.path.exists(db_path):
@@ -53,9 +52,9 @@ def db_session(db_engine: Engine) -> Generator[Session, None, None]:
     """Create a database session for testing."""
     Session = sessionmaker(bind=db_engine)
     session = Session()
-    
+
     yield session
-    
+
     session.close()
 
 
@@ -149,8 +148,8 @@ def mock_announcement() -> MagicMock:
 @pytest.fixture
 def sample_course(db_session: Session) -> Course:
     """Create a sample course in the database for testing."""
-    from datetime import datetime, date
-    
+    from datetime import date
+
     course = Course(
         canvas_course_id=67890,
         course_code="TST101",
@@ -169,11 +168,11 @@ def sample_course(db_session: Session) -> Course:
 def sample_assignment(db_session: Session, sample_course: Course) -> Assignment:
     """Create a sample assignment in the database for testing."""
     from datetime import datetime
-    from canvas_mcp.canvas_client import parse_canvas_datetime
-    
+
+
     # Parse ISO date format or create a datetime directly
     due_date = datetime(2023, 9, 15, 23, 59, 59)
-    
+
     assignment = Assignment(
         course_id=sample_course.id,
         canvas_assignment_id=54321,
@@ -234,7 +233,7 @@ def sample_syllabus(db_session: Session, sample_course: Course) -> Syllabus:
 def sample_announcement(db_session: Session, sample_course: Course) -> Announcement:
     """Create a sample announcement in the database for testing."""
     from datetime import datetime
-    
+
     announcement = Announcement(
         course_id=sample_course.id,
         canvas_announcement_id=24680,

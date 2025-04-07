@@ -8,7 +8,6 @@ from .database import engine, init_db
 if __name__ == "__main__":
     print("Running database initialization script...")
     # This import ensures models are registered before create_all
-    from . import models  # pylint: disable=unused-import
 
     init_db(engine)
     print("Database initialization complete.")

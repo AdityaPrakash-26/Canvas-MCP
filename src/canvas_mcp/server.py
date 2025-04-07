@@ -9,11 +9,11 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from mcp.server.fastmcp import Context, FastMCP
-from sqlalchemy import desc, func, or_, String as SQLString
+from mcp.server.fastmcp import FastMCP
+from sqlalchemy import String as SQLString
+from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 # Add project root to sys.path to allow importing database and models
@@ -33,7 +33,7 @@ try:
         ModuleItem,
         Syllabus,
         UserCourse,
-        orm_to_dict, # Import the helper
+        orm_to_dict,  # Import the helper
     )
 except ImportError as e:
     print(f"Error importing local modules in server.py: {e}")
@@ -80,7 +80,7 @@ def get_db_session() -> Session:
 # --- MCP Tools ---
 
 @mcp.tool()
-def sync_canvas_data(force: bool = False, term_id: Optional[int] = -1) -> Dict[str, int]:
+def sync_canvas_data(force: bool = False, term_id: int | None = -1) -> dict[str, int]:
     """
     Synchronize data from Canvas LMS to the local database using SQLAlchemy.
 
@@ -106,7 +106,7 @@ def sync_canvas_data(force: bool = False, term_id: Optional[int] = -1) -> Dict[s
 
 
 @mcp.tool()
-def get_upcoming_deadlines(days: int = 7, course_id: Optional[int] = None) -> List[Dict[str, object]]:
+def get_upcoming_deadlines(days: int = 7, course_id: int | None = None) -> list[dict[str, object]]:
     """
     Get upcoming assignment deadlines using SQLAlchemy.
 
@@ -160,7 +160,7 @@ def get_upcoming_deadlines(days: int = 7, course_id: Optional[int] = None) -> Li
 
 
 @mcp.tool()
-def get_course_list() -> List[Dict[str, object]]:
+def get_course_list() -> list[dict[str, object]]:
     """
     Get list of all courses from the database using SQLAlchemy.
 
@@ -196,7 +196,7 @@ def get_course_list() -> List[Dict[str, object]]:
 
 
 @mcp.tool()
-def get_course_assignments(course_id: int) -> List[Dict[str, object]]:
+def get_course_assignments(course_id: int) -> list[dict[str, object]]:
     """
     Get all assignments for a specific course using SQLAlchemy.
 
@@ -219,7 +219,7 @@ def get_course_assignments(course_id: int) -> List[Dict[str, object]]:
 
 
 @mcp.tool()
-def get_course_modules(course_id: int, include_items: bool = False) -> List[Dict[str, object]]:
+def get_course_modules(course_id: int, include_items: bool = False) -> list[dict[str, object]]:
     """
     Get all modules for a specific course using SQLAlchemy.
 
@@ -253,7 +253,7 @@ def get_course_modules(course_id: int, include_items: bool = False) -> List[Dict
 
 
 @mcp.tool()
-def get_syllabus(course_id: int, format: str = "raw") -> Dict[str, object]:
+def get_syllabus(course_id: int, format: str = "raw") -> dict[str, object]:
     """
     Get the syllabus for a specific course using SQLAlchemy.
 
@@ -300,7 +300,7 @@ def get_syllabus(course_id: int, format: str = "raw") -> Dict[str, object]:
 
 
 @mcp.tool()
-def get_course_announcements(course_id: int, limit: int = 10) -> List[Dict[str, object]]:
+def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, object]]:
     """
     Get announcements for a specific course using SQLAlchemy.
 
@@ -323,7 +323,7 @@ def get_course_announcements(course_id: int, limit: int = 10) -> List[Dict[str, 
 
 
 @mcp.tool()
-def search_course_content(query_term: str, course_id: Optional[int] = None) -> List[Dict[str, object]]:
+def search_course_content(query_term: str, course_id: int | None = None) -> list[dict[str, object]]:
     """
     Search for content across courses using SQLAlchemy.
 
@@ -401,7 +401,7 @@ def search_course_content(query_term: str, course_id: Optional[int] = None) -> L
 
 
 @mcp.tool()
-def opt_out_course(course_id: int, user_id: str, opt_out: bool = True) -> Dict[str, object]:
+def opt_out_course(course_id: int, user_id: str, opt_out: bool = True) -> dict[str, object]:
     """
     Opt out of indexing a specific course using SQLAlchemy.
 
@@ -457,7 +457,7 @@ def opt_out_course(course_id: int, user_id: str, opt_out: bool = True) -> Dict[s
 # --- MCP Resources ---
 
 # Helper to format resource content
-def format_resource(title: str, sections: Dict[str, str]) -> str:
+def format_resource(title: str, sections: dict[str, str]) -> str:
     content = f"# {title}\n\n"
     for heading, text in sections.items():
         content += f"## {heading}\n{text}\n\n"
@@ -609,7 +609,7 @@ def get_assignments_resource(course_id: int) -> str:
         content = f"# {title}\n\n"
 
         # Group by type
-        assignments_by_type: Dict[str, List[Dict[str, object]]] = {}
+        assignments_by_type: dict[str, list[dict[str, object]]] = {}
         for a in assignments:
             a_type = a.get("assignment_type", "Other") or "Other"
             assignments_by_type.setdefault(a_type, []).append(a)

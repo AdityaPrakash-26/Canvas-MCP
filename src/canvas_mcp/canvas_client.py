@@ -95,14 +95,14 @@ class CanvasClient:
         load_dotenv()
         self.api_key = api_key or os.environ.get("CANVAS_API_KEY")
         self.api_url = api_url or os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
-        
+
         # Store as session factory function, not a string
         if isinstance(db_session_factory, str):
             print(f"Warning: db_session_factory is a string: {db_session_factory}")
             self.db_session_factory = SessionLocal
         else:
             self.db_session_factory = db_session_factory
-            
+
         # For storing current user
         self.user = None
 

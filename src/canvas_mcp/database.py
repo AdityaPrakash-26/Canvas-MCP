@@ -57,7 +57,6 @@ def init_db(engine_to_init=engine):
     """Initialize the database by creating tables."""
     # Import models here to ensure they are registered with Base
     # pylint: disable=import-outside-toplevel, unused-import
-    from . import models
     print(f"Initializing database schema at {engine_to_init.url}...")
     Base.metadata.create_all(bind=engine_to_init)
     print("Database schema initialized.")

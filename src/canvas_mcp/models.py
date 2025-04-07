@@ -1,7 +1,6 @@
 """
 SQLAlchemy ORM models for the Canvas MCP database schema.
 """
-from datetime import datetime
 
 from sqlalchemy import (
     JSON,

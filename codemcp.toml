@@ -1,4 +1,4 @@
-project_prompt = "Please check Claude.md for codebase rules and getting yourself oriented! If `task.md` exists, that's where you left off last. Please don't touch the server until you have a VERY good idea of what the MCP is. "
+project_prompt = "Please check Claude.md for codebase rules and getting yourself oriented! To learn what MCP is, check out `library_docs/mcp/conceptual_overview.md`. DO NOT START WORKING UNTIL YOU UNDERSTAND WHAT THE MCP IS AND WHAT A MCP SERVER IS. READ THE README. READ THE PROJECT DETAILS."
 
 test = ["./test.sh"]
 lint = ["./lint.sh"]

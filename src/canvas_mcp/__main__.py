@@ -12,8 +12,9 @@ if PROJECT_ROOT not in sys.path:
 
 # Import necessary components
 # The import of database itself triggers the init check
-from canvas_mcp.database import DB_PATH, init_db, engine
+from canvas_mcp.database import DB_PATH, engine, init_db
 from canvas_mcp.server import mcp
+
 
 def main():
     """Main execution function."""
@@ -24,7 +25,6 @@ def main():
         print(f"Database at {DB_PATH} appears missing or empty. Running init...")
         try:
             # Need to ensure models are loaded before init_db if called explicitly here
-            from canvas_mcp import models # pylint: disable=import-outside-toplevel, W0611
             init_db(engine)
             print("Database initialized successfully.")
         except Exception as e:

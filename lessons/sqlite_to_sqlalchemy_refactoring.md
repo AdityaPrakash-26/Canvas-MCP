@@ -24,37 +24,23 @@ This document captures lessons learned during the refactoring from plain SQLite 
    - Issue: Calling `MagicMock(spec=MagicMock_object)` causes a `unittest.mock.InvalidSpecError`.
    - Solution: Use real classes as specs, or create concrete classes to serve as specs.
 
-## General SQLAlchemy Patterns
+## Lessons Learned
 
-1. **SQLAlchemy Column Type References**
-   - Use `from sqlalchemy.types import Integer, String, Text, DateTime, Float` when needed in test code.
-   - For implementation code, these types are typically imported from `sqlalchemy` directly.
+- We should follow the testing guidelines for mocks:
 
-2. **Return Types in SQLAlchemy Functions**
-   - Type annotations for functions that return dictionaries of query results should use `Dict[str, object]` rather than `Dict[str, Any]`.
+Mocks can be useful but carry significant risks. Follow these principles carefully:
 
-3. **Session Creation Pattern**
-   - In the client module, a session factory is passed in rather than creating sessions directly.
-   - Tests pass in a test session factory bound to an in-memory database.
+### When to Use Mocks:
+- External calls that are slow, flaky, or unreliable.
+- Interactions with expensive or side-effect-producing APIs.
+- Testing rare or difficult-to-reproduce conditions (e.g., network errors).
 
-4. **ORM Query Result Conversion**
-   - Row objects from queries need to be converted to dictionaries for API responses.
-   - Use methods like `_asdict()` or custom helpers like `orm_to_dict()`.
+### Best Practices:
+- **Mock at boundaries:** Only mock external dependencies or APIs; never your internal methods or functions.
+- **Assert outcomes, not interactions:** Test behavior, not exact method calls or internal implementation details.
+- **Prefer realistic fakes/stubs:** Use in-memory databases or stable API fakes over mocking whenever possible.
+- **Balance mocks with integration tests:** Ensure integration tests exist to validate your mocks and confirm real-world behavior.
 
-## Test Framework Patterns
+Always critically evaluate:
 
-1. **Test Isolation**
-   - Each test should clean up its own resources and not rely on setUp/tearDown from other tests.
-   - Use instance attributes for mocks instead of module-level variables.
-
-2. **Patch Dict Usage**
-   - When using `patch.dict()` to mock modules, ensure proper cleanup in tearDown.
-   - Reset patches in setUp to ensure a clean state for each test.
-
-3. **Assertion Strategies**
-   - Use `assert_any_call()` instead of strict ordering assertions when possible.
-   - Be careful with `assert_called_once()` as it's very brittle to implementation changes.
-
-4. **Mock Setup**
-   - Set concrete attribute values on mocks instead of relying on nested MagicMocks.
-   - Supply detailed specs to mocks to ensure they have the expected attributes and methods.
+> "Are my mocks reflecting real-world behavior, or are they obscuring potential issues?"

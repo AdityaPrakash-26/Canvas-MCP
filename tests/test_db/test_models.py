@@ -1,23 +1,19 @@
 """
 Tests for database models using SQLAlchemy.
 """
+
 from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from canvas_mcp.models import (
+    Announcement,
     Assignment,
     Course,
     Module,
     ModuleItem,
     Syllabus,
-    Announcement,
-    CalendarEvent,
-    Discussion,
-    Grade,
-    Lecture,
-    File,
 )
 
 
@@ -31,7 +27,7 @@ def test_course_model(db_session):
         instructor="Dr. Smith",
         description="Learn the basics of computer science",
         start_date=datetime.now().date(),
-        end_date=(datetime.now() + timedelta(days=90)).date()
+        end_date=(datetime.now() + timedelta(days=90)).date(),
     )
     db_session.add(course)
     db_session.commit()
@@ -49,7 +45,7 @@ def test_course_model(db_session):
         instructor="Dr. Jones",
         description="Another course description",
         start_date=datetime.now().date(),
-        end_date=(datetime.now() + timedelta(days=90)).date()
+        end_date=(datetime.now() + timedelta(days=90)).date(),
     )
     db_session.add(duplicate)
     with pytest.raises(IntegrityError):
@@ -67,7 +63,7 @@ def test_assignment_model(db_session, sample_course, sample_assignment):
         description="A comprehensive project",
         assignment_type="project",
         due_date=datetime.now() + timedelta(days=14),
-        points_possible=50
+        points_possible=50,
     )
     db_session.add(assignment)
     db_session.commit()
@@ -83,12 +79,15 @@ def test_assignment_model(db_session, sample_course, sample_assignment):
 
     # Test course.assignments relationship
     course = db_session.query(Course).filter_by(id=sample_course.id).one()
-    
+
     # Refresh the session to ensure we see all assignments
     db_session.refresh(course)
-    
+
     # Should have the sample_assignment and the one we just created
-    assert any(a.canvas_assignment_id == sample_assignment.canvas_assignment_id for a in course.assignments)
+    assert any(
+        a.canvas_assignment_id == sample_assignment.canvas_assignment_id
+        for a in course.assignments
+    )
     assert any(a.canvas_assignment_id == 12345 for a in course.assignments)
 
 
@@ -96,10 +95,7 @@ def test_module_and_items(db_session, sample_course):
     """Test Module and ModuleItem models and their relationships."""
     # Create a module
     module = Module(
-        course_id=sample_course.id,
-        canvas_module_id=54321,
-        name="Week 1",
-        position=1
+        course_id=sample_course.id, canvas_module_id=54321, name="Week 1", position=1
     )
     db_session.add(module)
     db_session.commit()
@@ -112,7 +108,7 @@ def test_module_and_items(db_session, sample_course):
             title=f"Item {i}",
             item_type="Assignment" if i % 2 == 0 else "Page",
             position=i,
-            content_id=200 + i
+            content_id=200 + i,
         )
         for i in range(1, 4)
     ]
@@ -137,7 +133,7 @@ def test_syllabus_model(db_session, sample_course):
     # Create a syllabus
     syllabus = Syllabus(
         course_id=sample_course.id,
-        content="<h1>Course Syllabus</h1><p>This is the course syllabus.</p>"
+        content="<h1>Course Syllabus</h1><p>This is the course syllabus.</p>",
     )
     db_session.add(syllabus)
     db_session.commit()
@@ -151,10 +147,10 @@ def test_syllabus_model(db_session, sample_course):
 
     # Test course.syllabus relationship
     course = db_session.query(Course).filter_by(id=sample_course.id).one()
-    
+
     # Refresh to ensure relationships are loaded
     db_session.refresh(course)
-    
+
     assert course.syllabus is not None
     assert course.syllabus.content == syllabus.content
 
@@ -168,13 +164,15 @@ def test_announcement_model(db_session, sample_course):
         title="Important Announcement",
         content="Class is canceled tomorrow",  # Use content instead of message
         posted_at=datetime.now(),
-        posted_by="Professor Smith"  # Use posted_by instead of author
+        posted_by="Professor Smith",  # Use posted_by instead of author
     )
     db_session.add(announcement)
     db_session.commit()
 
     # Test retrieval
-    retrieved = db_session.query(Announcement).filter_by(canvas_announcement_id=9876).one()
+    retrieved = (
+        db_session.query(Announcement).filter_by(canvas_announcement_id=9876).one()
+    )
     assert retrieved.title == "Important Announcement"
     assert retrieved.posted_by == "Professor Smith"
     assert retrieved.content == "Class is canceled tomorrow"
@@ -184,8 +182,8 @@ def test_announcement_model(db_session, sample_course):
 
     # Test course.announcements relationship
     course = db_session.query(Course).filter_by(id=sample_course.id).one()
-    
+
     # Refresh to ensure relationships are loaded
     db_session.refresh(course)
-    
+
     assert any(a.canvas_announcement_id == 9876 for a in course.announcements)
