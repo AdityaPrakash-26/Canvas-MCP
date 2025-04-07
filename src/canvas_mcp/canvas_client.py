@@ -8,8 +8,7 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
-from dotenv import load_dotenv
-
+from canvas_mcp.utils.db_manager import DatabaseManager
 from canvas_mcp.utils.file_extractor import extract_text_from_file
 
 # Make Canvas available for patching in tests
@@ -221,34 +220,27 @@ class CanvasClient:
         return "html"
 
     def __init__(
-        self, db_path: str, api_key: str | None = None, api_url: str | None = None
+        self,
+        db_manager: DatabaseManager,
+        api_key: str | None = None,
+        api_url: str | None = None,
     ):
         """
         Initialize the Canvas client.
 
         Args:
-            db_path: Path to the SQLite database (REQUIRED)
+            db_manager: DatabaseManager instance for database operations
             api_key: Canvas API key (if None, will look for CANVAS_API_KEY in environment)
             api_url: Canvas API URL (if None, will use default Canvas URL)
         """
-        # Load environment variables ONLY for API key/URL if not provided
-        load_dotenv()
-        if api_key is None:
-            api_key = os.environ.get("CANVAS_API_KEY")
-            if not api_key:
-                print("Warning: CANVAS_API_KEY not found in environment.")
-
-        # The db_path provided should be the definitive path
-        # Removed check for CANVAS_MCP_TEST_DB as it should be handled before client creation
-
+        self.db_manager = db_manager
         self.api_key = api_key
         self.api_url = api_url or os.environ.get(
             "CANVAS_API_URL", "https://canvas.instructure.com"
         )
-        self.db_path = db_path
 
         print(
-            f"CanvasClient initialized with DB: {self.db_path}, URL: {self.api_url}, Key Present: {bool(self.api_key)}"
+            f"CanvasClient initialized with URL: {self.api_url}, Key Present: {bool(self.api_key)}"
         )
 
         # Import canvasapi here to avoid making it a hard dependency
@@ -278,15 +270,12 @@ class CanvasClient:
 
     def connect_db(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
         """
-        Connect to the SQLite database.
+        Connect to the SQLite database using the DatabaseManager.
 
         Returns:
             Tuple of (connection, cursor)
         """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        return conn, cursor
+        return self.db_manager.connect()
 
     def sync_courses(
         self, user_id: str | None = None, term_id: int | None = None

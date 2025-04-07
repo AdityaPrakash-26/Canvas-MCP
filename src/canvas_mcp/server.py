@@ -7,15 +7,16 @@ structured access to course information.
 """
 
 import logging
-import os
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
+import canvas_mcp.config as config
 from canvas_mcp.utils.db_manager import DatabaseManager
 from canvas_mcp.utils.file_extractor import extract_text_from_file
 
@@ -24,59 +25,56 @@ try:
 except ImportError:
     from canvas_mcp.canvas_client import CanvasClient
 
-# Load environment variables
-load_dotenv()
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("canvas_mcp")
 
-# Configure paths
-PROJECT_DIR = Path(__file__).parent.parent.parent
-DB_DIR = PROJECT_DIR / "data"
-DB_PATH = DB_DIR / "canvas_mcp.db"
 
-# Allow overriding the database path for testing
-if os.environ.get("CANVAS_MCP_TEST_DB"):
-    DB_PATH = Path(os.environ.get("CANVAS_MCP_TEST_DB"))
-    print(f"Using test database: {DB_PATH}")
+# Define the lifespan context type
+@dataclass
+class LifespanContext:
+    db_manager: DatabaseManager
+    canvas_client: CanvasClient
 
-# Ensure directories exist
-os.makedirs(DB_PATH.parent, exist_ok=True)
 
-# Initialize database if it doesn't exist
-if not DB_PATH.exists():
-    import sys
+@asynccontextmanager
+async def app_lifespan(_: FastMCP) -> AsyncIterator[dict[str, Any]]:
+    """Manage application lifecycle with resources"""
+    # Initialize resources on startup
+    logger.info(f"Initializing resources with database: {config.DB_PATH}")
 
-    sys.path.append(str(PROJECT_DIR))
-    from init_db import create_database
+    # Create database manager
+    db_manager = DatabaseManager(config.DB_PATH)
 
-    create_database(str(DB_PATH))
+    # Create Canvas client
+    try:
+        canvas_client = CanvasClient(db_manager, config.API_KEY, config.API_URL)
+        logger.info("Canvas client initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing Canvas client: {e}")
+        # Create a dummy client that will use database-only operations
+        canvas_client = CanvasClient(db_manager, None, None)
+        logger.warning(
+            "Created database-only Canvas client due to initialization error"
+        )
 
-print(f"Database initialized at {DB_PATH}")
+    # Create the lifespan context dictionary
+    lifespan_context = {
+        "db_manager": db_manager,
+        "canvas_client": canvas_client,
+    }
 
-# Create Canvas client (will connect to API if canvasapi is installed)
-API_KEY = os.environ.get("CANVAS_API_KEY")
-API_URL = os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
+    try:
+        # Yield the context to the server
+        yield lifespan_context
+    finally:
+        # Cleanup on shutdown (if needed)
+        logger.info("Shutting down Canvas MCP server")
 
-try:
-    canvas_client = CanvasClient(str(DB_PATH), API_KEY, API_URL)
-    logger.info(f"Canvas client initialized successfully with database: {DB_PATH}")
-except Exception as e:
-    logger.error(f"Error initializing Canvas client: {e}")
-    # Create a dummy client that will use database-only operations
-    canvas_client = CanvasClient(str(DB_PATH), None, None)
-    logger.warning("Created database-only Canvas client due to initialization error")
 
-# Initialize database manager
-db_manager = DatabaseManager(str(DB_PATH))
-
-# Cache for course code to ID mapping (to reduce database lookups)
-course_code_cache = {}
-
-# Create an MCP server
+# Create an MCP server with lifespan
 mcp = FastMCP(
     "Canvas MCP",
     dependencies=[
@@ -88,11 +86,8 @@ mcp = FastMCP(
         "python-docx>=0.8.11",
     ],
     description="A Canvas integration for accessing course information, assignments, and resources.",
+    lifespan=app_lifespan,
 )
-
-
-# Create custom DatabaseManager instance for this module
-db_manager = DatabaseManager(DB_PATH)
 
 
 def extract_links_from_content(content: str) -> list[dict[str, str]]:
@@ -146,18 +141,20 @@ def extract_links_from_content(content: str) -> list[dict[str, str]]:
 
 
 @mcp.tool()
-def sync_canvas_data(force: bool = False) -> dict[str, int]:
+def sync_canvas_data(ctx: Context, _force: bool = False) -> dict[str, int]:
     """
     Synchronize data from Canvas LMS to the local database.
 
     Args:
+        ctx: Request context containing resources
         force: If True, sync all data even if recently updated
 
     Returns:
         Dictionary with counts of synced items
     """
     try:
-        # Use the global canvas_client that was initialized with the correct DB_PATH
+        # Get the canvas client from the lifespan context
+        canvas_client = ctx.request_context.lifespan_context["canvas_client"]
         result = canvas_client.sync_all()
         return result
     except ImportError:
@@ -169,18 +166,22 @@ def sync_canvas_data(force: bool = False) -> dict[str, int]:
 
 @mcp.tool()
 def get_upcoming_deadlines(
-    days: int = 7, course_id: int | None = None
+    ctx: Context, days: int = 7, course_id: int | None = None
 ) -> list[dict[str, Any]]:
     """
     Get upcoming assignment deadlines.
 
     Args:
+        ctx: Request context containing resources
         days: Number of days to look ahead
         course_id: Optional course ID to filter by
 
     Returns:
         List of upcoming deadlines
     """
+    # Get database manager from the lifespan context
+    db_manager = ctx.request_context.lifespan_context["db_manager"]
+
     # Get database connection
     conn, cursor = db_manager.connect()
 
@@ -235,13 +236,19 @@ def get_upcoming_deadlines(
 
 
 @mcp.tool()
-def get_course_list() -> list[dict[str, Any]]:
+def get_course_list(ctx: Context) -> list[dict[str, Any]]:
     """
     Get list of all courses in the database.
+
+    Args:
+        ctx: Request context containing resources
 
     Returns:
         List of course information
     """
+    # Get database manager from the lifespan context
+    db_manager = ctx.request_context.lifespan_context["db_manager"]
+
     conn, cursor = db_manager.connect()
 
     try:
@@ -267,16 +274,20 @@ def get_course_list() -> list[dict[str, Any]]:
 
 
 @mcp.tool()
-def get_course_assignments(course_id: int) -> list[dict[str, Any]]:
+def get_course_assignments(ctx: Context, course_id: int) -> list[dict[str, Any]]:
     """
     Get all assignments for a specific course.
 
     Args:
+        ctx: Request context containing resources
         course_id: Course ID
 
     Returns:
         List of assignments
     """
+    # Get database manager from the lifespan context
+    db_manager = ctx.request_context.lifespan_context["db_manager"]
+
     conn, cursor = db_manager.connect()
 
     try:
@@ -311,18 +322,22 @@ def get_course_assignments(course_id: int) -> list[dict[str, Any]]:
 
 @mcp.tool()
 def get_course_modules(
-    course_id: int, include_items: bool = False
+    ctx: Context, course_id: int, include_items: bool = False
 ) -> list[dict[str, Any]]:
     """
     Get all modules for a specific course.
 
     Args:
+        ctx: Request context containing resources
         course_id: Course ID
         include_items: Whether to include module items
 
     Returns:
         List of modules
     """
+    # Get database manager from the lifespan context
+    db_manager = ctx.request_context.lifespan_context["db_manager"]
+
     conn, cursor = db_manager.connect()
 
     try:
@@ -379,17 +394,21 @@ def get_course_modules(
 
 
 @mcp.tool()
-def get_syllabus(course_id: int, format: str = "raw") -> dict[str, Any]:
+def get_syllabus(ctx: Context, course_id: int, format: str = "raw") -> dict[str, Any]:
     """
     Get the syllabus for a specific course.
 
     Args:
+        ctx: Request context containing resources
         course_id: Course ID
         format: Format to return ("raw" for HTML, "parsed" for extracted text)
 
     Returns:
         Dictionary with syllabus content
     """
+    # Get database manager from the lifespan context
+    db_manager = ctx.request_context.lifespan_context["db_manager"]
+
     conn, cursor = db_manager.connect()
 
     try:
@@ -512,17 +531,23 @@ def get_syllabus(course_id: int, format: str = "raw") -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, Any]]:
+def get_course_announcements(
+    ctx: Context, course_id: int, limit: int = 10
+) -> list[dict[str, Any]]:
     """
     Get announcements for a specific course.
 
     Args:
+        ctx: Request context containing resources
         course_id: Course ID
         limit: Maximum number of announcements to return
 
     Returns:
         List of announcements
     """
+    # Get database manager from the lifespan context
+    db_manager = ctx.request_context.lifespan_context["db_manager"]
+
     conn, cursor = db_manager.connect()
 
     try:
@@ -553,11 +578,14 @@ def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, 
 
 
 @mcp.tool()
-def get_course_files(course_id: int, file_type: str = None) -> list[dict[str, Any]]:
+def get_course_files(
+    ctx: Context, course_id: int, file_type: str = None
+) -> list[dict[str, Any]]:
     """
     Get all files available in a specific course, with optional filtering by file type.
 
     Args:
+        ctx: Request context containing resources
         course_id: Course ID
         file_type: Optional file extension to filter by (e.g., 'pdf', 'docx')
 
@@ -565,6 +593,9 @@ def get_course_files(course_id: int, file_type: str = None) -> list[dict[str, An
         List of files with URLs
     """
     try:
+        # Get canvas client from the lifespan context
+        canvas_client = ctx.request_context.lifespan_context["canvas_client"]
+
         files = canvas_client.extract_files_from_course(course_id, file_type)
 
         # Add extraction URLs if needed
@@ -592,11 +623,14 @@ def get_course_files(course_id: int, file_type: str = None) -> list[dict[str, An
 
 
 @mcp.tool()
-def get_syllabus_file(course_id: int, extract_content: bool = True) -> dict[str, Any]:
+def get_syllabus_file(
+    ctx: Context, course_id: int, extract_content: bool = True
+) -> dict[str, Any]:
     """
     Attempt to find a syllabus file for a specific course.
 
     Args:
+        ctx: Request context containing resources
         course_id: Course ID
         extract_content: Whether to extract and store content from the syllabus file
 
@@ -604,7 +638,11 @@ def get_syllabus_file(course_id: int, extract_content: bool = True) -> dict[str,
         Dictionary with syllabus file information or error
     """
     try:
-        # Use the global canvas_client instance directly
+        # Get canvas client and database manager from the lifespan context
+        canvas_client = ctx.request_context.lifespan_context["canvas_client"]
+        db_manager = ctx.request_context.lifespan_context["db_manager"]
+
+        # Check if Canvas API is available
         if canvas_client.canvas is None:
             logger.warning("Canvas API not available in get_syllabus_file")
             return {
@@ -613,7 +651,7 @@ def get_syllabus_file(course_id: int, extract_content: bool = True) -> dict[str,
                 "error": "Canvas API connection not available",
             }
 
-        # Get all files in the course using the global client
+        # Get all files in the course
         files = canvas_client.extract_files_from_course(course_id)
 
         # Look for files with "syllabus" in the name
@@ -779,13 +817,14 @@ def get_syllabus_file(course_id: int, extract_content: bool = True) -> dict[str,
 
 @mcp.tool()
 def get_assignment_details(
-    course_id: int, assignment_name: str, include_canvas_data: bool = True
+    ctx: Context, course_id: int, assignment_name: str, include_canvas_data: bool = True
 ) -> dict[str, Any]:
     """
     Get comprehensive information about a specific assignment by name.
     This function consolidates the functionality of get_course_assignment and get_assignment_by_name.
 
     Args:
+        ctx: Request context containing resources
         course_id: Course ID
         assignment_name: Name or partial name of the assignment
         include_canvas_data: Whether to include data from Canvas API if available
@@ -794,6 +833,10 @@ def get_assignment_details(
         Dictionary with assignment details and related resources
     """
     try:
+        # Get database manager and canvas client from the lifespan context
+        db_manager = ctx.request_context.lifespan_context["db_manager"]
+        canvas_client = ctx.request_context.lifespan_context["canvas_client"]
+
         if not assignment_name or not course_id:
             return {
                 "error": "Missing required parameters: course_id and assignment_name must be provided"
@@ -874,8 +917,8 @@ def get_assignment_details(
             # Get related PDF files
             pdf_files = []
             try:
-                # Use the global canvas_client instance
-                all_pdfs = canvas_client.extract_pdf_files_from_course(course_id)
+                # Use the canvas client from the context
+                all_pdfs = canvas_client.extract_files_from_course(course_id, "pdf")
 
                 # Filter PDFs that might be related to this assignment
                 for pdf in all_pdfs:
@@ -982,12 +1025,13 @@ def get_assignment_details(
 
 @mcp.tool()
 def extract_text_from_course_file(
-    file_url: str, file_type: str = None
+    ctx: Context, file_url: str, file_type: str = None
 ) -> dict[str, Any]:
     """
     Extract text from a file.
 
     Args:
+        ctx: Request context containing resources
         file_url: URL of the file
         file_type: Optional file type to override auto-detection ('pdf', 'docx', 'url')
 
@@ -1029,18 +1073,22 @@ def extract_text_from_course_file(
 
 @mcp.tool()
 def search_course_content(
-    query: str, course_id: int | None = None
+    ctx: Context, query: str, course_id: int | None = None
 ) -> list[dict[str, Any]]:
     """
     Search for content across courses.
 
     Args:
+        ctx: Request context containing resources
         query: Search query
         course_id: Optional course ID to limit search
 
     Returns:
         List of matching items
     """
+    # Get database manager from the lifespan context
+    db_manager = ctx.request_context.lifespan_context["db_manager"]
+
     conn, cursor = db_manager.connect()
 
     # Prepare search parameters
