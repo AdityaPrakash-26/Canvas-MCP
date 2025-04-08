@@ -25,6 +25,7 @@ from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
 from src.canvas_mcp.sync.service import SyncService
 
 # Import tool modules
+from scripts.extract_tools_test import extract_tools
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
@@ -89,14 +90,17 @@ def test_tools():
     # Create mock context
     ctx = MockContext(db_manager, api_adapter, sync_service)
 
+    # Extract tools
+    tools = extract_tools()
+
     # Test sync_canvas_data
     logger.info("Testing sync_canvas_data...")
-    sync_result = sync_canvas_data(ctx)
+    sync_result = tools["sync_canvas_data"](ctx)
     logger.info(f"sync_canvas_data result: {sync_result}")
 
     # Test get_course_list
     logger.info("Testing get_course_list...")
-    courses = get_course_list(ctx)
+    courses = tools["get_course_list"](ctx)
     logger.info(f"Found {len(courses)} courses")
 
     if not courses:
@@ -109,54 +113,56 @@ def test_tools():
 
     # Test get_course_details
     logger.info(f"Testing get_course_details with course_id={course_id}...")
-    course_details = get_course_details(ctx, course_id=course_id)
+    course_details = tools["get_course_details"](ctx, course_id=course_id)
     logger.info(f"Course details: {course_details}")
 
     # Test get_course_assignments
     logger.info(f"Testing get_course_assignments with course_id={course_id}...")
-    assignments = get_course_assignments(ctx, course_id=course_id)
+    assignments = tools["get_course_assignments"](ctx, course_id=course_id)
     logger.info(f"Found {len(assignments)} assignments")
 
     # Test get_upcoming_deadlines
     logger.info("Testing get_upcoming_deadlines...")
-    deadlines = get_upcoming_deadlines(ctx, days=30)
+    deadlines = tools["get_upcoming_deadlines"](ctx, days=30)
     logger.info(f"Found {len(deadlines)} upcoming deadlines")
 
     # Test get_course_modules
     logger.info(f"Testing get_course_modules with course_id={course_id}...")
-    modules = get_course_modules(ctx, course_id=course_id)
+    modules = tools["get_course_modules"](ctx, course_id=course_id)
     logger.info(f"Found {len(modules)} modules")
 
     # Test get_course_modules with include_items=True
     logger.info("Testing get_course_modules with include_items=True...")
-    modules_with_items = get_course_modules(
+    modules_with_items = tools["get_course_modules"](
         ctx, course_id=course_id, include_items=True
     )
     logger.info(f"Found {len(modules_with_items)} modules with items")
 
     # Test get_syllabus
     logger.info(f"Testing get_syllabus with course_id={course_id}...")
-    get_syllabus(ctx, course_id=course_id)
+    tools["get_syllabus"](ctx, course_id=course_id)
     logger.info("Syllabus retrieved")
 
     # Test get_course_announcements
     logger.info(f"Testing get_course_announcements with course_id={course_id}...")
-    announcements = get_course_announcements(ctx, course_id=course_id)
+    announcements = tools["get_course_announcements"](ctx, course_id=course_id)
     logger.info(f"Found {len(announcements)} announcements")
 
     # Test get_course_files
     logger.info(f"Testing get_course_files with course_id={course_id}...")
-    files = get_course_files(ctx, course_id=course_id)
+    files = tools["get_course_files"](ctx, course_id=course_id)
     logger.info(f"Found {len(files)} files")
 
     # Test get_course_calendar_events
     logger.info(f"Testing get_course_calendar_events with course_id={course_id}...")
-    calendar_events = get_course_calendar_events(ctx, course_id=course_id)
+    calendar_events = tools["get_course_calendar_events"](ctx, course_id=course_id)
     logger.info(f"Found {len(calendar_events)} calendar events")
 
     # Test search_course_content
     logger.info(f"Testing search_course_content with course_id={course_id}...")
-    search_results = search_course_content(ctx, course_id=course_id, query="assignment")
+    search_results = tools["search_course_content"](
+        ctx, course_id=course_id, query="assignment"
+    )
     logger.info(f"Found {len(search_results)} search results")
 
     logger.info("All tests completed successfully!")
@@ -190,20 +196,8 @@ def interactive_mode():
     # Create mock context
     ctx = MockContext(db_manager, api_adapter, sync_service)
 
-    # Map of available tools
-    tools = {
-        "sync_canvas_data": sync_canvas_data,
-        "get_course_list": get_course_list,
-        "get_course_details": get_course_details,
-        "get_course_assignments": get_course_assignments,
-        "get_upcoming_deadlines": get_upcoming_deadlines,
-        "get_course_modules": get_course_modules,
-        "get_syllabus": get_syllabus,
-        "get_course_announcements": get_course_announcements,
-        "get_course_files": get_course_files,
-        "get_course_calendar_events": get_course_calendar_events,
-        "search_course_content": search_course_content,
-    }
+    # Extract tools
+    tools = extract_tools()
 
     print("\nCanvas MCP Direct Tool Tester")
     print("============================")
