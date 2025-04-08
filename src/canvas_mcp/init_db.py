@@ -85,6 +85,8 @@ def create_database(db_path: str | Path) -> None:
             due_date TIMESTAMP, -- Alias for due_at
             points_possible REAL,
             assignment_type TEXT,
+            available_from TIMESTAMP,
+            available_until TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
@@ -111,6 +113,7 @@ def create_database(db_path: str | Path) -> None:
             description TEXT,
             position INTEGER,
             unlock_date TIMESTAMP,
+            require_sequential_progress BOOLEAN DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
@@ -128,9 +131,11 @@ def create_database(db_path: str | Path) -> None:
             id INTEGER PRIMARY KEY,
             module_id INTEGER NOT NULL,
             canvas_module_item_id INTEGER,
+            canvas_item_id INTEGER,
             title TEXT NOT NULL,
             position INTEGER,
             content_type TEXT,
+            type TEXT,
             content_id INTEGER,
             url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
