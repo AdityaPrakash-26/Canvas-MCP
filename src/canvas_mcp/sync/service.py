@@ -9,23 +9,24 @@ import logging
 from functools import wraps
 
 from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
-from canvas_mcp.utils.db_manager import DatabaseManager
-
-# Import helper functions
-from canvas_mcp.sync.announcements import _persist_announcements
-from canvas_mcp.sync.assignments import _get_courses_to_sync, _persist_assignments
-from canvas_mcp.sync.courses import (
-    _filter_courses_by_term,
-    _persist_courses_and_syllabi,
-)
-from canvas_mcp.sync.modules import _persist_modules_and_items
 
 # Import public methods
 from canvas_mcp.sync.all import _get_assignment_type, sync_all
-from canvas_mcp.sync.announcements import sync_announcements
-from canvas_mcp.sync.assignments import sync_assignments
-from canvas_mcp.sync.courses import sync_courses
-from canvas_mcp.sync.modules import sync_modules
+
+# Import helper functions
+from canvas_mcp.sync.announcements import _persist_announcements, sync_announcements
+from canvas_mcp.sync.assignments import (
+    _get_courses_to_sync,
+    _persist_assignments,
+    sync_assignments,
+)
+from canvas_mcp.sync.courses import (
+    _filter_courses_by_term,
+    _persist_courses_and_syllabi,
+    sync_courses,
+)
+from canvas_mcp.sync.modules import _persist_modules_and_items, sync_modules
+from canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -74,8 +75,13 @@ class SyncService:
         """Wrap a function with database connection management."""
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            return self.db_manager.with_connection(func)(self, *args, **kwargs)
+        def wrapper(sync_service, *args, **kwargs):
+            # Create a new function that takes conn and cursor as first arguments
+            def db_func(conn, cursor, *inner_args, **inner_kwargs):
+                return func(sync_service, conn, cursor, *inner_args, **inner_kwargs)
+
+            # Call the database manager's with_connection with our new function
+            return self.db_manager.with_connection(db_func)(*args, **kwargs)
 
         return wrapper
 

@@ -11,14 +11,13 @@ from typing import Any
 
 from canvas_mcp.models import DBCourse
 from canvas_mcp.utils.content_utils import detect_content_type
-from canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
 def sync_courses(
-    self, user_id: str | None = None, term_id: int | None = -1
+    sync_service, user_id: str | None = None, term_id: int | None = -1
 ) -> list[int]:
     """
     Synchronize course data from Canvas to the local database.
@@ -31,12 +30,12 @@ def sync_courses(
     Returns:
         List of local course IDs that were synced
     """
-    if not self.api_adapter.is_available():
+    if not sync_service.api_adapter.is_available():
         logger.error("Canvas API adapter is not available")
         return []
 
     # Fetch Stage
-    user = self.api_adapter.get_current_user_raw()
+    user = sync_service.api_adapter.get_current_user_raw()
     if not user:
         logger.error("Failed to get current user from Canvas API")
         return []
@@ -46,13 +45,13 @@ def sync_courses(
         user_id = str(user.id)
 
     # Get courses from Canvas
-    raw_courses = self.api_adapter.get_courses_raw(user)
+    raw_courses = sync_service.api_adapter.get_courses_raw(user)
     if not raw_courses:
         logger.warning("No courses found in Canvas API")
         return []
 
     # Filter Stage
-    filtered_courses = self._filter_courses_by_term(raw_courses, term_id)
+    filtered_courses = _filter_courses_by_term(sync_service, raw_courses, term_id)
     if not filtered_courses:
         logger.warning("No courses found after term filtering")
         return []
@@ -62,7 +61,7 @@ def sync_courses(
     for raw_course in filtered_courses:
         try:
             # Get detailed course info if needed
-            detailed_course = self.api_adapter.get_course_raw(raw_course.id)
+            detailed_course = sync_service.api_adapter.get_course_raw(raw_course.id)
 
             # Combine data for validation
             course_data = {
@@ -100,11 +99,21 @@ def sync_courses(
         return []
 
     # Persist courses and syllabi using the with_connection decorator
-    return self._persist_courses_and_syllabi(valid_courses)
+    conn, cursor = sync_service.db_manager.connect()
+    try:
+        result = _persist_courses_and_syllabi(sync_service, conn, cursor, valid_courses)
+        conn.commit()
+        return result
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error persisting courses: {e}")
+        return []
+    finally:
+        conn.close()
 
 
 def _filter_courses_by_term(
-    self, courses: list[Any], term_id: int | None = -1
+    sync_service, courses: list[Any], term_id: int | None = -1
 ) -> list[Any]:
     """
     Filter courses by term ID.
@@ -136,7 +145,9 @@ def _filter_courses_by_term(
     ]
 
 
-def _persist_courses_and_syllabi(self, conn, cursor, valid_courses) -> list[int]:
+def _persist_courses_and_syllabi(
+    sync_service, conn, cursor, valid_courses
+) -> list[int]:
     """
     Persist courses and syllabi in a single transaction.
 

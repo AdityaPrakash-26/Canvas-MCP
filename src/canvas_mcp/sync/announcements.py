@@ -9,13 +9,12 @@ import logging
 from datetime import datetime
 
 from canvas_mcp.models import DBAnnouncement
-from canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
-def sync_announcements(self, course_ids: list[int] | None = None) -> int:
+def sync_announcements(sync_service, course_ids: list[int] | None = None) -> int:
     """
     Synchronize announcement data from Canvas to the local database.
 
@@ -25,12 +24,32 @@ def sync_announcements(self, course_ids: list[int] | None = None) -> int:
     Returns:
         Number of announcements synced
     """
-    if not self.api_adapter.is_available():
+    if not sync_service.api_adapter.is_available():
         logger.error("Canvas API adapter is not available")
         return 0
 
     # Get courses to sync
-    courses_to_sync = self._get_courses_to_sync(course_ids)
+    conn, cursor = sync_service.db_manager.connect()
+    try:
+        if course_ids is None:
+            # Get all courses
+            cursor.execute("SELECT * FROM courses")
+            courses_to_sync = [dict(row) for row in cursor.fetchall()]
+        else:
+            # Get specific courses
+            courses_to_sync = []
+            for course_id in course_ids:
+                cursor.execute("SELECT * FROM courses WHERE id = ?", (course_id,))
+                course = cursor.fetchone()
+                if course:
+                    courses_to_sync.append(dict(course))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error getting courses to sync: {e}")
+        return 0
+    finally:
+        conn.close()
 
     if not courses_to_sync:
         logger.warning("No courses found to sync announcements")
@@ -48,12 +67,14 @@ def sync_announcements(self, course_ids: list[int] | None = None) -> int:
         )
 
         # Fetch Stage
-        canvas_course = self.api_adapter.get_course_raw(canvas_course_id)
+        canvas_course = sync_service.api_adapter.get_course_raw(canvas_course_id)
         if not canvas_course:
             logger.error(f"Failed to get course {canvas_course_id} from Canvas API")
             continue
 
-        raw_announcements = self.api_adapter.get_announcements_raw(canvas_course)
+        raw_announcements = sync_service.api_adapter.get_announcements_raw(
+            canvas_course
+        )
         if not raw_announcements:
             logger.info(f"No announcements found for course {canvas_course_id}")
             continue
@@ -81,10 +102,19 @@ def sync_announcements(self, course_ids: list[int] | None = None) -> int:
                     f"Error validating announcement {getattr(raw_announcement, 'id', 'unknown')}: {e}"
                 )
 
-        # Persist announcements using the with_connection decorator
-        announcement_count += self._persist_announcements(
-            local_course_id, valid_announcements
-        )
+        # Persist announcements
+        conn, cursor = sync_service.db_manager.connect()
+        try:
+            synced = _persist_announcements(
+                sync_service, conn, cursor, local_course_id, valid_announcements
+            )
+            conn.commit()
+            announcement_count += synced
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error persisting announcements: {e}")
+        finally:
+            conn.close()
 
         logger.info(f"Successfully synced announcements for course {canvas_course_id}")
 
@@ -92,7 +122,7 @@ def sync_announcements(self, course_ids: list[int] | None = None) -> int:
 
 
 def _persist_announcements(
-    self,
+    sync_service,
     conn,
     cursor,
     local_course_id: int,

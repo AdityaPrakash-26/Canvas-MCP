@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def sync_all(
-    self, user_id: str | None = None, term_id: int | None = -1
+    sync_service, user_id: str | None = None, term_id: int | None = -1
 ) -> dict[str, int]:
     """
     Synchronize all data from Canvas to the local database.
@@ -27,12 +27,12 @@ def sync_all(
         Dictionary with counts of synced items
     """
     # First sync courses
-    course_ids = self.sync_courses(user_id, term_id)
+    course_ids = sync_service.sync_courses(user_id, term_id)
 
     # Then sync other data
-    assignment_count = self.sync_assignments(course_ids)
-    module_count = self.sync_modules(course_ids)
-    announcement_count = self.sync_announcements(course_ids)
+    assignment_count = sync_service.sync_assignments(course_ids)
+    module_count = sync_service.sync_modules(course_ids)
+    announcement_count = sync_service.sync_announcements(course_ids)
 
     return {
         "courses": len(course_ids),
@@ -42,7 +42,7 @@ def sync_all(
     }
 
 
-def _get_assignment_type(self, assignment: Any) -> str:
+def _get_assignment_type(sync_service, assignment: Any) -> str:
     """
     Determine the type of an assignment.
 

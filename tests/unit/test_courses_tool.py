@@ -41,7 +41,7 @@ class TestCoursesTools:
         assert len(result) == 0
 
     def test_get_course_list_with_data(
-        self, canvas_client, db_manager, synced_course_ids
+        self, sync_service, db_manager, synced_course_ids
     ):
         """Test the get_course_list tool with data in the database."""
 

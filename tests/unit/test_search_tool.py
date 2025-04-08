@@ -44,7 +44,7 @@ class TestSearchTools:
 
     def test_search_course_content_with_data(
         self,
-        canvas_client,
+        sync_service,
         db_manager,
         synced_course_ids,
         synced_assignments,

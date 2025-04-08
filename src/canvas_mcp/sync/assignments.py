@@ -9,13 +9,13 @@ import logging
 from datetime import datetime
 
 from canvas_mcp.models import DBAssignment
-from canvas_mcp.utils.db_manager import DatabaseManager
+from canvas_mcp.sync.all import _get_assignment_type
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
-def sync_assignments(self, course_ids: list[int] | None = None) -> int:
+def sync_assignments(sync_service, course_ids: list[int] | None = None) -> int:
     """
     Synchronize assignment data from Canvas to the local database.
 
@@ -25,12 +25,21 @@ def sync_assignments(self, course_ids: list[int] | None = None) -> int:
     Returns:
         Number of assignments synced
     """
-    if not self.api_adapter.is_available():
+    if not sync_service.api_adapter.is_available():
         logger.error("Canvas API adapter is not available")
         return 0
 
     # Get courses to sync
-    courses_to_sync = self._get_courses_to_sync(course_ids)
+    conn, cursor = sync_service.db_manager.connect()
+    try:
+        courses_to_sync = _get_courses_to_sync(sync_service, conn, cursor, course_ids)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error getting courses to sync: {e}")
+        return 0
+    finally:
+        conn.close()
 
     if not courses_to_sync:
         logger.warning("No courses found to sync assignments")
@@ -48,12 +57,12 @@ def sync_assignments(self, course_ids: list[int] | None = None) -> int:
         )
 
         # Fetch Stage
-        canvas_course = self.api_adapter.get_course_raw(canvas_course_id)
+        canvas_course = sync_service.api_adapter.get_course_raw(canvas_course_id)
         if not canvas_course:
             logger.error(f"Failed to get course {canvas_course_id} from Canvas API")
             continue
 
-        raw_assignments = self.api_adapter.get_assignments_raw(canvas_course)
+        raw_assignments = sync_service.api_adapter.get_assignments_raw(canvas_course)
         if not raw_assignments:
             logger.info(f"No assignments found for course {canvas_course_id}")
             continue
@@ -69,7 +78,7 @@ def sync_assignments(self, course_ids: list[int] | None = None) -> int:
                     submission_types = ",".join(submission_types)
 
                 # Determine assignment type
-                assignment_type = self._get_assignment_type(raw_assignment)
+                assignment_type = _get_assignment_type(sync_service, raw_assignment)
 
                 # Prepare data for validation
                 assignment_data = {
@@ -93,10 +102,19 @@ def sync_assignments(self, course_ids: list[int] | None = None) -> int:
                     f"Error validating assignment {getattr(raw_assignment, 'id', 'unknown')}: {e}"
                 )
 
-        # Persist assignments using the with_connection decorator
-        assignment_count += self._persist_assignments(
-            local_course_id, valid_assignments
-        )
+        # Persist assignments
+        conn, cursor = sync_service.db_manager.connect()
+        try:
+            synced = _persist_assignments(
+                sync_service, conn, cursor, local_course_id, valid_assignments
+            )
+            conn.commit()
+            assignment_count += synced
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error persisting assignments: {e}")
+        finally:
+            conn.close()
 
         logger.info(f"Successfully synced assignments for course {canvas_course_id}")
 
@@ -104,7 +122,7 @@ def sync_assignments(self, course_ids: list[int] | None = None) -> int:
 
 
 def _get_courses_to_sync(
-    self, conn, cursor, course_ids: list[int] | None = None
+    sync_service, conn, cursor, course_ids: list[int] | None = None
 ) -> list[dict]:
     """
     Get courses to sync from the database.
@@ -135,7 +153,7 @@ def _get_courses_to_sync(
 
 
 def _persist_assignments(
-    self,
+    sync_service,
     conn,
     cursor,
     local_course_id: int,

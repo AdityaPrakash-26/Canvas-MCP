@@ -12,7 +12,7 @@ from canvas_mcp.tools.syllabus import register_syllabus_tools
 class TestSyllabusTools:
     """Test the syllabus tools."""
 
-    def test_get_syllabus_file(self, canvas_client, db_manager, synced_course_ids):
+    def test_get_syllabus_file(self, api_adapter, db_manager, synced_course_ids):
         """Test the get_syllabus_file tool."""
 
         # Create a mock MCP server
@@ -30,7 +30,7 @@ class TestSyllabusTools:
         register_syllabus_tools(mock_mcp)
 
         # Create a mock context
-        lifespan_context = {"db_manager": db_manager, "canvas_client": canvas_client}
+        lifespan_context = {"db_manager": db_manager, "api_adapter": api_adapter}
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
 

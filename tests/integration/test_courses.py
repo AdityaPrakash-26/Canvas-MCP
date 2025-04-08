@@ -35,14 +35,14 @@ def test_get_course_list(test_client, target_course_info):
     )
 
 
-def test_course_list_filtering(test_client, canvas_client, db_connection):
+def test_course_list_filtering(test_client, api_adapter, db_connection):
     """Test that the course list only contains active courses from the current term."""
     # Get course list from the database
     courses = test_client.get_course_list()
 
     # Get active courses directly from Canvas API
-    user = canvas_client.canvas.get_current_user()
-    active_courses = list(user.get_courses(enrollment_state="active"))
+    user = api_adapter.get_current_user_raw()
+    active_courses = list(api_adapter.get_courses_raw(user, enrollment_state="active"))
 
     # Get term IDs from active courses
     term_ids = set()

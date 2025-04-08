@@ -15,7 +15,7 @@ class TestAssignmentsTools:
     """Test the assignments tools."""
 
     def test_get_assignment_details(
-        self, canvas_client, db_manager, synced_course_ids, synced_assignments
+        self, api_adapter, db_manager, synced_course_ids, synced_assignments
     ):
         """Test the get_assignment_details tool."""
 
@@ -34,7 +34,7 @@ class TestAssignmentsTools:
         register_assignment_tools(mock_mcp)
 
         # Create a mock context
-        lifespan_context = {"db_manager": db_manager, "canvas_client": canvas_client}
+        lifespan_context = {"db_manager": db_manager, "api_adapter": api_adapter}
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
 

@@ -123,3 +123,56 @@ We recently fixed an issue where dropped courses were still being displayed. Her
 5. **Test Edge Cases**: Include tests for empty results, error conditions, and boundary cases.
 6. **Avoid Hardcoding**: Don't hardcode IDs or values that might change between environments.
 7. **Balance Test Coverage**: Use both unit and integration tests appropriately.
+8. **Fix Root Causes**: Address the underlying issues rather than modifying tests to work around them.
+9. **Use Diagnostic Tools**: Leverage scripts in the `scripts/` directory to diagnose issues before making changes.
+
+## Refactoring Lessons
+
+### Function Signature Changes
+
+When refactoring from instance methods (using `self`) to standalone functions (using explicit parameters like `sync_service`), follow these guidelines:
+
+1. **Update All Call Sites**: Ensure all places where the function is called are updated with the new parameter structure.
+2. **Database Connection Handling**: Pay special attention to functions that use database connection wrappers.
+3. **Wrapper Functions**: If using wrapper functions (like `_wrap_with_connection`), ensure they correctly handle the new parameter structure.
+
+### Database Connection Management
+
+Canvas-MCP uses a pattern of wrapping database operations with connection management:
+
+```python
+# Before refactoring (instance method)
+def _wrap_with_connection(self, func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return self.db_manager.with_connection(func)(self, *args, **kwargs)
+    return wrapper
+
+# After refactoring (standalone function)
+def _wrap_with_connection(self, func):
+    @wraps(func)
+    def wrapper(sync_service, *args, **kwargs):
+        # Create a new function that takes conn and cursor as first arguments
+        def db_func(conn, cursor, *inner_args, **inner_kwargs):
+            return func(sync_service, conn, cursor, *inner_args, **inner_kwargs)
+
+        # Call the database manager's with_connection with our new function
+        return self.db_manager.with_connection(db_func)(*args, **kwargs)
+    return wrapper
+```
+
+### Date Handling in SQLite
+
+When working with dates in SQLite:
+
+1. **Timezone Awareness**: Be aware that SQLite date functions may not handle timezone information correctly.
+2. **String Manipulation**: For reliable date comparison, consider using string manipulation functions like `substr()`:
+
+```python
+# More reliable date comparison in SQLite
+query = """
+SELECT * FROM assignments
+WHERE substr(due_date, 1, 10) >= ?
+AND substr(due_date, 1, 10) <= ?
+"""
+```

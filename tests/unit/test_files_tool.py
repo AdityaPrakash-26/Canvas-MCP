@@ -14,7 +14,7 @@ class TestFilesTools:
     """Test the files tools."""
 
     @patch("canvas_mcp.utils.file_extractor.extract_text_from_file")
-    def test_extract_text_from_course_file_success(self, mock_extract, canvas_client):
+    def test_extract_text_from_course_file_success(self, mock_extract):
         """Test the extract_text_from_course_file tool with successful extraction."""
 
         # Create a mock MCP server
@@ -32,7 +32,7 @@ class TestFilesTools:
         register_file_tools(mock_mcp)
 
         # Create a mock context
-        lifespan_context = {"canvas_client": canvas_client}
+        lifespan_context = {}
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
 
@@ -56,7 +56,7 @@ class TestFilesTools:
         assert result["file_type"] == "pdf"
 
     @patch("canvas_mcp.utils.file_extractor.extract_text_from_file")
-    def test_extract_text_from_course_file_failure(self, mock_extract, canvas_client):
+    def test_extract_text_from_course_file_failure(self, mock_extract):
         """Test the extract_text_from_course_file tool with failed extraction."""
 
         # Create a mock MCP server
@@ -74,7 +74,7 @@ class TestFilesTools:
         register_file_tools(mock_mcp)
 
         # Create a mock context
-        lifespan_context = {"canvas_client": canvas_client}
+        lifespan_context = {}
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
 

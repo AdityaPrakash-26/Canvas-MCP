@@ -130,7 +130,18 @@ which uv
 
 ## Development
 
-# Windows
+### Architecture
+
+Canvas-MCP uses a modular architecture with the following components:
+
+- **SyncService**: Orchestrates synchronization operations between Canvas API and the database
+- **CanvasApiAdapter**: Handles Canvas API interactions and error handling
+- **DatabaseManager**: Manages database connections and operations
+- **MCP Tools**: Provides tools for AI assistants to interact with Canvas data
+
+See `docs/refactoring_guide.md` for details on the architectural changes and best practices.
+
+### Windows
 
 We recommend using WSL (Windows Subsystem for Linux) to use this software. Installation instructions can be founder [here](https://learn.microsoft.com/en-us/windows/wsl/install).
 
