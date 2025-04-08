@@ -141,6 +141,7 @@ def create_database(db_path: str | Path) -> None:
             content_id INTEGER,
             url TEXT,
             page_url TEXT,
+            content_details TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
@@ -202,6 +203,29 @@ def create_database(db_path: str | Path) -> None:
         # Create index on posted_at
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_conversations_posted_at ON conversations(posted_at);
+        """)
+
+        # Calendar events table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS calendar_events (
+            id INTEGER PRIMARY KEY,
+            course_id INTEGER NOT NULL,
+            canvas_event_id INTEGER,
+            title TEXT,
+            description TEXT,
+            start_at TIMESTAMP,
+            end_at TIMESTAMP,
+            location_name TEXT,
+            location_address TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+        );
+        """)
+
+        # Create index on course_id
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_calendar_events_course_id ON calendar_events(course_id);
         """)
 
         # Commit the changes
