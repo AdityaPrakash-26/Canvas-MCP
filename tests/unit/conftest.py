@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 from tests.fakes.fake_canvasapi import patch_canvasapi
 
-from canvas_mcp.canvas_client import CanvasClient
+from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
+from canvas_mcp.sync import SyncService
 from canvas_mcp.utils.db_manager import DatabaseManager
 
 # Apply the patch before importing any code that uses canvasapi
@@ -50,9 +51,23 @@ def db_manager(ensure_test_db: None, test_db_path: Path) -> DatabaseManager:
 
 
 @pytest.fixture(scope="session")
-def canvas_client(db_manager: DatabaseManager) -> CanvasClient:
-    """Return a Canvas client with the fake Canvas API."""
-    return CanvasClient(db_manager, "fake_api_key")
+def api_adapter() -> CanvasApiAdapter:
+    """Return a Canvas API adapter with the fake Canvas API."""
+    from canvasapi import Canvas
+
+    canvas = Canvas("https://fake.instructure.com", "fake_api_key")
+    return CanvasApiAdapter(canvas)
+
+
+@pytest.fixture(scope="session")
+def sync_service(
+    db_manager: DatabaseManager, api_adapter: CanvasApiAdapter
+) -> SyncService:
+    """Return a sync service with the fake Canvas API."""
+    return SyncService(db_manager, api_adapter)
+
+
+# Canvas client fixture has been removed as part of the refactoring
 
 
 @pytest.fixture(scope="function")
@@ -74,31 +89,29 @@ def target_course_id() -> int:
 
 
 @pytest.fixture(scope="function")
-def synced_course_ids(canvas_client: CanvasClient) -> list[int]:
-    """Return a list of course IDs after syncing courses."""
-    return canvas_client.sync_courses()
+def synced_course_ids(sync_service: SyncService) -> list[int]:
+    """Return a list of course IDs after syncing courses using SyncService."""
+    return sync_service.sync_courses()
 
 
 @pytest.fixture(scope="function")
-def synced_assignments(
-    canvas_client: CanvasClient, synced_course_ids: list[int]
-) -> int:
+def synced_assignments(sync_service: SyncService, synced_course_ids: list[int]) -> int:
     """Return the number of assignments after syncing assignments."""
-    return canvas_client.sync_assignments(synced_course_ids)
+    return sync_service.sync_assignments(synced_course_ids)
 
 
 @pytest.fixture(scope="function")
-def synced_modules(canvas_client: CanvasClient, synced_course_ids: list[int]) -> int:
+def synced_modules(sync_service: SyncService, synced_course_ids: list[int]) -> int:
     """Return the number of modules after syncing modules."""
-    return canvas_client.sync_modules(synced_course_ids)
+    return sync_service.sync_modules(synced_course_ids)
 
 
 @pytest.fixture(scope="function")
 def synced_announcements(
-    canvas_client: CanvasClient, synced_course_ids: list[int]
+    sync_service: SyncService, synced_course_ids: list[int]
 ) -> int:
     """Return the number of announcements after syncing announcements."""
-    return canvas_client.sync_announcements(synced_course_ids)
+    return sync_service.sync_announcements(synced_course_ids)
 
 
 @pytest.fixture(scope="function")

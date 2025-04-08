@@ -27,9 +27,9 @@ def register_sync_tools(mcp: FastMCP) -> None:
             Dictionary with counts of synced items
         """
         try:
-            # Get the canvas client from the lifespan context
-            canvas_client = ctx.request_context.lifespan_context["canvas_client"]
-            result = canvas_client.sync_all()
+            # Get the sync service from the lifespan context
+            sync_service = ctx.request_context.lifespan_context["sync_service"]
+            result = sync_service.sync_all()
             return result
         except ImportError:
             return {"error": "canvasapi module is required for this operation"}

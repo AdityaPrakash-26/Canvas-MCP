@@ -119,12 +119,12 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
             Dictionary with syllabus file information or error
         """
         try:
-            # Get canvas client and database manager from the lifespan context
-            canvas_client = ctx.request_context.lifespan_context["canvas_client"]
+            # Get API adapter and database manager from the lifespan context
+            api_adapter = ctx.request_context.lifespan_context["api_adapter"]
             db_manager = ctx.request_context.lifespan_context["db_manager"]
 
             # Check if Canvas API is available
-            if canvas_client.canvas is None:
+            if not api_adapter.is_available():
                 logger.warning("Canvas API not available in get_syllabus_file")
                 return {
                     "success": False,
@@ -132,8 +132,63 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
                     "error": "Canvas API connection not available",
                 }
 
-            # Get all files in the course
-            files = canvas_client.extract_files_from_course(course_id)
+            # Get the Canvas course ID from the local course ID
+            conn, cursor = db_manager.connect()
+            try:
+                cursor.execute(
+                    "SELECT canvas_course_id FROM courses WHERE id = ?", (course_id,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return {
+                        "success": False,
+                        "course_id": course_id,
+                        "error": f"Course with ID {course_id} not found in database",
+                    }
+                canvas_course_id = row["canvas_course_id"]
+            finally:
+                conn.close()
+
+            # Get course from Canvas
+            canvas_course = api_adapter.get_course_raw(canvas_course_id)
+            if not canvas_course:
+                return {
+                    "success": False,
+                    "course_id": course_id,
+                    "error": f"Course with ID {canvas_course_id} not found in Canvas",
+                }
+
+            # Get files from the course
+            raw_files = api_adapter.get_files_raw(canvas_course)
+
+            # Process files
+            files = []
+            for file in raw_files:
+                file_name = (
+                    file.display_name
+                    if hasattr(file, "display_name")
+                    else (
+                        file.filename if hasattr(file, "filename") else "Unnamed File"
+                    )
+                )
+
+                files.append(
+                    {
+                        "name": file_name,
+                        "url": file.url if hasattr(file, "url") else None,
+                        "content_type": file.content_type
+                        if hasattr(file, "content_type")
+                        else None,
+                        "size": file.size if hasattr(file, "size") else None,
+                        "created_at": file.created_at
+                        if hasattr(file, "created_at")
+                        else None,
+                        "updated_at": file.updated_at
+                        if hasattr(file, "updated_at")
+                        else None,
+                        "source": "files",
+                    }
+                )
 
             # Look for files with "syllabus" in the name
             syllabus_files = []

@@ -31,32 +31,124 @@ def register_file_tools(mcp: FastMCP) -> None:
             List of files with URLs
         """
         try:
-            # Get canvas client from the lifespan context
-            canvas_client = ctx.request_context.lifespan_context["canvas_client"]
+            # Get API adapter from the lifespan context
+            api_adapter = ctx.request_context.lifespan_context["api_adapter"]
+            db_manager = ctx.request_context.lifespan_context["db_manager"]
 
-            files = canvas_client.extract_files_from_course(course_id, file_type)
+            if not api_adapter.is_available():
+                return [{"error": "Canvas API not available"}]
 
-            # Add extraction URLs if needed
+            # Get the Canvas course ID from the local course ID
+            conn, cursor = db_manager.connect()
+            try:
+                cursor.execute(
+                    "SELECT canvas_course_id FROM courses WHERE id = ?", (course_id,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return [
+                        {"error": f"Course with ID {course_id} not found in database"}
+                    ]
+                canvas_course_id = row["canvas_course_id"]
+            finally:
+                conn.close()
+
+            # Get course from Canvas
+            canvas_course = api_adapter.get_course_raw(canvas_course_id)
+            if not canvas_course:
+                return [
+                    {"error": f"Course with ID {canvas_course_id} not found in Canvas"}
+                ]
+
+            # Get files from the course
+            raw_files = api_adapter.get_files_raw(canvas_course)
+
+            # Process files
             result = []
-            for file in files:
+            for file in raw_files:
+                file_name = (
+                    file.display_name
+                    if hasattr(file, "display_name")
+                    else (
+                        file.filename if hasattr(file, "filename") else "Unnamed File"
+                    )
+                )
+
+                # Filter by file type if specified
+                if file_type:
+                    # Special handling for common file types
+                    if file_type.lower() == "docx":
+                        # Check for both .docx and .doc extensions
+                        if not (
+                            file_name.lower().endswith(".docx")
+                            or file_name.lower().endswith(".doc")
+                        ):
+                            continue
+                    elif file_type.lower() == "doc":
+                        # Check for both .docx and .doc extensions
+                        if not (
+                            file_name.lower().endswith(".docx")
+                            or file_name.lower().endswith(".doc")
+                        ):
+                            continue
+                    elif file_type.lower() == "ppt":
+                        # Check for both .ppt and .pptx extensions
+                        if not (
+                            file_name.lower().endswith(".ppt")
+                            or file_name.lower().endswith(".pptx")
+                        ):
+                            continue
+                    elif file_type.lower() == "pptx":
+                        # Check for both .ppt and .pptx extensions
+                        if not (
+                            file_name.lower().endswith(".ppt")
+                            or file_name.lower().endswith(".pptx")
+                        ):
+                            continue
+                    elif file_type.lower() == "xls":
+                        # Check for both .xls and .xlsx extensions
+                        if not (
+                            file_name.lower().endswith(".xls")
+                            or file_name.lower().endswith(".xlsx")
+                        ):
+                            continue
+                    elif file_type.lower() == "xlsx":
+                        # Check for both .xls and .xlsx extensions
+                        if not (
+                            file_name.lower().endswith(".xls")
+                            or file_name.lower().endswith(".xlsx")
+                        ):
+                            continue
+                    else:
+                        # For other file types, just check the extension
+                        if not file_name.lower().endswith(f".{file_type.lower()}"):
+                            continue
+
                 # Add a property to identify if this might be a syllabus
-                is_syllabus = "syllabus" in file.get("name", "").lower()
+                is_syllabus = "syllabus" in file_name.lower()
 
                 result.append(
                     {
-                        "name": file.get("name", "Unnamed File"),
-                        "url": file.get("url", ""),
-                        "content_type": file.get("content_type", ""),
-                        "size": file.get("size", ""),
-                        "created_at": file.get("created_at", ""),
-                        "updated_at": file.get("updated_at", ""),
-                        "source": file.get("source", "unknown"),
+                        "name": file_name,
+                        "url": file.url if hasattr(file, "url") else None,
+                        "content_type": file.content_type
+                        if hasattr(file, "content_type")
+                        else None,
+                        "size": file.size if hasattr(file, "size") else None,
+                        "created_at": file.created_at
+                        if hasattr(file, "created_at")
+                        else None,
+                        "updated_at": file.updated_at
+                        if hasattr(file, "updated_at")
+                        else None,
+                        "source": "files",
                         "is_syllabus": is_syllabus,
                     }
                 )
 
             return result
         except Exception as e:
+            logger.error(f"Error getting files: {e}")
             return [{"error": f"Error getting files: {e}"}]
 
     @mcp.tool()

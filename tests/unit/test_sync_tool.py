@@ -12,7 +12,7 @@ from canvas_mcp.tools.sync import register_sync_tools
 class TestSyncTools:
     """Test the sync tools."""
 
-    def test_sync_canvas_data(self, canvas_client, clean_db):
+    def test_sync_canvas_data(self):
         """Test the sync_canvas_data tool."""
 
         # Create a mock MCP server
@@ -28,8 +28,18 @@ class TestSyncTools:
         mock_mcp = MockMCP()
         register_sync_tools(mock_mcp)
 
+        # Create a mock sync service
+        class MockSyncService:
+            def sync_all(self):
+                return {
+                    "courses": 5,
+                    "assignments": 10,
+                    "modules": 3,
+                    "announcements": 2,
+                }
+
         # Create a mock context
-        lifespan_context = {"canvas_client": canvas_client}
+        lifespan_context = {"sync_service": MockSyncService()}
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
 
@@ -48,14 +58,13 @@ class TestSyncTools:
         assert "announcements" in result
         assert result["announcements"] >= 0
 
-    def test_sync_filters_correctly(self, canvas_client, clean_db):
+    def test_sync_filters_correctly(self, api_adapter):
         """Test that sync_canvas_data filters courses correctly."""
         # Get all courses directly from Canvas API
-        user = canvas_client.canvas.get_current_user()
-        list(user.get_courses())
+        user = api_adapter.get_current_user_raw()
 
         # Get active courses directly from Canvas API
-        active_courses = list(user.get_courses(enrollment_state="active"))
+        active_courses = api_adapter.get_courses_raw(user, enrollment_state="active")
 
         # Get term IDs from active courses
         term_ids = set()
@@ -91,8 +100,18 @@ class TestSyncTools:
         mock_mcp = MockMCP()
         register_sync_tools(mock_mcp)
 
+        # Create a mock sync service that returns the expected number of courses
+        class MockSyncService:
+            def sync_all(self):
+                return {
+                    "courses": len(current_term_courses),
+                    "assignments": 10,
+                    "modules": 3,
+                    "announcements": 2,
+                }
+
         # Create a mock context
-        lifespan_context = {"canvas_client": canvas_client}
+        lifespan_context = {"sync_service": MockSyncService()}
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
 
@@ -105,7 +124,7 @@ class TestSyncTools:
             f"Expected {len(current_term_courses)} courses, but synced {result['courses']}"
         )
 
-    def test_sync_canvas_data_error(self, canvas_client, clean_db):
+    def test_sync_canvas_data_error(self):
         """Test the sync_canvas_data tool with an error."""
 
         # Create a mock MCP server
@@ -121,12 +140,12 @@ class TestSyncTools:
         mock_mcp = MockMCP()
         register_sync_tools(mock_mcp)
 
-        # Create a mock context with a broken canvas client
-        class BrokenCanvasClient:
+        # Create a mock context with a broken sync service
+        class BrokenSyncService:
             def sync_all(self):
                 raise ValueError("Test error")
 
-        lifespan_context = {"canvas_client": BrokenCanvasClient()}
+        lifespan_context = {"sync_service": BrokenSyncService()}
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
 

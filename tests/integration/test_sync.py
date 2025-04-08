@@ -33,9 +33,7 @@ def cache_database(source_path: Path, cache_path: Path, metadata_path: Path) -> 
     print(f"Database cached successfully at: {timestamp}")
 
 
-def test_sync_canvas_data(
-    test_client, db_connection, target_course_info, canvas_client
-):
+def test_sync_canvas_data(test_client, db_connection, target_course_info):
     """Test synchronizing data from Canvas."""
     # Ensure Canvas API key is available
     assert os.environ.get("CANVAS_API_KEY"), (
@@ -86,7 +84,7 @@ def test_sync_canvas_data(
     cache_database(TEST_DB_PATH, CACHED_DB_PATH, CACHE_METADATA_PATH)
 
 
-def test_sync_filters_dropped_courses(test_client, db_connection, canvas_client):
+def test_sync_filters_dropped_courses(test_client, db_connection, api_adapter):
     """Test that sync filters out dropped courses."""
     # Ensure Canvas API key is available
     assert os.environ.get("CANVAS_API_KEY"), (
@@ -94,11 +92,11 @@ def test_sync_filters_dropped_courses(test_client, db_connection, canvas_client)
     )
 
     # Get all courses directly from Canvas API
-    user = canvas_client.canvas.get_current_user()
-    all_courses = list(user.get_courses())
+    user = api_adapter.get_current_user_raw()
+    all_courses = api_adapter.get_courses_raw(user)
 
     # Get active courses directly from Canvas API
-    active_courses = list(user.get_courses(enrollment_state="active"))
+    active_courses = api_adapter.get_courses_raw(user, enrollment_state="active")
 
     # Skip test if all courses are active (no dropped courses to test with)
     if len(all_courses) == len(active_courses):

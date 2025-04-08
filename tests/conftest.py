@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from canvasapi import Canvas
 
 # Add the project root directory to the Python path
 
@@ -39,8 +40,11 @@ from tests.init_db import create_database
 from tests.integration.test_client import CanvasMCPTestClient
 
 # Import database utilities
-from canvas_mcp.canvas_client import CanvasClient
+from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
+from canvas_mcp.sync import SyncService
 from canvas_mcp.utils.db_manager import DatabaseManager
+
+# CanvasClient import has been removed as part of the refactoring
 
 
 @pytest.fixture(scope="session")
@@ -102,8 +106,8 @@ def db_manager(
 
 
 @pytest.fixture(scope="session")
-def canvas_client(db_manager: DatabaseManager) -> CanvasClient:
-    """Return a Canvas client for the test database."""
+def api_adapter(db_manager: DatabaseManager) -> CanvasApiAdapter:
+    """Return a Canvas API adapter for testing."""
     # Ensure Canvas API key is available
     api_key = os.environ.get("CANVAS_API_KEY")
     api_url = os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
@@ -113,7 +117,24 @@ def canvas_client(db_manager: DatabaseManager) -> CanvasClient:
             "Canvas API key environment variable (CANVAS_API_KEY) is required for integration tests"
         )
 
-    return CanvasClient(db_manager, api_key, api_url)
+    # Initialize Canvas API client
+    try:
+        canvas_api_client = Canvas(api_url, api_key)
+        return CanvasApiAdapter(canvas_api_client)
+    except Exception as e:
+        print(f"Error initializing Canvas API adapter: {e}")
+        return CanvasApiAdapter(None)
+
+
+@pytest.fixture(scope="session")
+def sync_service(
+    db_manager: DatabaseManager, api_adapter: CanvasApiAdapter
+) -> SyncService:
+    """Return a sync service for testing."""
+    return SyncService(db_manager, api_adapter)
+
+
+# Canvas client fixture has been removed as part of the refactoring
 
 
 @pytest.fixture(scope="session")

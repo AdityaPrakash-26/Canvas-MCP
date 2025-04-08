@@ -341,12 +341,51 @@ def register_assignment_tools(mcp: FastMCP) -> None:
             # If requested and the assignment was found, try to get additional info from Canvas API
             if include_canvas_data and "error" not in result:
                 try:
-                    canvas_info = canvas_client.get_assignment_details(
-                        course_id, assignment_name
+                    # Get the API adapter from the lifespan context
+                    api_adapter = ctx.request_context.lifespan_context["api_adapter"]
+
+                    if not api_adapter.is_available():
+                        result["canvas_api_status"] = "unavailable"
+                        return result
+
+                    # Get the course from Canvas
+                    canvas_course_id = course.get("canvas_course_id")
+                    canvas_course = api_adapter.get_course_raw(canvas_course_id)
+
+                    if not canvas_course:
+                        result["canvas_api_status"] = "course not found"
+                        return result
+
+                    # Get the assignment from Canvas
+                    canvas_assignment_id = assignment.get("canvas_assignment_id")
+                    canvas_assignment = api_adapter.get_assignment_raw(
+                        canvas_course, canvas_assignment_id
                     )
-                    if canvas_info and canvas_info.get("success", False):
-                        # Merge the Canvas data with our database data
-                        result["canvas_details"] = canvas_info.get("data", {})
+
+                    if canvas_assignment:
+                        # Create a data dictionary with assignment details
+                        assignment_data = {
+                            "title": canvas_assignment.name,
+                            "description": getattr(
+                                canvas_assignment, "description", ""
+                            ),
+                            "due_date": getattr(canvas_assignment, "due_at", None),
+                            "points_possible": getattr(
+                                canvas_assignment, "points_possible", None
+                            ),
+                            "submission_types": getattr(
+                                canvas_assignment, "submission_types", []
+                            ),
+                            "canvas_assignment_id": canvas_assignment.id,
+                        }
+
+                        # Check for additional details like rubrics
+                        if hasattr(canvas_assignment, "rubric"):
+                            assignment_data["rubric"] = canvas_assignment.rubric
+
+                        result["canvas_details"] = assignment_data
+                    else:
+                        result["canvas_api_status"] = "assignment not found"
                 except ImportError:
                     # Canvas API not available, continue with database info
                     logger.warning(

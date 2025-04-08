@@ -15,12 +15,19 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 import canvas_mcp.config as config
+from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
+from canvas_mcp.sync import SyncService
 from canvas_mcp.utils.db_manager import DatabaseManager
 
 try:
-    from .canvas_client import CanvasClient
+    from canvasapi import Canvas
 except ImportError:
-    from canvas_mcp.canvas_client import CanvasClient
+    # Create a dummy Canvas class for tests to patch
+    class Canvas:
+        def __init__(self, api_url, api_key):
+            self.api_url = api_url
+            self.api_key = api_key
+
 
 # Configure logging
 logging.basicConfig(
@@ -33,7 +40,8 @@ logger = logging.getLogger("canvas_mcp")
 @dataclass
 class LifespanContext:
     db_manager: DatabaseManager
-    canvas_client: CanvasClient
+    api_adapter: CanvasApiAdapter
+    sync_service: SyncService
 
 
 @asynccontextmanager
@@ -45,22 +53,29 @@ async def app_lifespan(_: FastMCP) -> AsyncIterator[dict[str, Any]]:
     # Create database manager
     db_manager = DatabaseManager(config.DB_PATH)
 
-    # Create Canvas client
+    # Create Canvas API adapter
     try:
-        canvas_client = CanvasClient(db_manager, config.API_KEY, config.API_URL)
-        logger.info("Canvas client initialized successfully")
+        # Initialize Canvas API client
+        canvas_api_client = Canvas(config.API_URL, config.API_KEY)
+        api_adapter = CanvasApiAdapter(canvas_api_client)
+        logger.info("Canvas API adapter initialized successfully")
     except Exception as e:
-        logger.error(f"Error initializing Canvas client: {e}")
-        # Create a dummy client that will use database-only operations
-        canvas_client = CanvasClient(db_manager, None, None)
+        logger.error(f"Error initializing Canvas API adapter: {e}")
+        # Create a dummy adapter that will use database-only operations
+        api_adapter = CanvasApiAdapter(None)
         logger.warning(
-            "Created database-only Canvas client due to initialization error"
+            "Created database-only Canvas API adapter due to initialization error"
         )
+
+    # Create Sync Service
+    sync_service = SyncService(db_manager, api_adapter)
+    logger.info("Sync service initialized successfully")
 
     # Create the lifespan context dictionary
     lifespan_context = {
         "db_manager": db_manager,
-        "canvas_client": canvas_client,
+        "api_adapter": api_adapter,
+        "sync_service": sync_service,
     }
 
     try:

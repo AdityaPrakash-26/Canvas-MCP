@@ -11,7 +11,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from canvas_mcp.canvas_client import CanvasClient
+from canvasapi import Canvas
+
+from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
+from canvas_mcp.sync import SyncService
 
 # Import the tool registration functions
 from canvas_mcp.tools.announcements import register_announcement_tools
@@ -47,13 +50,21 @@ class CanvasMCPTestClient:
                 "CANVAS_API_KEY environment variable is required for integration tests"
             )
 
-        # Initialize Canvas client
-        self.canvas_client = CanvasClient(self.db_manager, api_key, api_url)
+        # Initialize Canvas API adapter and sync service
+        try:
+            canvas_api_client = Canvas(api_url, api_key)
+            self.api_adapter = CanvasApiAdapter(canvas_api_client)
+        except Exception as e:
+            print(f"Error initializing Canvas API adapter: {e}")
+            self.api_adapter = CanvasApiAdapter(None)
+
+        self.sync_service = SyncService(self.db_manager, self.api_adapter)
 
         # Create a context object for the tools
         lifespan_context_data = {
             "db_manager": self.db_manager,
-            "canvas_client": self.canvas_client,
+            "api_adapter": self.api_adapter,
+            "sync_service": self.sync_service,
         }
         request_context_mock = SimpleNamespace(lifespan_context=lifespan_context_data)
         self.context = SimpleNamespace(request_context=request_context_mock)
@@ -96,12 +107,11 @@ class CanvasMCPTestClient:
         """
         Synchronize data from Canvas LMS to the local database.
 
-        Args:
-            force: If True, sync all data even if recently updated
-
         Returns:
             Dictionary with counts of synced items
         """
+        # We can either use the tool or call the sync_service directly
+        # Using the tool ensures we're testing the actual tool implementation
         return self.tools["sync_canvas_data"](self.context)
 
     def get_course_list(self) -> list[dict[str, Any]]:
