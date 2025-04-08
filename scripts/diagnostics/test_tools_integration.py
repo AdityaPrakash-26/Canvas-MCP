@@ -138,7 +138,7 @@ def test_tool_chain(ctx):
 
     # Step 4: Get upcoming deadlines
     logger.info("Step 4: Getting upcoming deadlines...")
-    deadlines = get_upcoming_deadlines(ctx, course_id, days=30)
+    deadlines = get_upcoming_deadlines(ctx, days=30, course_id=course_id)
     logger.info(f"Found {len(deadlines)} upcoming deadlines for course {course_id}")
 
     # Step 5: Get course modules
