@@ -6,29 +6,30 @@ such as DOCX, PDF, HTML/URL, etc. It's used for processing syllabi and other doc
 in the Canvas MCP server.
 """
 
+import logging
 import os
 import tempfile
-import logging
-from typing import Optional, Dict, Any
-import re
-import json
+from typing import Any
 
-import requests
 import pdfplumber
+import requests
 from bs4 import BeautifulSoup
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def download_file(url: str, suffix: str = None, timeout: int = 30) -> tuple[str, str, Optional[Exception]]:
+
+def download_file(
+    url: str, suffix: str = None, timeout: int = 30
+) -> tuple[str, str, Exception | None]:
     """
     Download a file from a URL to a temporary local file.
-    
+
     Args:
         url: URL of the file to download
         suffix: Optional suffix for the temporary file (e.g., '.pdf')
         timeout: Request timeout in seconds
-        
+
     Returns:
         Tuple of (file_path, content_type, error)
         - file_path: Path to the downloaded file (None if download failed)
@@ -38,36 +39,37 @@ def download_file(url: str, suffix: str = None, timeout: int = 30) -> tuple[str,
     try:
         # Default suffix based on URL if not provided
         if suffix is None:
-            if url.lower().endswith('.pdf'):
-                suffix = '.pdf'
-            elif url.lower().endswith('.docx'):
-                suffix = '.docx'
-            elif url.lower().endswith('.doc'):
-                suffix = '.doc'
+            if url.lower().endswith(".pdf"):
+                suffix = ".pdf"
+            elif url.lower().endswith(".docx"):
+                suffix = ".docx"
+            elif url.lower().endswith(".doc"):
+                suffix = ".doc"
             else:
-                suffix = '.tmp'
-                
+                suffix = ".tmp"
+
         # Download the file
         response = requests.get(url, stream=True, timeout=timeout)
         response.raise_for_status()  # Raise exception for bad responses
-        
+
         # Get content type
-        content_type = response.headers.get('Content-Type', '').lower()
-        
+        content_type = response.headers.get("Content-Type", "").lower()
+
         # Create a temporary file to save the content
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
             temp_path = temp_file.name
             # Write the content to the temporary file
             for chunk in response.iter_content(chunk_size=8192):
                 temp_file.write(chunk)
-                
+
         return temp_path, content_type, None
-        
+
     except Exception as e:
         logger.error(f"Error downloading file from {url}: {e}")
         return None, None, e
 
-def extract_text_from_url(url: str, timeout: int = 30) -> Optional[str]:
+
+def extract_text_from_url(url: str, timeout: int = 30) -> str | None:
     """
     Fetch content from a URL and extract its text content.
 
@@ -83,28 +85,28 @@ def extract_text_from_url(url: str, timeout: int = 30) -> Optional[str]:
         response = requests.get(url, timeout=timeout)
         response.raise_for_status()  # Raise exception for bad responses
 
-        content_type = response.headers.get('Content-Type', '').lower()
+        content_type = response.headers.get("Content-Type", "").lower()
 
         # Handle based on content type
-        if 'application/pdf' in content_type:
+        if "application/pdf" in content_type:
             # It's a PDF, use the PDF extraction function
             return extract_text_from_pdf_url(url, max_pages=50)
-        elif 'text/html' in content_type:
+        elif "text/html" in content_type:
             # It's an HTML page, extract text
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
+            soup = BeautifulSoup(response.text, "html.parser")
+
             # Remove script and style elements
-            for script_or_style in soup(['script', 'style']):
+            for script_or_style in soup(["script", "style"]):
                 script_or_style.decompose()
-                
+
             # Get text
-            text = soup.get_text(separator='\n')
-            
+            text = soup.get_text(separator="\n")
+
             # Clean up whitespace
             lines = (line.strip() for line in text.splitlines())
             chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            text = '\n'.join(chunk for chunk in chunks if chunk)
-            
+            text = "\n".join(chunk for chunk in chunks if chunk)
+
             return text
         else:
             # Just return the raw content as text
@@ -114,7 +116,8 @@ def extract_text_from_url(url: str, timeout: int = 30) -> Optional[str]:
         logger.error(f"Error extracting text from URL {url}: {e}")
         return None
 
-def extract_text_from_pdf_url(url: str, max_pages: int = 50) -> Optional[str]:
+
+def extract_text_from_pdf_url(url: str, max_pages: int = 50) -> str | None:
     """
     Download a PDF from a URL and extract its text content.
 
@@ -127,14 +130,20 @@ def extract_text_from_pdf_url(url: str, max_pages: int = 50) -> Optional[str]:
     """
     try:
         # Download the file
-        temp_path, content_type, error = download_file(url, suffix='.pdf')
-        
+        temp_path, content_type, error = download_file(url, suffix=".pdf")
+
         if error:
             return None
-        
+
         # Check if it's actually a PDF
-        if content_type and 'application/pdf' not in content_type and not url.lower().endswith('.pdf'):
-            logger.warning(f"URL {url} does not appear to be a PDF (Content-Type: {content_type})")
+        if (
+            content_type
+            and "application/pdf" not in content_type
+            and not url.lower().endswith(".pdf")
+        ):
+            logger.warning(
+                f"URL {url} does not appear to be a PDF (Content-Type: {content_type})"
+            )
             # Try to extract as a regular URL
             os.unlink(temp_path)  # Clean up the temporary file
             return extract_text_from_url(url)
@@ -151,7 +160,8 @@ def extract_text_from_pdf_url(url: str, max_pages: int = 50) -> Optional[str]:
         logger.error(f"Error extracting text from PDF URL {url}: {e}")
         return None
 
-def extract_text_from_pdf_file(file_path: str, max_pages: int = 50) -> Optional[str]:
+
+def extract_text_from_pdf_file(file_path: str, max_pages: int = 50) -> str | None:
     """
     Extract text content from a local PDF file.
 
@@ -179,7 +189,9 @@ def extract_text_from_pdf_file(file_path: str, max_pages: int = 50) -> Optional[
                 tables = page.extract_tables()
                 if tables:
                     for table in tables:
-                        table_text = "\n".join([" | ".join([cell or "" for cell in row]) for row in table])
+                        table_text = "\n".join(
+                            [" | ".join([cell or "" for cell in row]) for row in table]
+                        )
                         text_content.append(f"\nTable:\n{table_text}\n")
 
         return "\n\n".join(text_content)
@@ -188,7 +200,8 @@ def extract_text_from_pdf_file(file_path: str, max_pages: int = 50) -> Optional[
         logger.error(f"Error extracting text from PDF file {file_path}: {e}")
         return None
 
-def extract_text_from_docx_url(url: str) -> Optional[str]:
+
+def extract_text_from_docx_url(url: str) -> str | None:
     """
     Download a DOCX file from a URL and extract its text content.
 
@@ -207,23 +220,26 @@ def extract_text_from_docx_url(url: str) -> Optional[str]:
             return None
 
         # Download the file
-        temp_path, content_type, error = download_file(url, suffix='.docx')
-        
+        temp_path, content_type, error = download_file(url, suffix=".docx")
+
         if error:
             return None
 
         # Check if it's actually a DOCX
         docx_types = [
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/docx', 
-            'application/msword'
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/docx",
+            "application/msword",
         ]
-        
-        is_docx = (content_type and any(type in content_type for type in docx_types)) or \
-                  url.lower().endswith(('.docx', '.doc'))
-        
+
+        is_docx = (
+            content_type and any(type in content_type for type in docx_types)
+        ) or url.lower().endswith((".docx", ".doc"))
+
         if not is_docx:
-            logger.warning(f"URL {url} does not appear to be a DOCX (Content-Type: {content_type})")
+            logger.warning(
+                f"URL {url} does not appear to be a DOCX (Content-Type: {content_type})"
+            )
             # Try to extract as a regular URL
             os.unlink(temp_path)  # Clean up the temporary file
             return extract_text_from_url(url)
@@ -240,7 +256,8 @@ def extract_text_from_docx_url(url: str) -> Optional[str]:
         logger.error(f"Error extracting text from DOCX URL {url}: {e}")
         return None
 
-def extract_text_from_docx_file(file_path: str) -> Optional[str]:
+
+def extract_text_from_docx_file(file_path: str) -> str | None:
     """
     Extract text content from a local DOCX file.
 
@@ -260,10 +277,10 @@ def extract_text_from_docx_file(file_path: str) -> Optional[str]:
 
         # Open the document
         doc = docx.Document(file_path)
-        
+
         # Extract text from paragraphs
         paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-        
+
         # Extract text from tables
         tables = []
         for table in doc.tables:
@@ -272,7 +289,7 @@ def extract_text_from_docx_file(file_path: str) -> Optional[str]:
                 row_data = [cell.text for cell in row.cells]
                 table_data.append(" | ".join(row_data))
             tables.append("\nTable:\n" + "\n".join(table_data))
-        
+
         # Combine all extracted text
         all_text = paragraphs + tables
         return "\n\n".join(all_text)
@@ -281,7 +298,8 @@ def extract_text_from_docx_file(file_path: str) -> Optional[str]:
         logger.error(f"Error extracting text from DOCX file {file_path}: {e}")
         return None
 
-def extract_text_from_file(source: str, file_type: str = None) -> Dict[str, Any]:
+
+def extract_text_from_file(source: str, file_type: str = None) -> dict[str, Any]:
     """
     Extract text from a file based on its type.
 
@@ -303,74 +321,74 @@ def extract_text_from_file(source: str, file_type: str = None) -> Dict[str, Any]
             "success": False,
             "error": "No source provided",
             "file_type": None,
-            "text": None
+            "text": None,
         }
-    
+
     # Auto-detect file type if not provided
     if not file_type:
         # Check if it's a URL or local file
-        is_url = source.lower().startswith(('http://', 'https://'))
-        
+        is_url = source.lower().startswith(("http://", "https://"))
+
         # Get file extension
         file_extension = None
-        if '.' in source.split('/')[-1]:
-            file_extension = source.split('.')[-1].lower()
-            
+        if "." in source.split("/")[-1]:
+            file_extension = source.split(".")[-1].lower()
+
         # Determine file type
-        if file_extension == 'pdf':
-            file_type = 'pdf'
-        elif file_extension in ['docx', 'doc']:
-            file_type = 'docx'
+        if file_extension == "pdf":
+            file_type = "pdf"
+        elif file_extension in ["docx", "doc"]:
+            file_type = "docx"
         elif is_url:
-            file_type = 'url'
+            file_type = "url"
         else:
             # Try to guess by content for local files
             if os.path.isfile(source):
-                with open(source, 'rb') as f:
+                with open(source, "rb") as f:
                     header = f.read(8)  # Read first 8 bytes
                     # %PDF magic number
-                    if header.startswith(b'%PDF'):
-                        file_type = 'pdf'
-                    elif header.startswith(b'PK\x03\x04'):  # ZIP file (could be DOCX)
-                        file_type = 'docx'
+                    if header.startswith(b"%PDF"):
+                        file_type = "pdf"
+                    elif header.startswith(b"PK\x03\x04"):  # ZIP file (could be DOCX)
+                        file_type = "docx"
                     else:
-                        file_type = 'unknown'
+                        file_type = "unknown"
             else:
-                file_type = 'unknown'
-    
+                file_type = "unknown"
+
     text = None
     success = False
     error = None
-    
+
     try:
         # Extract based on file type
-        if file_type == 'pdf':
-            if source.lower().startswith(('http://', 'https://')):
+        if file_type == "pdf":
+            if source.lower().startswith(("http://", "https://")):
                 text = extract_text_from_pdf_url(source)
             else:
                 text = extract_text_from_pdf_file(source)
-        elif file_type == 'docx':
-            if source.lower().startswith(('http://', 'https://')):
+        elif file_type == "docx":
+            if source.lower().startswith(("http://", "https://")):
                 text = extract_text_from_docx_url(source)
             else:
                 text = extract_text_from_docx_file(source)
-        elif file_type == 'url':
+        elif file_type == "url":
             text = extract_text_from_url(source)
         else:
             error = f"Unsupported file type: {file_type}"
-        
+
         success = text is not None
         if not success and not error:
             error = f"Failed to extract text from {file_type} file"
-            
+
     except Exception as e:
         success = False
         error = f"Error extracting text: {str(e)}"
-    
+
     return {
         "success": success,
         "file_type": file_type,
         "text": text,
         "error": error,
-        "source": source
+        "source": source,
     }

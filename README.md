@@ -121,27 +121,27 @@ which uv
   "command": "/path/to/uv",  # Replace with your UV path (run 'which uv')
   "args": [
     "run",
-    "--with",
-    "canvasapi>=3.3.0",
-    "--with",
-    "mcp[cli]",
-    "--with",
-    "python-dotenv>=1.0.1",
-    "--with",
-    "structlog>=24.1.0",
     "--directory",
     "/absolute/path/to/Canvas-MCP",  # Replace with your repo path
-    "src/canvas_mcp/server.py"
+    "canvas-mcp"
   ]
 }
 ```
 
 ## Development
 
-# Windows
+### Architecture
 
-We recommend using WSL (Windows Subsystem for Linux) to use this software. Installation instructions can be founder [here](https://learn.microsoft.com/en-us/windows/wsl/install).
-# Windows
+Canvas-MCP uses a modular architecture with the following components:
+
+- **SyncService**: Orchestrates synchronization operations between Canvas API and the database
+- **CanvasApiAdapter**: Handles Canvas API interactions and error handling
+- **DatabaseManager**: Manages database connections and operations
+- **MCP Tools**: Provides tools for AI assistants to interact with Canvas data
+
+See `docs/refactoring_guide.md` for details on the architectural changes and best practices.
+
+### Windows
 
 We recommend using WSL (Windows Subsystem for Linux) to use this software. Installation instructions can be founder [here](https://learn.microsoft.com/en-us/windows/wsl/install).
 
@@ -158,13 +158,7 @@ We recommend using WSL (Windows Subsystem for Linux) to use this software. Insta
     "/home/<USER>/.local/bin/uv",
     "run",
     "--with",
-    "canvasapi>=3.3.0",
-    "--with",
-    "mcp[cli]",
-    "--with",
-    "python-dotenv>=1.0.1",
-    "--with",
-    "structlog>=24.1.0",
+    "canvas-mcp",
     "--directory",
     "/home/<USER>/Canvas-MCP",
     "src/canvas_mcp/server.py"
@@ -186,17 +180,9 @@ Replace `<USER>` with your username.
     "--exec",
     "/home/<USER>/.local/bin/uv",
     "run",
-    "--with",
-    "canvasapi>=3.3.0",
-    "--with",
-    "mcp[cli]",
-    "--with",
-    "python-dotenv>=1.0.1",
-    "--with",
-    "structlog>=24.1.0",
     "--directory",
     "/home/<USER>/Canvas-MCP",
-    "src/canvas_mcp/server.py"
+    "canvas-mcp"
   ]
 }
 ```

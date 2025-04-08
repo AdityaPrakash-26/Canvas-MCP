@@ -7,9 +7,10 @@ implementing best practices for SQLite connections across the Canvas MCP project
 
 import logging
 import sqlite3
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, TypeVar, Optional
+from typing import Any, TypeVar
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -45,12 +46,21 @@ class DatabaseManager:
         Returns:
             Tuple of (connection, cursor)
         """
+        # Connect to the database
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Enable foreign keys
+        # Enable foreign keys directly with PRAGMA (URI parameter doesn't work reliably)
         cursor.execute("PRAGMA foreign_keys = ON")
+
+        # Verify that foreign keys are enabled
+        cursor.execute("PRAGMA foreign_keys")
+        foreign_keys_enabled = cursor.fetchone()[0]
+        if not foreign_keys_enabled:
+            logger.error(
+                "Failed to enable foreign key constraints. Database integrity may be compromised."
+            )
 
         return conn, cursor
 
@@ -125,7 +135,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def get_by_id(self, table: str, id_value: int) -> Optional[sqlite3.Row]:
+    def get_by_id(self, table: str, id_value: int) -> sqlite3.Row | None:
         """
         Get a record by ID.
 
