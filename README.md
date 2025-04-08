@@ -1,7 +1,7 @@
-# Canvas MCP – AI Assistant for Canvas (School Project)
+# Canvas MCP Server
 
 ## Overview
-Canvas MCP helps AI assistants like Claude access Canvas LMS content (assignments, syllabi, deadlines), allowing students to quickly ask questions like:
+The Canvas MCP Server helps AI assistants like Claude access Canvas LMS content (assignments, syllabi, deadlines), allowing students to quickly ask questions like:
 
 - "What's due this week?"
 - "Send me tomorrow's notes."
