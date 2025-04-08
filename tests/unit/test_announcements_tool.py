@@ -1,252 +1,160 @@
-"""
-Unit tests for the announcements tools.
+"""Unit tests for the communications tools.
 
-These tests verify that the announcements tools correctly interact with the database.
-"""
+These tests verify that the communications tools correctly interact with the database.
+Note: The announcements feature is being deprecated in favor of the unified communications feature.
 
-from types import SimpleNamespace
+"""
 
 import pytest
 
-from canvas_mcp.tools.announcements import register_announcement_tools
+
+# Test functions for announcements tools
 
 
-class TestAnnouncementsTools:
-    """Test the announcements tools."""
+def test_get_course_announcements_empty(
+    mock_mcp, mock_context, clean_db
+):  # clean_db ensures empty database
+    """Test the get_course_announcements tool with an empty database."""
+    # Call the get_course_announcements tool
+    result = mock_mcp.get_course_announcements(mock_context, 1)  # Use a dummy course ID
 
-    def test_get_course_announcements_empty(self, db_manager, clean_db):
-        """Test the get_course_announcements tool with an empty database."""
+    # Verify the result
+    assert isinstance(result, list)
+    assert len(result) == 0
 
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    setattr(self, func.__name__, func)
-                    return func
 
-                return decorator
+def test_get_course_announcements_with_data(
+    mock_mcp, mock_context, db_manager, synced_course_ids
+):  # synced_course_ids ensures data exists
+    """Test the get_course_announcements tool with data in the database."""
+    # Get the first course ID
+    conn, cursor = db_manager.connect()
+    cursor.execute("SELECT id FROM courses LIMIT 1")
+    course_row = cursor.fetchone()
+    conn.close()
 
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_announcement_tools(mock_mcp)
+    # Skip the test if no courses are found
+    if not course_row:
+        pytest.skip("No courses found in the database")
 
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
+    course_id = course_row["id"]
 
-        # Call the get_course_announcements tool
-        result = mock_mcp.get_course_announcements(ctx, 1)  # Use a dummy course ID
+    # Call the get_course_announcements tool
+    result = mock_mcp.get_course_announcements(mock_context, course_id)
 
-        # Verify the result
-        assert isinstance(result, list)
-        assert len(result) == 0
+    # Verify the result
+    assert isinstance(result, list)
+    # Note: It's possible there are no announcements for this course
 
-    def test_get_course_announcements_with_data(self, db_manager):
-        """Test the get_course_announcements tool with data in the database."""
+    # Call the get_course_announcements tool with a limit
+    result_limited = mock_mcp.get_course_announcements(mock_context, course_id, limit=5)
 
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    setattr(self, func.__name__, func)
-                    return func
+    # Verify the result
+    assert isinstance(result_limited, list)
+    assert len(result_limited) <= 5
 
-                return decorator
+    # Call the get_course_announcements tool with num_weeks parameter
+    result_weeks = mock_mcp.get_course_announcements(
+        mock_context, course_id, num_weeks=4
+    )
 
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_announcement_tools(mock_mcp)
+    # Verify the result
+    assert isinstance(result_weeks, list)
 
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
+    # If there are announcements, check that they have the expected structure
+    if len(result) > 0:
+        first_announcement = result[0]
+        assert "id" in first_announcement
+        assert "title" in first_announcement
+        assert "content" in first_announcement
+        assert "posted_at" in first_announcement
 
-        # Get the first course ID
-        conn, cursor = db_manager.connect()
-        cursor.execute("SELECT id FROM courses LIMIT 1")
-        course_row = cursor.fetchone()
-        conn.close()
 
-        # Skip the test if no courses are found
-        if not course_row:
-            pytest.skip("No courses found in the database")
+def test_get_course_communications_empty(
+    mock_mcp, mock_context, clean_db
+):  # clean_db ensures empty database
+    """Test the get_course_communications tool with an empty database."""
+    # Call the get_course_communications tool
+    result = mock_mcp.get_course_communications(
+        mock_context, 1
+    )  # Use a dummy course ID
 
-        course_id = course_row["id"]
+    # Verify the result
+    assert isinstance(result, list)
+    assert len(result) == 0
 
-        # Call the get_course_announcements tool
-        result = mock_mcp.get_course_announcements(ctx, course_id)
 
-        # Verify the result
-        assert isinstance(result, list)
-        # Note: It's possible there are no announcements for this course
+def test_get_course_communications_with_data(
+    mock_mcp, mock_context, db_manager, synced_course_ids
+):  # synced_course_ids ensures data exists
+    """Test the get_course_communications tool with data in the database."""
+    # Get the first course ID
+    conn, cursor = db_manager.connect()
+    cursor.execute("SELECT id FROM courses LIMIT 1")
+    course_row = cursor.fetchone()
+    conn.close()
 
-        # Call the get_course_announcements tool with a limit
-        result_limited = mock_mcp.get_course_announcements(ctx, course_id, limit=5)
+    # Skip the test if no courses are found
+    if not course_row:
+        pytest.skip("No courses found in the database")
 
-        # Verify the result
-        assert isinstance(result_limited, list)
-        assert len(result_limited) <= 5
+    course_id = course_row["id"]
 
-        # Call the get_course_announcements tool with num_weeks parameter
-        result_weeks = mock_mcp.get_course_announcements(ctx, course_id, num_weeks=4)
+    # Call the get_course_communications tool
+    result = mock_mcp.get_course_communications(mock_context, course_id)
 
-        # Verify the result
-        assert isinstance(result_weeks, list)
+    # Verify the result
+    assert isinstance(result, list)
 
-        # If there are announcements, check that they have the expected structure
-        if len(result) > 0:
-            first_announcement = result[0]
-            assert "id" in first_announcement
-            assert "title" in first_announcement
-            assert "content" in first_announcement
-            assert "posted_at" in first_announcement
+    # Call the get_course_communications tool with a limit
+    result_limited = mock_mcp.get_course_communications(
+        mock_context, course_id, limit=5
+    )
 
-    def test_get_course_communications_empty(self, db_manager, clean_db):
-        """Test the get_course_communications tool with an empty database."""
+    # Verify the result
+    assert isinstance(result_limited, list)
+    assert len(result_limited) <= 5
 
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    setattr(self, func.__name__, func)
-                    return func
+    # Call the get_course_communications tool with num_weeks parameter
+    result_weeks = mock_mcp.get_course_communications(
+        mock_context, course_id, num_weeks=4
+    )
 
-                return decorator
+    # Verify the result
+    assert isinstance(result_weeks, list)
 
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_announcement_tools(mock_mcp)
 
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
+def test_get_communications_empty(
+    mock_mcp, mock_context, clean_db
+):  # clean_db ensures empty database
+    """Test the get_communications tool with an empty database."""
+    # Call the get_communications tool
+    result = mock_mcp.get_communications(mock_context)
 
-        # Call the get_course_communications tool
-        result = mock_mcp.get_course_communications(ctx, 1)  # Use a dummy course ID
+    # Verify the result
+    assert isinstance(result, list)
+    assert len(result) == 0
 
-        # Verify the result
-        assert isinstance(result, list)
-        assert len(result) == 0
 
-    def test_get_course_communications_with_data(self, db_manager):
-        """Test the get_course_communications tool with data in the database."""
+def test_get_communications_with_data(
+    mock_mcp, mock_context, synced_course_ids
+):  # synced_course_ids ensures data exists
+    """Test the get_communications tool with data in the database."""
+    # Call the get_communications tool
+    result = mock_mcp.get_communications(mock_context)
 
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    setattr(self, func.__name__, func)
-                    return func
+    # Verify the result
+    assert isinstance(result, list)
 
-                return decorator
+    # Call the get_communications tool with a limit
+    result_limited = mock_mcp.get_communications(mock_context, limit=5)
 
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_announcement_tools(mock_mcp)
+    # Verify the result
+    assert isinstance(result_limited, list)
+    assert len(result_limited) <= 5
 
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
+    # Call the get_communications tool with num_weeks parameter
+    result_weeks = mock_mcp.get_communications(mock_context, num_weeks=4)
 
-        # Get the first course ID
-        conn, cursor = db_manager.connect()
-        cursor.execute("SELECT id FROM courses LIMIT 1")
-        course_row = cursor.fetchone()
-        conn.close()
-
-        # Skip the test if no courses are found
-        if not course_row:
-            pytest.skip("No courses found in the database")
-
-        course_id = course_row["id"]
-
-        # Call the get_course_communications tool
-        result = mock_mcp.get_course_communications(ctx, course_id)
-
-        # Verify the result
-        assert isinstance(result, list)
-
-        # Call the get_course_communications tool with a limit
-        result_limited = mock_mcp.get_course_communications(ctx, course_id, limit=5)
-
-        # Verify the result
-        assert isinstance(result_limited, list)
-        assert len(result_limited) <= 5
-
-        # Call the get_course_communications tool with num_weeks parameter
-        result_weeks = mock_mcp.get_course_communications(ctx, course_id, num_weeks=4)
-
-        # Verify the result
-        assert isinstance(result_weeks, list)
-
-    def test_get_all_communications_empty(self, db_manager, clean_db):
-        """Test the get_all_communications tool with an empty database."""
-
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    setattr(self, func.__name__, func)
-                    return func
-
-                return decorator
-
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_announcement_tools(mock_mcp)
-
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
-
-        # Call the get_all_communications tool
-        result = mock_mcp.get_all_communications(ctx)
-
-        # Verify the result
-        assert isinstance(result, list)
-        assert len(result) == 0
-
-    def test_get_all_communications_with_data(self, db_manager):
-        """Test the get_all_communications tool with data in the database."""
-
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    setattr(self, func.__name__, func)
-                    return func
-
-                return decorator
-
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_announcement_tools(mock_mcp)
-
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
-
-        # Call the get_all_communications tool
-        result = mock_mcp.get_all_communications(ctx)
-
-        # Verify the result
-        assert isinstance(result, list)
-
-        # Call the get_all_communications tool with a limit
-        result_limited = mock_mcp.get_all_communications(ctx, limit=5)
-
-        # Verify the result
-        assert isinstance(result_limited, list)
-        assert len(result_limited) <= 5
-
-        # Call the get_all_communications tool with num_weeks parameter
-        result_weeks = mock_mcp.get_all_communications(ctx, num_weeks=4)
-
-        # Verify the result
-        assert isinstance(result_weeks, list)
+    # Verify the result
+    assert isinstance(result_weeks, list)
