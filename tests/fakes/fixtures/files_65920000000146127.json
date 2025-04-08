@@ -1,0 +1,30 @@
+[
+  {
+    "category": "uncategorized",
+    "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "created_at": "2025-01-14T22:39:38Z",
+    "created_at_date": "2025-01-14 22:39:38+00:00",
+    "display_name": "Syllabus.docx",
+    "filename": "CS540-S25-syllabus-revised.docx",
+    "folder_id": 65920000001803121,
+    "hidden": false,
+    "hidden_for_user": false,
+    "id": 65920000013496274,
+    "lock_at": null,
+    "locked": false,
+    "locked_for_user": false,
+    "media_entry_id": null,
+    "mime_class": "doc",
+    "modified_at": "2025-01-14T22:39:38Z",
+    "modified_at_date": "2025-01-14 22:39:38+00:00",
+    "size": 28615,
+    "thumbnail_url": null,
+    "unlock_at": null,
+    "updated_at": "2025-01-15T07:58:50Z",
+    "updated_at_date": "2025-01-15 07:58:50+00:00",
+    "upload_status": "success",
+    "url": "https://canvas.instructure.com/files/6592~13496274/download?download_frd=1&verifier=QYXtf0cVzDCCGTjqU8c5zsRi88izLOsDCoh6I1Wf",
+    "uuid": "QYXtf0cVzDCCGTjqU8c5zsRi88izLOsDCoh6I1Wf",
+    "visibility_level": "inherit"
+  }
+]
