@@ -86,6 +86,7 @@ def create_database(db_path: str | Path) -> None:
             points_possible REAL,
             assignment_type TEXT,
             submission_types TEXT,
+            source_type TEXT,
             available_from TIMESTAMP,
             available_until TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
