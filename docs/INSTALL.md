@@ -84,17 +84,9 @@ This should start the MCP Inspector at http://127.0.0.1:6274. Open this URL in y
   "command": "/path/to/uv",
   "args": [
     "run",
-    "--with",
-    "canvasapi>=3.3.0",
-    "--with",
-    "mcp[cli]",
-    "--with",
-    "python-dotenv>=1.0.1",
-    "--with",
-    "structlog>=24.1.0",
     "--directory",
     "/absolute/path/to/Canvas-MCP",
-    "src/canvas_mcp/server.py"
+    "canvas-mcp"
   ]
 }
 ```
