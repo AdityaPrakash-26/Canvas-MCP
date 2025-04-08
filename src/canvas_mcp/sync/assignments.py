@@ -92,6 +92,7 @@ def sync_assignments(sync_service, course_ids: list[int] | None = None) -> int:
                     "lock_at": getattr(raw_assignment, "lock_at", None),
                     "points_possible": getattr(raw_assignment, "points_possible", None),
                     "submission_types": submission_types,
+                    "source_type": "canvas",
                 }
 
                 # Validate using Pydantic model

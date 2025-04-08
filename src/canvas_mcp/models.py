@@ -8,7 +8,7 @@ between the Canvas API and the local database.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class DBCourse(BaseModel):
@@ -80,6 +80,7 @@ class DBAssignment(BaseModel):
     available_until: datetime | None = Field(None, alias="lock_at")
     points_possible: float | None = None
     submission_types: str | None = None
+    source_type: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = datetime.now()
 
