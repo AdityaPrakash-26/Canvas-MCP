@@ -85,12 +85,21 @@ def sync_announcements(sync_service, course_ids: list[int] | None = None) -> int
         for raw_announcement in raw_announcements:
             try:
                 # Prepare data for validation
+                # Get author information from the author dictionary or fallback to user_name
+                author_name = None
+                author_dict = getattr(raw_announcement, "author", None)
+                if author_dict and isinstance(author_dict, dict):
+                    author_name = author_dict.get("display_name")
+
+                if not author_name:
+                    author_name = getattr(raw_announcement, "user_name", None)
+
                 announcement_data = {
                     "id": raw_announcement.id,
                     "course_id": local_course_id,
                     "title": getattr(raw_announcement, "title", ""),
                     "message": getattr(raw_announcement, "message", None),
-                    "author_name": getattr(raw_announcement, "author_name", None),
+                    "author_name": author_name,
                     "posted_at": getattr(raw_announcement, "posted_at", None),
                 }
 
