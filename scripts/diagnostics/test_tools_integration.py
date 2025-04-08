@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Import MCP server
 from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
 from src.canvas_mcp.config import API_KEY, API_URL
+from scripts.extract_tools_test import extract_tools
 from src.canvas_mcp.sync.service import SyncService
-from src.canvas_mcp.server import extract_tools
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
