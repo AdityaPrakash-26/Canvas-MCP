@@ -119,6 +119,11 @@ Replace `<USER>` with your WSL username. Also, verify your `uv` absolute path be
 
 ## Development Commands
 
+- Run the server in `inspector` mode so you can look at it:
+```bash
+uv run mcp dev --with . src/canvas_mcp/__main__.py
+```
+
 - Run tests:
 ```bash
 uv run pytest
