@@ -7,7 +7,7 @@ that return realistic but static data for testing purposes.
 
 import json
 from pathlib import Path
-from typing import Any, List, Union
+from typing import Any
 
 # Path to fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -49,7 +49,7 @@ class FakeCanvasObject:
 class FakeUser(FakeCanvasObject):
     """Fake implementation of Canvas User object."""
 
-    def get_courses(self, **kwargs) -> List["FakeCourse"]:
+    def get_courses(self, **kwargs) -> list["FakeCourse"]:
         """
         Get courses for this user.
 
@@ -70,11 +70,24 @@ class FakeUser(FakeCanvasObject):
         # Apply filters
         if kwargs.get("enrollment_state"):
             enrollment_state = kwargs["enrollment_state"]
-            courses = [
-                c
-                for c in courses
-                if getattr(c, "enrollment_state", "active") == enrollment_state
-            ]
+            filtered_courses = []
+
+            for course in courses:
+                course_enrollment_state = None
+
+                # Get enrollment state from the course
+                if hasattr(course, "enrollments") and course.enrollments:
+                    course_enrollment_state = course.enrollments[0].get(
+                        "enrollment_state"
+                    )
+
+                # If enrollment state matches or course has no enrollment state and we're looking for active
+                if course_enrollment_state == enrollment_state or (
+                    course_enrollment_state is None and enrollment_state == "active"
+                ):
+                    filtered_courses.append(course)
+
+            courses = filtered_courses
 
         if kwargs.get("enrollment_type"):
             enrollment_type = kwargs["enrollment_type"]
@@ -94,7 +107,7 @@ class FakeUser(FakeCanvasObject):
 class FakeCourse(FakeCanvasObject):
     """Fake implementation of Canvas Course object."""
 
-    def get_assignments(self, **kwargs) -> List["FakeAssignment"]:
+    def get_assignments(self, **kwargs) -> list["FakeAssignment"]:
         """
         Get assignments for this course.
 
@@ -138,7 +151,7 @@ class FakeCourse(FakeCanvasObject):
 
         return assignments
 
-    def get_modules(self, **kwargs) -> List["FakeModule"]:
+    def get_modules(self, **kwargs) -> list["FakeModule"]:
         """
         Get modules for this course.
 
@@ -167,7 +180,7 @@ class FakeCourse(FakeCanvasObject):
 
         return modules
 
-    def get_discussion_topics(self, **kwargs) -> List["FakeDiscussionTopic"]:
+    def get_discussion_topics(self, **kwargs) -> list["FakeDiscussionTopic"]:
         """
         Get discussion topics (announcements) for this course.
 
@@ -211,7 +224,7 @@ class FakeCourse(FakeCanvasObject):
 
         return topics
 
-    def get_files(self, **kwargs) -> List["FakeFile"]:
+    def get_files(self, **kwargs) -> list["FakeFile"]:
         """
         Get files for this course.
 
@@ -261,7 +274,7 @@ class FakeAssignment(FakeCanvasObject):
 class FakeModule(FakeCanvasObject):
     """Fake implementation of Canvas Module object."""
 
-    def get_module_items(self, **kwargs) -> List["FakeModuleItem"]:
+    def get_module_items(self, **kwargs) -> list["FakeModuleItem"]:
         """
         Get items for this module.
 
@@ -341,7 +354,7 @@ class FakeCanvas:
 
         return FakeUser(user_data)
 
-    def get_course(self, course_id: Union[int, str]) -> FakeCourse:
+    def get_course(self, course_id: int | str) -> FakeCourse:
         """
         Get a specific course by ID.
 
@@ -362,7 +375,7 @@ class FakeCanvas:
         # If not found, raise exception like the real API would
         raise Exception(f"Course not found: {course_id}")
 
-    def get_user(self, user_id: Union[int, str]) -> FakeUser:
+    def get_user(self, user_id: int | str) -> FakeUser:
         """
         Get a specific user by ID.
 
@@ -391,7 +404,7 @@ def _load_fixture(filename: str) -> Any:
     if not filepath.exists():
         return []
 
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         return json.load(f)
 
 

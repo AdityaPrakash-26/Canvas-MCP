@@ -278,7 +278,7 @@ class CanvasClient:
         return self.db_manager.connect()
 
     def sync_courses(
-        self, user_id: str | None = None, term_id: int | None = None
+        self, user_id: str | None = None, term_id: int | None = -1
     ) -> list[int]:
         """
         Synchronize course data from Canvas to the local database.
@@ -286,7 +286,7 @@ class CanvasClient:
         Args:
             user_id: Optional user ID to filter courses
             term_id: Optional term ID to filter courses
-                     (use -1 to select only the most recent term)
+                     (default is -1, which selects only the most recent term)
 
         Returns:
             List of local course IDs that were synced
@@ -305,7 +305,8 @@ class CanvasClient:
 
         # Get courses from Canvas directly using the user object
         # This fixes the authentication issue reported in integration testing
-        courses = list(user.get_courses())
+        # Only get active courses to filter out dropped courses
+        courses = list(user.get_courses(enrollment_state="active"))
 
         # Apply term filtering if requested
         if term_id is not None:
