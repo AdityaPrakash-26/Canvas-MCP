@@ -269,7 +269,7 @@ class TestCanvasMCPIntegration(unittest.TestCase):
         self.assertEqual(
             len(modules_with_items),
             len(modules),
-            f"Module count mismatch between calls with and without items",
+            "Module count mismatch between calls with and without items",
         )
 
         # Check if any modules have items

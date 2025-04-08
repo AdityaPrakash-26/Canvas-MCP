@@ -58,7 +58,7 @@ def register_assignment_tools(mcp: FastMCP) -> None:
         """
         # Get database manager from the lifespan context
         db_manager = ctx.request_context.lifespan_context["db_manager"]
-        
+
         # Get database connection
         conn, cursor = db_manager.connect()
 
@@ -125,7 +125,7 @@ def register_assignment_tools(mcp: FastMCP) -> None:
         """
         # Get database manager from the lifespan context
         db_manager = ctx.request_context.lifespan_context["db_manager"]
-        
+
         conn, cursor = db_manager.connect()
 
         try:
@@ -159,7 +159,10 @@ def register_assignment_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def get_assignment_details(
-        ctx: Context, course_id: int, assignment_name: str, include_canvas_data: bool = True
+        ctx: Context,
+        course_id: int,
+        assignment_name: str,
+        include_canvas_data: bool = True,
     ) -> dict[str, Any]:
         """
         Get comprehensive information about a specific assignment by name.
@@ -178,7 +181,7 @@ def register_assignment_tools(mcp: FastMCP) -> None:
             # Get database manager and canvas client from the lifespan context
             db_manager = ctx.request_context.lifespan_context["db_manager"]
             canvas_client = ctx.request_context.lifespan_context["canvas_client"]
-            
+
             if not assignment_name or not course_id:
                 return {
                     "error": "Missing required parameters: course_id and assignment_name must be provided"

@@ -1,6 +1,7 @@
 """
 Tests for the MCP server implementation.
 """
+
 import os
 import sqlite3
 import tempfile
@@ -27,7 +28,7 @@ class TestMCPServer(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test."""
         # Create a temporary database for testing
-        self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.db_path = self.temp_db.name
         self.temp_db.close()
 
@@ -35,7 +36,7 @@ class TestMCPServer(unittest.TestCase):
         self._create_test_database()
 
         # Mock the db_connect function to use our test database
-        self.db_connect_patch = patch('canvas_mcp.server.db_connect')
+        self.db_connect_patch = patch("canvas_mcp.server.db_connect")
         self.mock_db_connect = self.db_connect_patch.start()
 
         # Make db_connect return a connection to our test database
@@ -205,8 +206,8 @@ class TestMCPServer(unittest.TestCase):
                 "Professor Smith",
                 "An introduction to computer science concepts",
                 "2025-01-15T00:00:00Z",
-                "2025-05-15T00:00:00Z"
-            )
+                "2025-05-15T00:00:00Z",
+            ),
         )
 
         cursor.execute(
@@ -224,8 +225,8 @@ class TestMCPServer(unittest.TestCase):
                 "Professor Johnson",
                 "Advanced calculus topics",
                 "2025-01-15T00:00:00Z",
-                "2025-05-15T00:00:00Z"
-            )
+                "2025-05-15T00:00:00Z",
+            ),
         )
 
         # Syllabi
@@ -241,8 +242,8 @@ class TestMCPServer(unittest.TestCase):
                 "<p>This is the CS101 syllabus</p>",
                 "html",
                 "This is the CS101 syllabus in plain text format.",
-                True
-            )
+                True,
+            ),
         )
 
         cursor.execute(
@@ -257,8 +258,8 @@ class TestMCPServer(unittest.TestCase):
                 "<p>This is the MATH200 syllabus</p>",
                 "html",
                 "This is the MATH200 syllabus in plain text format.",
-                True
-            )
+                True,
+            ),
         )
 
         # Assignments
@@ -277,8 +278,8 @@ class TestMCPServer(unittest.TestCase):
                 "Write a simple program in Python",
                 "assignment",
                 "2025-02-01T23:59:00Z",
-                100
-            )
+                100,
+            ),
         )
 
         cursor.execute(
@@ -296,8 +297,8 @@ class TestMCPServer(unittest.TestCase):
                 "Covers material from weeks 1-7",
                 "exam",
                 "2025-03-01T10:00:00Z",
-                200
-            )
+                200,
+            ),
         )
 
         cursor.execute(
@@ -315,8 +316,8 @@ class TestMCPServer(unittest.TestCase):
                 "Problems 1-20 from Chapter 3",
                 "assignment",
                 "2025-02-05T23:59:00Z",
-                50
-            )
+                50,
+            ),
         )
 
         # Modules
@@ -332,8 +333,8 @@ class TestMCPServer(unittest.TestCase):
                 101,
                 "Week 1: Introduction",
                 "Introduction to the course and basic concepts",
-                1
-            )
+                1,
+            ),
         )
 
         cursor.execute(
@@ -348,8 +349,8 @@ class TestMCPServer(unittest.TestCase):
                 102,
                 "Week 2: Variables and Data Types",
                 "Understanding variables and data types in programming",
-                2
-            )
+                2,
+            ),
         )
 
         # Module Items
@@ -359,14 +360,7 @@ class TestMCPServer(unittest.TestCase):
                 id, module_id, canvas_item_id, title, item_type, position
             ) VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (
-                1,
-                1,
-                1001,
-                "Introduction Lecture",
-                "Page",
-                1
-            )
+            (1, 1, 1001, "Introduction Lecture", "Page", 1),
         )
 
         cursor.execute(
@@ -375,14 +369,7 @@ class TestMCPServer(unittest.TestCase):
                 id, module_id, canvas_item_id, title, item_type, position
             ) VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (
-                2,
-                1,
-                1002,
-                "Getting Started with Python",
-                "Assignment",
-                2
-            )
+            (2, 1, 1002, "Getting Started with Python", "Assignment", 2),
         )
 
         # Announcements
@@ -400,8 +387,8 @@ class TestMCPServer(unittest.TestCase):
                 "Welcome to CS101",
                 "Welcome to Introduction to Computer Science. Please read the syllabus.",
                 "Professor Smith",
-                "2025-01-10T09:00:00Z"
-            )
+                "2025-01-10T09:00:00Z",
+            ),
         )
 
         cursor.execute(
@@ -418,8 +405,8 @@ class TestMCPServer(unittest.TestCase):
                 "Office Hours Updated",
                 "My office hours have been moved to Thursdays 2-4pm.",
                 "Professor Smith",
-                "2025-01-15T14:30:00Z"
-            )
+                "2025-01-15T14:30:00Z",
+            ),
         )
 
         conn.commit()
@@ -434,15 +421,15 @@ class TestMCPServer(unittest.TestCase):
         self.assertEqual(len(deadlines), 3)
 
         # Verify the deadlines are in chronological order
-        self.assertEqual(deadlines[0]['assignment_title'], "Programming Assignment 1")
-        self.assertEqual(deadlines[1]['assignment_title'], "Calculus Problem Set 1")
-        self.assertEqual(deadlines[2]['assignment_title'], "Midterm Exam")
+        self.assertEqual(deadlines[0]["assignment_title"], "Programming Assignment 1")
+        self.assertEqual(deadlines[1]["assignment_title"], "Calculus Problem Set 1")
+        self.assertEqual(deadlines[2]["assignment_title"], "Midterm Exam")
 
         # Test with course filter
         deadlines = get_upcoming_deadlines(days=30, course_id=1)
         self.assertEqual(len(deadlines), 2)
-        self.assertEqual(deadlines[0]['course_code'], "CS101")
-        self.assertEqual(deadlines[1]['course_code'], "CS101")
+        self.assertEqual(deadlines[0]["course_code"], "CS101")
+        self.assertEqual(deadlines[1]["course_code"], "CS101")
 
     def test_get_course_list(self):
         """Test that course list is correctly retrieved."""
@@ -451,8 +438,8 @@ class TestMCPServer(unittest.TestCase):
 
         # Verify the result
         self.assertEqual(len(courses), 2)
-        self.assertEqual(courses[0]['course_code'], "CS101")
-        self.assertEqual(courses[1]['course_code'], "MATH200")
+        self.assertEqual(courses[0]["course_code"], "CS101")
+        self.assertEqual(courses[1]["course_code"], "MATH200")
 
     def test_get_course_assignments(self):
         """Test that course assignments are correctly retrieved."""
@@ -461,15 +448,15 @@ class TestMCPServer(unittest.TestCase):
 
         # Verify the result
         self.assertEqual(len(assignments), 2)
-        self.assertEqual(assignments[0]['title'], "Programming Assignment 1")
-        self.assertEqual(assignments[1]['title'], "Midterm Exam")
+        self.assertEqual(assignments[0]["title"], "Programming Assignment 1")
+        self.assertEqual(assignments[1]["title"], "Midterm Exam")
 
         # Call the function for MATH200
         assignments = get_course_assignments(2)
 
         # Verify the result
         self.assertEqual(len(assignments), 1)
-        self.assertEqual(assignments[0]['title'], "Calculus Problem Set 1")
+        self.assertEqual(assignments[0]["title"], "Calculus Problem Set 1")
 
     def test_get_course_modules(self):
         """Test that course modules are correctly retrieved."""
@@ -478,17 +465,17 @@ class TestMCPServer(unittest.TestCase):
 
         # Verify the result
         self.assertEqual(len(modules), 2)
-        self.assertEqual(modules[0]['name'], "Week 1: Introduction")
-        self.assertEqual(modules[1]['name'], "Week 2: Variables and Data Types")
+        self.assertEqual(modules[0]["name"], "Week 1: Introduction")
+        self.assertEqual(modules[1]["name"], "Week 2: Variables and Data Types")
 
         # Call the function with items
         modules = get_course_modules(1, include_items=True)
 
         # Verify the result
         self.assertEqual(len(modules), 2)
-        self.assertEqual(len(modules[0]['items']), 2)
-        self.assertEqual(modules[0]['items'][0]['title'], "Introduction Lecture")
-        self.assertEqual(modules[0]['items'][1]['title'], "Getting Started with Python")
+        self.assertEqual(len(modules[0]["items"]), 2)
+        self.assertEqual(modules[0]["items"][0]["title"], "Introduction Lecture")
+        self.assertEqual(modules[0]["items"][1]["title"], "Getting Started with Python")
 
     def test_get_syllabus_with_different_content_types(self):
         """Test that syllabus content is correctly retrieved with different content types."""
@@ -496,16 +483,16 @@ class TestMCPServer(unittest.TestCase):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
+
         # Temporarily modify our mock to return a new connection each time
         def get_connection():
             new_conn = sqlite3.connect(self.db_path)
             new_conn.row_factory = sqlite3.Row
             new_cursor = new_conn.cursor()
             return new_conn, new_cursor
-            
+
         self.mock_db_connect.side_effect = get_connection
-        
+
         # First create additional courses for our syllabi
         cursor.execute(
             """
@@ -513,18 +500,18 @@ class TestMCPServer(unittest.TestCase):
                 id, canvas_course_id, course_code, course_name, instructor
             ) VALUES (?, ?, ?, ?, ?)
             """,
-            (3, 3333, "PDF101", "PDF Course", "PDF Instructor")
+            (3, 3333, "PDF101", "PDF Course", "PDF Instructor"),
         )
-        
+
         cursor.execute(
             """
             INSERT INTO courses (
                 id, canvas_course_id, course_code, course_name, instructor
             ) VALUES (?, ?, ?, ?, ?)
             """,
-            (4, 4444, "EXT101", "External Course", "External Instructor")
+            (4, 4444, "EXT101", "External Course", "External Instructor"),
         )
-        
+
         # First, create a PDF link syllabus
         cursor.execute(
             """
@@ -538,10 +525,10 @@ class TestMCPServer(unittest.TestCase):
                 "<a href='https://example.com/syllabus.pdf'>Download PDF Syllabus</a>",
                 "pdf_link",
                 "PDF syllabus available at: https://example.com/syllabus.pdf",
-                True
-            )
+                True,
+            ),
         )
-        
+
         # Then create an external link syllabus
         cursor.execute(
             """
@@ -555,40 +542,42 @@ class TestMCPServer(unittest.TestCase):
                 "https://example.com/external-syllabus",
                 "external_link",
                 "External syllabus available at: https://example.com/external-syllabus",
-                True
-            )
+                True,
+            ),
         )
-        
+
         # Commit the changes to the database
         conn.commit()
-        
+
         # Test PDF link syllabus
         syllabus = get_syllabus(3, format="raw")
-        self.assertEqual(syllabus['content_type'], "pdf_link")
-        self.assertIn("Download PDF Syllabus", syllabus['content'])
-        
+        self.assertEqual(syllabus["content_type"], "pdf_link")
+        self.assertIn("Download PDF Syllabus", syllabus["content"])
+
         # Test external link syllabus
         syllabus = get_syllabus(4, format="raw")
-        self.assertEqual(syllabus['content_type'], "external_link")
-        self.assertIn("https://example.com/external-syllabus", syllabus['content'])
-        
+        self.assertEqual(syllabus["content_type"], "external_link")
+        self.assertIn("https://example.com/external-syllabus", syllabus["content"])
+
     def test_get_syllabus(self):
         """Test that syllabus content is correctly retrieved."""
         # Call the function with raw format
         syllabus = get_syllabus(1, format="raw")
 
         # Verify the result
-        self.assertEqual(syllabus['course_code'], "CS101")
-        self.assertEqual(syllabus['content'], "<p>This is the CS101 syllabus</p>")
-        self.assertEqual(syllabus['content_type'], "html")
+        self.assertEqual(syllabus["course_code"], "CS101")
+        self.assertEqual(syllabus["content"], "<p>This is the CS101 syllabus</p>")
+        self.assertEqual(syllabus["content_type"], "html")
 
         # Call the function with parsed format
         syllabus = get_syllabus(1, format="parsed")
 
         # Verify the result
-        self.assertEqual(syllabus['course_code'], "CS101")
-        self.assertEqual(syllabus['content'], "This is the CS101 syllabus in plain text format.")
-        self.assertEqual(syllabus['content_type'], "text")
+        self.assertEqual(syllabus["course_code"], "CS101")
+        self.assertEqual(
+            syllabus["content"], "This is the CS101 syllabus in plain text format."
+        )
+        self.assertEqual(syllabus["content_type"], "text")
 
     def test_get_course_announcements(self):
         """Test that course announcements are correctly retrieved."""
@@ -597,15 +586,15 @@ class TestMCPServer(unittest.TestCase):
 
         # Verify the result
         self.assertEqual(len(announcements), 2)
-        self.assertEqual(announcements[0]['title'], "Office Hours Updated")
-        self.assertEqual(announcements[1]['title'], "Welcome to CS101")
+        self.assertEqual(announcements[0]["title"], "Office Hours Updated")
+        self.assertEqual(announcements[1]["title"], "Welcome to CS101")
 
         # Test with limit
         announcements = get_course_announcements(1, limit=1)
 
         # Verify the result
         self.assertEqual(len(announcements), 1)
-        self.assertEqual(announcements[0]['title'], "Office Hours Updated")
+        self.assertEqual(announcements[0]["title"], "Office Hours Updated")
 
     def test_search_course_content(self):
         """Test that course content search works correctly."""
@@ -613,7 +602,9 @@ class TestMCPServer(unittest.TestCase):
         results = search_course_content("Python")
 
         # Verify the result
-        self.assertEqual(len(results), 2)  # Should find in assignment description and module item
+        self.assertEqual(
+            len(results), 2
+        )  # Should find in assignment description and module item
 
         # Search in a specific course
         results = search_course_content("Python", course_id=1)
@@ -643,8 +634,10 @@ class TestMCPServer(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM user_courses WHERE user_id = ? AND course_id = ?",
-                      ("test_user", 1))
+        cursor.execute(
+            "SELECT * FROM user_courses WHERE user_id = ? AND course_id = ?",
+            ("test_user", 1),
+        )
         row = cursor.fetchone()
 
         self.assertIsNotNone(row)
@@ -665,8 +658,10 @@ class TestMCPServer(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM user_courses WHERE user_id = ? AND course_id = ?",
-                      ("test_user", 1))
+        cursor.execute(
+            "SELECT * FROM user_courses WHERE user_id = ? AND course_id = ?",
+            ("test_user", 1),
+        )
         row = cursor.fetchone()
 
         self.assertIsNotNone(row)

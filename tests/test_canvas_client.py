@@ -1,6 +1,7 @@
 """
 Tests for Canvas API client and database integration.
 """
+
 import os
 import sqlite3
 import tempfile
@@ -17,7 +18,7 @@ class TestCanvasClient(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test."""
         # Create a temporary database for testing
-        self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.db_path = self.temp_db.name
         self.temp_db.close()
 
@@ -33,24 +34,26 @@ class TestCanvasClient(unittest.TestCase):
         self.api_url = "https://test.instructure.com"
 
         # Patch the Canvas class to avoid actual API calls
-        self.canvas_patch = patch('canvas_mcp.canvas_client.Canvas')
+        self.canvas_patch = patch("canvas_mcp.canvas_client.Canvas")
         self.mock_canvas_class = self.canvas_patch.start()
         self.mock_canvas = self.mock_canvas_class.return_value
 
         # Initialize the client
         self.client = CanvasClient(self.db_path, self.api_key, self.api_url)
         self.client.canvas = self.mock_canvas  # Use the mocked Canvas instance
-        
+
         # Mock detect_content_type method
         self.client.detect_content_type = MagicMock(return_value="html")
-        
+
         # Mock extract_pdf_links method
         self.client.extract_pdf_links = MagicMock(return_value=[])
-        
+
         # Fix for extract_text_from_pdf function
         global extract_text_from_pdf
+
         def mock_extract_text_from_pdf(url):
             return None
+
         extract_text_from_pdf = mock_extract_text_from_pdf
 
     def tearDown(self):
@@ -357,7 +360,7 @@ class TestCanvasClient(unittest.TestCase):
         conn, cursor = self.client.connect_db()
         cursor.execute(
             "INSERT INTO courses (canvas_course_id, course_code, course_name) VALUES (?, ?, ?)",
-            (12345, "TST101", "Test Course")
+            (12345, "TST101", "Test Course"),
         )
         conn.commit()
 
@@ -420,7 +423,7 @@ class TestCanvasClient(unittest.TestCase):
         conn, cursor = self.client.connect_db()
         cursor.execute(
             "INSERT INTO courses (canvas_course_id, course_code, course_name) VALUES (?, ?, ?)",
-            (12345, "TST101", "Test Course")
+            (12345, "TST101", "Test Course"),
         )
         conn.commit()
 
@@ -506,7 +509,7 @@ class TestCanvasClient(unittest.TestCase):
         conn, cursor = self.client.connect_db()
         cursor.execute(
             "INSERT INTO courses (canvas_course_id, course_code, course_name) VALUES (?, ?, ?)",
-            (12345, "TST101", "Test Course")
+            (12345, "TST101", "Test Course"),
         )
         conn.commit()
 
@@ -535,7 +538,10 @@ class TestCanvasClient(unittest.TestCase):
 
         # Set up mock returns
         self.mock_canvas.get_course.return_value = mock_course
-        mock_course.get_discussion_topics.return_value = [mock_announcement1, mock_announcement2]
+        mock_course.get_discussion_topics.return_value = [
+            mock_announcement1,
+            mock_announcement2,
+        ]
 
         # Run the sync
         course_ids = [local_course_id]
@@ -663,7 +669,7 @@ class TestCanvasClient(unittest.TestCase):
         original_sync_assignments = self.client.sync_assignments
         original_sync_modules = self.client.sync_modules
         original_sync_announcements = self.client.sync_announcements
-        
+
         self.client.sync_assignments = MagicMock(return_value=1)
         self.client.sync_modules = MagicMock(return_value=1)
         self.client.sync_announcements = MagicMock(return_value=1)
@@ -723,9 +729,13 @@ class TestCanvasClient(unittest.TestCase):
         mock_announcement.message = "This is an announcement"
 
         # Add the mocks to the second course
-        mock_detailed_course2.get_assignments = MagicMock(return_value=[mock_assignment])
+        mock_detailed_course2.get_assignments = MagicMock(
+            return_value=[mock_assignment]
+        )
         mock_detailed_course2.get_modules = MagicMock(return_value=[mock_module])
-        mock_detailed_course2.get_discussion_topics = MagicMock(return_value=[mock_announcement])
+        mock_detailed_course2.get_discussion_topics = MagicMock(
+            return_value=[mock_announcement]
+        )
 
         # Configure mock to return detailed courses
         def get_course_side_effect(course_id):
@@ -761,7 +771,7 @@ class TestCanvasClient(unittest.TestCase):
         self.assertEqual(result["announcements"], 1)  # Only term 2's announcement
 
         conn.close()
-        
+
         # Restore original methods
         self.client.sync_assignments = original_sync_assignments
         self.client.sync_modules = original_sync_modules

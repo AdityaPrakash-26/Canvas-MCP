@@ -1,9 +1,11 @@
 """
 Script to check syllabus availability in Canvas courses.
 """
+
+import os
+
 from canvasapi import Canvas
 from dotenv import load_dotenv
-import os
 
 # Load environment variables
 load_dotenv()
@@ -27,12 +29,18 @@ print("\nChecking syllabi for all courses:")
 for course in courses:
     try:
         detailed = canvas.get_course(course.id)
-        has_syllabus = hasattr(detailed, 'syllabus_body') and detailed.syllabus_body is not None
+        has_syllabus = (
+            hasattr(detailed, "syllabus_body") and detailed.syllabus_body is not None
+        )
         syllabus_status = "Has syllabus" if has_syllabus else "No syllabus"
-        
+
         if has_syllabus:
             syllabus_length = len(detailed.syllabus_body)
-            syllabus_preview = detailed.syllabus_body[:100] + "..." if syllabus_length > 100 else detailed.syllabus_body
+            syllabus_preview = (
+                detailed.syllabus_body[:100] + "..."
+                if syllabus_length > 100
+                else detailed.syllabus_body
+            )
             print(f"Course {course.name}: {syllabus_status}")
             print(f"  Length: {syllabus_length} chars")
             print(f"  Preview: {syllabus_preview}")

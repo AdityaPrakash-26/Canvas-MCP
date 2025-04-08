@@ -2,10 +2,10 @@
 Utility script to create empty syllabus entries for all courses in the database.
 This ensures that the system can handle courses without syllabus content in Canvas.
 """
-import os
+
 import sqlite3
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # Database path
 DB_DIR = Path(__file__).parent / "data"
@@ -31,24 +31,27 @@ print(f"Found {len(courses_without_syllabi)} courses without syllabus entries")
 
 # Create empty syllabus entries for each course
 for course in courses_without_syllabi:
-    course_id = course['id']
-    course_name = course['course_name']
-    course_code = course['course_code']
-    
+    course_id = course["id"]
+    course_name = course["course_name"]
+    course_code = course["course_code"]
+
     print(f"Creating empty syllabus for {course_name} ({course_code})")
-    
-    cursor.execute("""
+
+    cursor.execute(
+        """
     INSERT INTO syllabi (
         course_id, content, content_type, parsed_content, is_parsed, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        course_id, 
-        "<p>No syllabus content available</p>", 
-        "empty", 
-        "No syllabus content available", 
-        True,
-        datetime.now().isoformat()
-    ))
+    """,
+        (
+            course_id,
+            "<p>No syllabus content available</p>",
+            "empty",
+            "No syllabus content available",
+            True,
+            datetime.now().isoformat(),
+        ),
+    )
 
 # Commit changes
 conn.commit()
@@ -61,7 +64,7 @@ LEFT JOIN syllabi s ON c.id = s.course_id
 WHERE s.id IS NULL
 """)
 
-remaining = cursor.fetchone()['count']
+remaining = cursor.fetchone()["count"]
 print(f"Courses without syllabi after update: {remaining}")
 
 conn.close()

@@ -4,6 +4,7 @@ Database initialization script for Canvas MCP.
 This script creates the SQLite database with all required tables
 based on the schema defined in docs/db_schema.md.
 """
+
 import os
 import sqlite3
 from pathlib import Path

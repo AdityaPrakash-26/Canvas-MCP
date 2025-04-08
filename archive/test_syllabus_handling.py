@@ -1,10 +1,10 @@
 """
 Test script to verify syllabus handling in the Canvas MCP project.
 """
+
 import os
 import sqlite3
 from pathlib import Path
-from datetime import datetime
 
 # Test database path
 DB_DIR = Path(__file__).parent / "data"
@@ -52,17 +52,23 @@ CREATE TABLE syllabi (
 """)
 
 # Insert test courses
-cursor.execute("""
+cursor.execute(
+    """
 INSERT INTO courses (
     id, canvas_course_id, course_code, course_name, instructor
 ) VALUES (?, ?, ?, ?, ?)
-""", (1, 101, "CS101", "Introduction to Computer Science", "Dr. Smith"))
+""",
+    (1, 101, "CS101", "Introduction to Computer Science", "Dr. Smith"),
+)
 
-cursor.execute("""
+cursor.execute(
+    """
 INSERT INTO courses (
     id, canvas_course_id, course_code, course_name, instructor
 ) VALUES (?, ?, ?, ?, ?)
-""", (2, 102, "CS102", "Data Structures", "Dr. Johnson"))
+""",
+    (2, 102, "CS102", "Data Structures", "Dr. Johnson"),
+)
 
 # Insert test syllabi with different content types
 # 1. HTML syllabus
@@ -82,11 +88,21 @@ Final: 30%<br>
 Participation: 10%</p>
 """
 
-cursor.execute("""
+cursor.execute(
+    """
 INSERT INTO syllabi (
     id, course_id, content, content_type, parsed_content, is_parsed
 ) VALUES (?, ?, ?, ?, ?, ?)
-""", (1, 1, html_syllabus, "html", "This course provides an introduction to computer science and programming.", True))
+""",
+    (
+        1,
+        1,
+        html_syllabus,
+        "html",
+        "This course provides an introduction to computer science and programming.",
+        True,
+    ),
+)
 
 # 2. PDF link syllabus
 pdf_link_syllabus = """
@@ -94,11 +110,21 @@ pdf_link_syllabus = """
 <p><a href="https://example.com/cs102_syllabus.pdf">Download CS102 Syllabus</a></p>
 """
 
-cursor.execute("""
+cursor.execute(
+    """
 INSERT INTO syllabi (
     id, course_id, content, content_type, parsed_content, is_parsed
 ) VALUES (?, ?, ?, ?, ?, ?)
-""", (2, 2, pdf_link_syllabus, "pdf_link", "The syllabus contains information about the Data Structures course.", True))
+""",
+    (
+        2,
+        2,
+        pdf_link_syllabus,
+        "pdf_link",
+        "The syllabus contains information about the Data Structures course.",
+        True,
+    ),
+)
 
 # Commit changes
 conn.commit()
@@ -108,11 +134,12 @@ print("Test database created with sample syllabi")
 # Now test retrieving the syllabi
 print("\nTesting syllabus retrieval:")
 
+
 # Function to detect content type (simplified version)
 def detect_content_type(content):
     if not content:
         return "html"
-    
+
     if ".pdf" in content.lower() and ("<a href=" in content.lower()):
         return "pdf_link"
     elif "http" in content and len(content) < 1000:
@@ -120,9 +147,11 @@ def detect_content_type(content):
     else:
         return "html"
 
+
 # Function to retrieve syllabus with content_type
 def get_syllabus(course_id, format="raw"):
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT
         c.course_code,
         c.course_name,
@@ -137,40 +166,51 @@ def get_syllabus(course_id, format="raw"):
         syllabi s ON c.id = s.course_id
     WHERE
         c.id = ?
-    """, (course_id,))
-    
+    """,
+        (course_id,),
+    )
+
     row = cursor.fetchone()
     if not row:
         return {"error": "Syllabus not found"}
-    
+
     result = {
         "course_code": row[0],
         "course_name": row[1],
         "instructor": row[2],
-        "content_type": row[4]
+        "content_type": row[4],
     }
-    
+
     if format == "parsed" and row[6] and row[5]:
         result["content"] = row[5]  # parsed_content
     else:
         result["content"] = row[3]  # raw content
-        
+
     # Add helpful notes for different content types
     if result["content_type"] == "pdf_link":
-        result["content_note"] = "This syllabus is available as a PDF document. The link is included in the content."
+        result["content_note"] = (
+            "This syllabus is available as a PDF document. The link is included in the content."
+        )
     elif result["content_type"] == "external_link":
-        result["content_note"] = "This syllabus is available as an external link. The URL is included in the content."
-        
+        result["content_note"] = (
+            "This syllabus is available as an external link. The URL is included in the content."
+        )
+
     return result
+
 
 # Test both syllabi
 html_syllabus = get_syllabus(1)
-print(f"HTML Syllabus for {html_syllabus['course_name']} ({html_syllabus['course_code']}):")
+print(
+    f"HTML Syllabus for {html_syllabus['course_name']} ({html_syllabus['course_code']}):"
+)
 print(f"  Content type: {html_syllabus['content_type']}")
 print(f"  Content preview: {html_syllabus['content'][:50]}...")
 
 pdf_syllabus = get_syllabus(2)
-print(f"\nPDF Link Syllabus for {pdf_syllabus['course_name']} ({pdf_syllabus['course_code']}):")
+print(
+    f"\nPDF Link Syllabus for {pdf_syllabus['course_name']} ({pdf_syllabus['course_code']}):"
+)
 print(f"  Content type: {pdf_syllabus['content_type']}")
 print(f"  Content preview: {pdf_syllabus['content']}")
 if "content_note" in pdf_syllabus:

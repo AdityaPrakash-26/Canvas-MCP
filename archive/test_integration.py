@@ -3,6 +3,7 @@ Integration test for Canvas MCP using real credentials from .env file.
 This test validates that our Canvas client can actually connect to the Canvas API
 and synchronize data into the local database.
 """
+
 import os
 import sqlite3
 import sys
@@ -178,7 +179,9 @@ conn.close()
 print("Test database created successfully")
 
 # Initialize Canvas client with real credentials
-API_URL = os.environ.get("CANVAS_BASE_URL") or os.environ.get("CANVAS_API_URL", "https://canvas.instructure.com")
+API_URL = os.environ.get("CANVAS_BASE_URL") or os.environ.get(
+    "CANVAS_API_URL", "https://canvas.instructure.com"
+)
 client = CanvasClient(str(DB_PATH), API_KEY, API_URL)
 
 try:
@@ -191,13 +194,13 @@ try:
 
     # Test direct Canvas API access first
     print("\nTesting direct API access...")
-    if hasattr(client, 'canvas') and client.canvas:
+    if hasattr(client, "canvas") and client.canvas:
         try:
             user = client.canvas.get_current_user()
             print(f"Successfully authenticated as user: {user.name} (ID: {user.id})")
         except Exception as e:
             print(f"Error accessing Canvas API directly: {e}")
-            print("API response or details if available:", getattr(e, 'response', None))
+            print("API response or details if available:", getattr(e, "response", None))
             exit(1)  # Exit if we can't authenticate
     else:
         print("Canvas API client not properly initialized")
@@ -213,7 +216,7 @@ try:
         # Debugging: check if any courses have term_id
         term_ids = set()
         for course in courses:
-            term_id = getattr(course, 'enrollment_term_id', None)
+            term_id = getattr(course, "enrollment_term_id", None)
             if term_id is not None:
                 term_ids.add(term_id)
 
@@ -224,7 +227,7 @@ try:
             print("No courses found with term_id attribute")
     except Exception as e:
         print(f"Error accessing courses directly: {e}")
-        print("API response or details if available:", getattr(e, 'response', None))
+        print("API response or details if available:", getattr(e, "response", None))
 
     # RESET: Clean database and start fresh with term filtering
     print("\n-------------------------------------------------------")
@@ -234,15 +237,24 @@ try:
     # Remove existing data so we can start fresh
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
-    tables = ["courses", "syllabi", "assignments", "modules", "module_items",
-              "calendar_events", "announcements"]
+    tables = [
+        "courses",
+        "syllabi",
+        "assignments",
+        "modules",
+        "module_items",
+        "calendar_events",
+        "announcements",
+    ]
     for table in tables:
         cursor.execute(f"DELETE FROM {table}")
     conn.commit()
     conn.close()
 
     # Test sync_all with term filtering (most recent term)
-    print("\nTesting sync_all with term_id=-1 to get only the most recent term courses...")
+    print(
+        "\nTesting sync_all with term_id=-1 to get only the most recent term courses..."
+    )
     result = client.sync_all(term_id=-1)
     print("Sync results with term filtering:")
     for key, value in result.items():
@@ -258,17 +270,19 @@ try:
 
     print("\nCourses synced with term filtering:")
     for i, course in enumerate(filtered_courses):
-        print(f"  {i+1}. {course['course_name']} ({course['course_code']})")
+        print(f"  {i + 1}. {course['course_name']} ({course['course_code']})")
 
     print(f"\nTotal courses with term filtering: {len(filtered_courses)}")
 
     # Now test assignments, modules and announcements using the first CURRENT course
     if filtered_courses:
         first_course = filtered_courses[0]
-        first_course_id = first_course['id']
-        canvas_course_id = first_course['canvas_course_id']
+        first_course_id = first_course["id"]
+        canvas_course_id = first_course["canvas_course_id"]
 
-        print(f"\nTesting with first CURRENT course: {first_course['course_name']} (ID: {canvas_course_id})")
+        print(
+            f"\nTesting with first CURRENT course: {first_course['course_name']} (ID: {canvas_course_id})"
+        )
 
         # Fetch assignments for the first course
         try:
@@ -276,14 +290,20 @@ try:
             assignments_count = client.sync_assignments([first_course_id])
             print(f"Successfully synced {assignments_count} assignments")
 
-            cursor.execute("SELECT * FROM assignments WHERE course_id = ?", (first_course_id,))
+            cursor.execute(
+                "SELECT * FROM assignments WHERE course_id = ?", (first_course_id,)
+            )
             assignments = cursor.fetchall()
 
             if assignments:
                 print("\nAssignments for current course:")
                 for i, assignment in enumerate(assignments[:5]):  # Show first 5 only
-                    due_date = assignment['due_date'] if assignment['due_date'] else "No due date"
-                    print(f"  {i+1}. {assignment['title']} - Due: {due_date}")
+                    due_date = (
+                        assignment["due_date"]
+                        if assignment["due_date"]
+                        else "No due date"
+                    )
+                    print(f"  {i + 1}. {assignment['title']} - Due: {due_date}")
                 if len(assignments) > 5:
                     print(f"  ... and {len(assignments) - 5} more assignments")
             else:
@@ -297,26 +317,31 @@ try:
             modules_count = client.sync_modules([first_course_id])
             print(f"Successfully synced {modules_count} modules")
 
-            cursor.execute("SELECT * FROM modules WHERE course_id = ?", (first_course_id,))
+            cursor.execute(
+                "SELECT * FROM modules WHERE course_id = ?", (first_course_id,)
+            )
             modules = cursor.fetchall()
 
             if modules:
                 print("\nModules for current course:")
                 for i, module in enumerate(modules[:5]):  # Show first 5 only
-                    print(f"  {i+1}. {module['name']}")
+                    print(f"  {i + 1}. {module['name']}")
                 if len(modules) > 5:
                     print(f"  ... and {len(modules) - 5} more modules")
 
                 # Check module items for first module
                 if modules:
-                    first_module_id = modules[0]['id']
-                    cursor.execute("SELECT * FROM module_items WHERE module_id = ?", (first_module_id,))
+                    first_module_id = modules[0]["id"]
+                    cursor.execute(
+                        "SELECT * FROM module_items WHERE module_id = ?",
+                        (first_module_id,),
+                    )
                     items = cursor.fetchall()
 
                     if items:
                         print(f"\nItems in first module ({modules[0]['name']}):")
                         for i, item in enumerate(items[:5]):  # Show first 5 only
-                            print(f"  {i+1}. {item['title']} ({item['item_type']})")
+                            print(f"  {i + 1}. {item['title']} ({item['item_type']})")
                         if len(items) > 5:
                             print(f"  ... and {len(items) - 5} more items")
             else:
@@ -330,13 +355,17 @@ try:
             announcements_count = client.sync_announcements([first_course_id])
             print(f"Successfully synced {announcements_count} announcements")
 
-            cursor.execute("SELECT * FROM announcements WHERE course_id = ?", (first_course_id,))
+            cursor.execute(
+                "SELECT * FROM announcements WHERE course_id = ?", (first_course_id,)
+            )
             announcements = cursor.fetchall()
 
             if announcements:
                 print("\nAnnouncements for current course:")
-                for i, announcement in enumerate(announcements[:5]):  # Show first 5 only
-                    print(f"  {i+1}. {announcement['title']}")
+                for i, announcement in enumerate(
+                    announcements[:5]
+                ):  # Show first 5 only
+                    print(f"  {i + 1}. {announcement['title']}")
                 if len(announcements) > 5:
                     print(f"  ... and {len(announcements) - 5} more announcements")
             else:
@@ -354,5 +383,5 @@ except Exception as e:
     print(f"\nERROR during integration testing: {e}")
 
 finally:
-    if 'conn' in locals() and conn:
+    if "conn" in locals() and conn:
         conn.close()

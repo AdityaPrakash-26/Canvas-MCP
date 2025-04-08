@@ -1,6 +1,7 @@
 """
 Tests for database initialization script.
 """
+
 import os
 import sqlite3
 import tempfile
@@ -16,7 +17,7 @@ class TestDatabaseInit(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test."""
         # Create a temporary file for the test database
-        self.temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.db_path = self.temp_db.name
         self.temp_db.close()
 
@@ -42,18 +43,18 @@ class TestDatabaseInit(unittest.TestCase):
 
         # Define the expected tables
         expected_tables = {
-            'courses',
-            'syllabi',
-            'assignments',
-            'modules',
-            'module_items',
-            'calendar_events',
-            'user_courses',
-            'discussions',
-            'announcements',
-            'grades',
-            'lectures',
-            'files'
+            "courses",
+            "syllabi",
+            "assignments",
+            "modules",
+            "module_items",
+            "calendar_events",
+            "user_courses",
+            "discussions",
+            "announcements",
+            "grades",
+            "lectures",
+            "files",
         }
 
         # Check that all expected tables exist
@@ -65,10 +66,7 @@ class TestDatabaseInit(unittest.TestCase):
         views = {row[0] for row in cursor.fetchall()}
 
         # Define the expected views
-        expected_views = {
-            'upcoming_deadlines',
-            'course_summary'
-        }
+        expected_views = {"upcoming_deadlines", "course_summary"}
 
         # Check that all expected views exist
         for view in expected_views:
@@ -140,7 +138,9 @@ class TestDatabaseInit(unittest.TestCase):
         cursor = conn.cursor()
 
         # Check upcoming_deadlines view definition
-        cursor.execute("SELECT sql FROM sqlite_master WHERE type='view' AND name='upcoming_deadlines'")
+        cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type='view' AND name='upcoming_deadlines'"
+        )
         view_sql = cursor.fetchone()[0]
 
         # Verify it contains key parts
@@ -150,7 +150,9 @@ class TestDatabaseInit(unittest.TestCase):
         self.assertIn("ORDER BY", view_sql)
 
         # Check course_summary view definition
-        cursor.execute("SELECT sql FROM sqlite_master WHERE type='view' AND name='course_summary'")
+        cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type='view' AND name='course_summary'"
+        )
         view_sql = cursor.fetchone()[0]
 
         # Verify it contains key parts
@@ -188,8 +190,8 @@ class TestDatabaseInit(unittest.TestCase):
                 "Professor Smith",
                 "This is a test course",
                 "2025-01-15T00:00:00Z",
-                "2025-05-15T00:00:00Z"
-            )
+                "2025-05-15T00:00:00Z",
+            ),
         )
 
         # Get the course ID
@@ -210,8 +212,8 @@ class TestDatabaseInit(unittest.TestCase):
                 "This is a test assignment",
                 "assignment",
                 "2025-02-15T23:59:00Z",
-                100
-            )
+                100,
+            ),
         )
 
         # Verify data can be retrieved via the views

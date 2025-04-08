@@ -33,7 +33,7 @@ def register_file_tools(mcp: FastMCP) -> None:
         try:
             # Get canvas client from the lifespan context
             canvas_client = ctx.request_context.lifespan_context["canvas_client"]
-            
+
             files = canvas_client.extract_files_from_course(course_id, file_type)
 
             # Add extraction URLs if needed
@@ -77,7 +77,7 @@ def register_file_tools(mcp: FastMCP) -> None:
         try:
             # Import here to avoid circular imports
             from canvas_mcp.utils.file_extractor import extract_text_from_file
-            
+
             result = extract_text_from_file(file_url, file_type)
 
             if result["success"]:

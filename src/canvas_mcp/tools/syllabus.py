@@ -16,7 +16,9 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
     """Register syllabus tools with the MCP server."""
 
     @mcp.tool()
-    def get_syllabus(ctx: Context, course_id: int, format: str = "raw") -> dict[str, Any]:
+    def get_syllabus(
+        ctx: Context, course_id: int, format: str = "raw"
+    ) -> dict[str, Any]:
         """
         Get the syllabus for a specific course.
 
@@ -30,7 +32,7 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
         """
         # Get database manager from the lifespan context
         db_manager = ctx.request_context.lifespan_context["db_manager"]
-        
+
         conn, cursor = db_manager.connect()
 
         try:
@@ -102,7 +104,9 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
             conn.close()
 
     @mcp.tool()
-    def get_syllabus_file(ctx: Context, course_id: int, extract_content: bool = True) -> dict[str, Any]:
+    def get_syllabus_file(
+        ctx: Context, course_id: int, extract_content: bool = True
+    ) -> dict[str, Any]:
         """
         Attempt to find a syllabus file for a specific course.
 
@@ -118,7 +122,7 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
             # Get canvas client and database manager from the lifespan context
             canvas_client = ctx.request_context.lifespan_context["canvas_client"]
             db_manager = ctx.request_context.lifespan_context["db_manager"]
-            
+
             # Check if Canvas API is available
             if canvas_client.canvas is None:
                 logger.warning("Canvas API not available in get_syllabus_file")

@@ -7,9 +7,10 @@ implementing best practices for SQLite connections across the Canvas MCP project
 
 import logging
 import sqlite3
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, TypeVar, Optional
+from typing import Any, TypeVar
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -125,7 +126,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def get_by_id(self, table: str, id_value: int) -> Optional[sqlite3.Row]:
+    def get_by_id(self, table: str, id_value: int) -> sqlite3.Row | None:
         """
         Get a record by ID.
 

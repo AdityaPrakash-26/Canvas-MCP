@@ -28,7 +28,7 @@ def register_course_tools(mcp: FastMCP) -> None:
         """
         # Get database manager from the lifespan context
         db_manager = ctx.request_context.lifespan_context["db_manager"]
-        
+
         conn, cursor = db_manager.connect()
 
         try:

@@ -16,7 +16,9 @@ def register_announcement_tools(mcp: FastMCP) -> None:
     """Register announcement tools with the MCP server."""
 
     @mcp.tool()
-    def get_course_announcements(ctx: Context, course_id: int, limit: int = 10) -> list[dict[str, Any]]:
+    def get_course_announcements(
+        ctx: Context, course_id: int, limit: int = 10
+    ) -> list[dict[str, Any]]:
         """
         Get announcements for a specific course.
 
@@ -30,7 +32,7 @@ def register_announcement_tools(mcp: FastMCP) -> None:
         """
         # Get database manager from the lifespan context
         db_manager = ctx.request_context.lifespan_context["db_manager"]
-        
+
         conn, cursor = db_manager.connect()
 
         try:

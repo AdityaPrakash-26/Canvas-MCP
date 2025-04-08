@@ -1,7 +1,7 @@
 """
 Script to update the database schema to include the content_type field.
 """
-import os
+
 import sqlite3
 from pathlib import Path
 
@@ -26,8 +26,16 @@ except sqlite3.OperationalError:
     print("Added content_type column")
 
 # Verify all tables and columns
-tables = ["courses", "syllabi", "assignments", "modules", "module_items", 
-          "calendar_events", "user_courses", "announcements"]
+tables = [
+    "courses",
+    "syllabi",
+    "assignments",
+    "modules",
+    "module_items",
+    "calendar_events",
+    "user_courses",
+    "announcements",
+]
 
 print("\nVerifying database tables:")
 for table in tables:
@@ -56,20 +64,23 @@ for course in courses_without_syllabi:
     course_id = course[0]
     course_name = course[1]
     course_code = course[2]
-    
+
     print(f"Creating empty syllabus for {course_name} ({course_code})")
-    
-    cursor.execute("""
+
+    cursor.execute(
+        """
     INSERT INTO syllabi (
         course_id, content, content_type, parsed_content, is_parsed, updated_at
     ) VALUES (?, ?, ?, ?, ?, datetime('now'))
-    """, (
-        course_id, 
-        "<p>No syllabus content available</p>", 
-        "empty", 
-        "No syllabus content available", 
-        True
-    ))
+    """,
+        (
+            course_id,
+            "<p>No syllabus content available</p>",
+            "empty",
+            "No syllabus content available",
+            True,
+        ),
+    )
 
 # Commit changes
 conn.commit()
