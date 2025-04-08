@@ -28,20 +28,16 @@ def create_database(db_path: str) -> None:
     # Get cursor
     cursor = conn.cursor()
 
-    # Enable foreign keys - set it to 1 explicitly and commit
-    cursor.execute("PRAGMA foreign_keys = 1")
+    # Enable foreign keys directly with PRAGMA
+    cursor.execute("PRAGMA foreign_keys = ON")
     conn.commit()
 
     # Verify foreign keys are enabled
     cursor.execute("PRAGMA foreign_keys")
     if cursor.fetchone()[0] == 0:
-        # If not enabled, try another approach with URI connection string
-        conn.close()
-        conn = sqlite3.connect(f"file:{db_path}?foreign_keys=1", uri=True)
-        cursor = conn.cursor()
-        # Just to be sure, set it again
-        cursor.execute("PRAGMA foreign_keys = 1")
-        conn.commit()
+        print(
+            "WARNING: Failed to enable foreign key constraints. Database integrity may be compromised."
+        )
 
     # Create tables
     create_tables(cursor)

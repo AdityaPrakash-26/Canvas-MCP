@@ -46,12 +46,21 @@ class DatabaseManager:
         Returns:
             Tuple of (connection, cursor)
         """
+        # Connect to the database
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Enable foreign keys
+        # Enable foreign keys directly with PRAGMA (URI parameter doesn't work reliably)
         cursor.execute("PRAGMA foreign_keys = ON")
+
+        # Verify that foreign keys are enabled
+        cursor.execute("PRAGMA foreign_keys")
+        foreign_keys_enabled = cursor.fetchone()[0]
+        if not foreign_keys_enabled:
+            logger.error(
+                "Failed to enable foreign key constraints. Database integrity may be compromised."
+            )
 
         return conn, cursor
 

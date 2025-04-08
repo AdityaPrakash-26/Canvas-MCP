@@ -51,21 +51,28 @@ def sync_courses(
         return []
 
     # Filter Stage
-    filtered_courses = _filter_courses_by_term(sync_service, raw_courses, term_id)
+    filtered_courses = _filter_courses_by_term(raw_courses, term_id)
     if not filtered_courses:
         logger.warning("No courses found after term filtering")
         return []
 
     # Prepare/Validate Stage
     valid_courses = []
+    canvas_course_ids = []  # Track Canvas course IDs for cleanup
+
     for raw_course in filtered_courses:
         try:
+            # Normalize Canvas course ID by removing any prefix
+            canvas_id = getattr(raw_course, "id", 0)
+            # Store the original Canvas ID for tracking
+            canvas_course_ids.append(canvas_id)
+
             # Get detailed course info if needed
-            detailed_course = sync_service.api_adapter.get_course_raw(raw_course.id)
+            detailed_course = sync_service.api_adapter.get_course_raw(canvas_id)
 
             # Combine data for validation
             course_data = {
-                "id": raw_course.id,
+                "id": canvas_id,
                 "course_code": getattr(raw_course, "course_code", ""),
                 "name": getattr(raw_course, "name", ""),
                 "instructor": getattr(detailed_course, "teacher_name", None)
@@ -98,10 +105,31 @@ def sync_courses(
         logger.warning("No valid courses found after validation")
         return []
 
-    # Persist courses and syllabi using the with_connection decorator
+    # Persist courses and syllabi
     conn, cursor = sync_service.db_manager.connect()
     try:
-        result = _persist_courses_and_syllabi(sync_service, conn, cursor, valid_courses)
+        # First, clean up courses that are no longer active or in the current term
+        if canvas_course_ids:
+            # Convert list to string for SQL IN clause
+            canvas_ids_str = ", ".join([str(cid) for cid in canvas_course_ids])
+            # Find courses in the database that are not in the current active set
+            cursor.execute(
+                f"SELECT id, canvas_course_id FROM courses WHERE canvas_course_id NOT IN ({canvas_ids_str})"
+            )
+            courses_to_remove = cursor.fetchall()
+
+            if courses_to_remove:
+                logger.info(
+                    f"Removing {len(courses_to_remove)} courses that are no longer active or in the current term"
+                )
+                for course in courses_to_remove:
+                    logger.info(
+                        f"Removing course with ID {course['id']} (Canvas ID: {course['canvas_course_id']})"
+                    )
+                    cursor.execute("DELETE FROM courses WHERE id = ?", (course["id"],))
+
+        # Now persist the current courses
+        result = _persist_courses_and_syllabi(cursor, valid_courses)
         conn.commit()
         return result
     except Exception as e:
@@ -112,42 +140,57 @@ def sync_courses(
         conn.close()
 
 
-def _filter_courses_by_term(
-    sync_service, courses: list[Any], term_id: int | None = -1
-) -> list[Any]:
+def _filter_courses_by_term(courses: list[Any], term_id: int | None = -1) -> list[Any]:
     """
     Filter courses by term ID.
 
     Args:
         courses: List of Canvas course objects
-        term_id: Term ID to filter by (-1 for most recent term)
+        term_id: Term ID to filter by (-1 for most recent term, None for no filtering)
 
     Returns:
         Filtered list of courses
     """
-    if term_id is None or term_id != -1:
+    # If term_id is None, don't filter by term
+    if term_id is None:
         return courses
 
-    # Get the most recent term (maximum term_id)
-    term_ids = [getattr(course, "enrollment_term_id", 0) for course in courses]
-    if not term_ids:
-        return courses
+    # If term_id is -1, filter by the most recent term
+    if term_id == -1:
+        # Get all term IDs from courses
+        term_ids = []
+        for course in courses:
+            term_id = getattr(course, "enrollment_term_id", None)
+            if term_id is not None:
+                term_ids.append(term_id)
 
-    max_term_id = max(filter(lambda x: x is not None, term_ids), default=None)
-    if max_term_id is None:
-        return courses
+        if not term_ids:
+            logger.warning("No term IDs found in courses, returning all courses")
+            return courses
 
-    logger.info(f"Filtering to only include the most recent term (ID: {max_term_id})")
+        # Find the maximum term ID (most recent term)
+        max_term_id = max(term_ids)
+        logger.info(
+            f"Filtering to only include the most recent term (ID: {max_term_id})"
+        )
+
+        # Filter courses by the most recent term
+        return [
+            course
+            for course in courses
+            if getattr(course, "enrollment_term_id", None) == max_term_id
+        ]
+
+    # If term_id is a specific value, filter by that term
+    logger.info(f"Filtering to only include term with ID: {term_id}")
     return [
         course
         for course in courses
-        if getattr(course, "enrollment_term_id", None) == max_term_id
+        if getattr(course, "enrollment_term_id", None) == term_id
     ]
 
 
-def _persist_courses_and_syllabi(
-    sync_service, conn, cursor, valid_courses
-) -> list[int]:
+def _persist_courses_and_syllabi(cursor, valid_courses) -> list[int]:
     """
     Persist courses and syllabi in a single transaction.
 
