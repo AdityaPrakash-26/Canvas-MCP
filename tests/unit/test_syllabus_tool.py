@@ -6,18 +6,15 @@ These tests verify that the syllabus tools correctly interact with the database.
 
 from types import SimpleNamespace
 
-import pytest
-
 from canvas_mcp.tools.syllabus import register_syllabus_tools
 
 
 class TestSyllabusTools:
     """Test the syllabus tools."""
 
-    def test_get_syllabus_file(
-        self, canvas_client, db_manager, synced_course_ids
-    ):
+    def test_get_syllabus_file(self, canvas_client, db_manager, synced_course_ids):
         """Test the get_syllabus_file tool."""
+
         # Create a mock MCP server
         class MockMCP:
             def tool(self):
@@ -25,6 +22,7 @@ class TestSyllabusTools:
                     # Store the function with its name
                     setattr(self, func.__name__, func)
                     return func
+
                 return decorator
 
         # Register the tools

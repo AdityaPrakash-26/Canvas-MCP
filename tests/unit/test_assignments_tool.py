@@ -18,6 +18,7 @@ class TestAssignmentsTools:
         self, canvas_client, db_manager, synced_course_ids, synced_assignments
     ):
         """Test the get_assignment_details tool."""
+
         # Create a mock MCP server
         class MockMCP:
             def tool(self):
@@ -25,6 +26,7 @@ class TestAssignmentsTools:
                     # Store the function with its name
                     setattr(self, func.__name__, func)
                     return func
+
                 return decorator
 
         # Register the tools
@@ -38,7 +40,9 @@ class TestAssignmentsTools:
 
         # Get a course ID and assignment name
         conn, cursor = db_manager.connect()
-        cursor.execute("SELECT c.id, a.title FROM courses c JOIN assignments a ON c.id = a.course_id LIMIT 1")
+        cursor.execute(
+            "SELECT c.id, a.title FROM courses c JOIN assignments a ON c.id = a.course_id LIMIT 1"
+        )
         row = cursor.fetchone()
         conn.close()
 

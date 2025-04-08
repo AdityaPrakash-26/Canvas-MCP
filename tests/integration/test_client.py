@@ -12,7 +12,6 @@ from types import SimpleNamespace
 from typing import Any
 
 from canvas_mcp.canvas_client import CanvasClient
-from canvas_mcp.utils.db_manager import DatabaseManager
 
 # Import the tool registration functions
 from canvas_mcp.tools.announcements import register_announcement_tools
@@ -23,6 +22,7 @@ from canvas_mcp.tools.modules import register_module_tools
 from canvas_mcp.tools.search import register_search_tools
 from canvas_mcp.tools.syllabus import register_syllabus_tools
 from canvas_mcp.tools.sync import register_sync_tools
+from canvas_mcp.utils.db_manager import DatabaseManager
 
 
 class CanvasMCPTestClient:
@@ -92,7 +92,7 @@ class CanvasMCPTestClient:
         # Store the tool functions
         self.tools = tool_capture.tools
 
-    def sync_canvas_data(self, _force: bool = False) -> dict[str, Any]:
+    def sync_canvas_data(self) -> dict[str, Any]:
         """
         Synchronize data from Canvas LMS to the local database.
 
@@ -102,7 +102,7 @@ class CanvasMCPTestClient:
         Returns:
             Dictionary with counts of synced items
         """
-        return self.tools["sync_canvas_data"](self.context, _force)
+        return self.tools["sync_canvas_data"](self.context)
 
     def get_course_list(self) -> list[dict[str, Any]]:
         """

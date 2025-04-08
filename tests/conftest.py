@@ -16,7 +16,6 @@ from typing import Any
 import pytest
 
 # Add the project root directory to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Test database paths
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
@@ -32,7 +31,9 @@ os.environ["CANVAS_MCP_TEST_DB"] = str(TEST_DB_PATH)
 print(f"Test environment variable CANVAS_MCP_TEST_DB set to: {TEST_DB_PATH}")
 
 # Import database creation function
-from init_db import create_database
+
+sys.path.append(str(Path(__file__).parent.parent))
+from tests.init_db import create_database
 
 # Import test client
 from tests.integration.test_client import CanvasMCPTestClient
@@ -173,7 +174,7 @@ def ensure_course_data(test_client, db_connection) -> int:
 
     # Course not found, run sync
     print("Target course not found in database, running sync operation...")
-    sync_result = test_client.sync_canvas_data(_force=True)
+    sync_result = test_client.sync_canvas_data()
     print(f"Sync completed: {sync_result}")
 
     # Check again for the course

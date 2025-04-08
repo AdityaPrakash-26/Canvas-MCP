@@ -5,9 +5,6 @@ These tests verify that the modules tools correctly interact with the database.
 """
 
 from types import SimpleNamespace
-from typing import Any
-
-import pytest
 
 from canvas_mcp.tools.modules import register_module_tools
 
@@ -17,12 +14,14 @@ class TestModulesTools:
 
     def test_get_course_modules_empty(self, db_manager, clean_db):
         """Test the get_course_modules tool with an empty database."""
+
         # Create a mock MCP server
         class MockMCP:
             def tool(self):
                 def decorator(func):
                     self.get_course_modules = func
                     return func
+
                 return decorator
 
         # Register the tools
@@ -45,12 +44,14 @@ class TestModulesTools:
         self, canvas_client, db_manager, synced_course_ids, synced_modules
     ):
         """Test the get_course_modules tool with data in the database."""
+
         # Create a mock MCP server
         class MockMCP:
             def tool(self):
                 def decorator(func):
                     self.get_course_modules = func
                     return func
+
                 return decorator
 
         # Register the tools
@@ -74,20 +75,22 @@ class TestModulesTools:
         # Verify the result
         assert isinstance(result, list)
         # Note: It's possible there are no modules for this course (SP25_CS_540_1 has 0 modules)
-        
+
         # Call the get_course_modules tool with include_items=True
-        result_with_items = mock_mcp.get_course_modules(ctx, course_id, include_items=True)
-        
+        result_with_items = mock_mcp.get_course_modules(
+            ctx, course_id, include_items=True
+        )
+
         # Verify the result
         assert isinstance(result_with_items, list)
         assert len(result_with_items) == len(result)
-        
+
         # If there are modules, check that they have the expected structure
         if len(result) > 0:
             first_module = result[0]
             assert "id" in first_module
             assert "name" in first_module
-            
+
             # If include_items=True, check that items are included
             if len(result_with_items) > 0:
                 first_module_with_items = result_with_items[0]

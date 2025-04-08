@@ -18,9 +18,9 @@ def test_get_course_assignments(test_client, target_course_info):
 
     # Check that we got a list of assignments
     assert isinstance(assignments, list)
-    assert (
-        len(assignments) > 0
-    ), f"No assignments found for course {target_course_info['internal_id']}"
+    assert len(assignments) > 0, (
+        f"No assignments found for course {target_course_info['internal_id']}"
+    )
     print(
         f"Found {len(assignments)} assignments for course {target_course_info['internal_id']}"
     )
@@ -52,9 +52,9 @@ def test_get_upcoming_deadlines(test_client, target_course_info):
 
     # Check that we got a list of deadlines
     assert isinstance(course_deadlines, list)
-    assert (
-        len(course_deadlines) > 0
-    ), f"No upcoming deadlines found for course {target_course_info['internal_id']}"
+    assert len(course_deadlines) > 0, (
+        f"No upcoming deadlines found for course {target_course_info['internal_id']}"
+    )
     print(
         f"Found {len(course_deadlines)} upcoming deadlines for course {target_course_info['internal_id']}"
     )
@@ -66,9 +66,9 @@ def test_get_assignment_details(test_client, target_course_info):
     assert target_course_info["internal_id"] is not None, "Target course ID is required"
 
     # Ensure we have an assignment name
-    assert (
-        "test_assignment_name" in target_course_info
-    ), "No assignment name available for testing"
+    assert "test_assignment_name" in target_course_info, (
+        "No assignment name available for testing"
+    )
 
     assignment_name = target_course_info["test_assignment_name"]
 
@@ -79,9 +79,9 @@ def test_get_assignment_details(test_client, target_course_info):
 
     # Check that we got a result
     assert isinstance(result, dict)
-    assert (
-        "error" not in result
-    ), f"Error getting assignment details: {result.get('error')}"
+    assert "error" not in result, (
+        f"Error getting assignment details: {result.get('error')}"
+    )
     assert "assignment" in result
     assert "course_code" in result
     assert "course_name" in result

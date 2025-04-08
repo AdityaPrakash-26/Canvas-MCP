@@ -1,27 +1,168 @@
 [
   {
     "access_restricted_by_date": true,
-    "id": 65920000000096380
+    "id": 659200000000963801,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000075158
+    "id": 65920000000096380,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000100031
+    "id": 65920000000075158,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000096391
+    "id": 659200000001000311,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000089654
+    "id": 659200000001000312,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 999
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000078294
+    "id": 65920000000100031,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 659200000000963911,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000096391,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 659200000000896542,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 999
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000089654,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000078294,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "account_id": 65920000000000175,
@@ -71,23 +212,78 @@
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000083765
+    "id": 65920000000083765,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000092209
+    "id": 65920000000092209,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000112015
+    "id": 65920000000112015,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000113475
+    "id": 65920000000113475,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000111843
+    "id": 65920000000111843,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "account_id": 65920000000000175,
@@ -137,7 +333,18 @@
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000124077
+    "id": 65920000000124077,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "account_id": 65920000000000214,
@@ -234,7 +441,18 @@
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000076181
+    "id": 65920000000076181,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "account_id": 65920000000000075,
@@ -333,15 +551,48 @@
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000084941
+    "id": 65920000000084941,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000095382
+    "id": 65920000000095382,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000084330
+    "id": 65920000000084330,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "account_id": 65920000000000153,
@@ -391,11 +642,33 @@
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000137227
+    "id": 65920000000137227,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000117031
+    "id": 65920000000117031,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "account_id": 65920000000000075,
@@ -447,35 +720,123 @@
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000135072
+    "id": 65920000000135072,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000084778
+    "id": 65920000000084778,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000092278
+    "id": 65920000000092278,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000091524
+    "id": 65920000000091524,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000112794
+    "id": 65920000000112794,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000112942
+    "id": 65920000000112942,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000137042
+    "id": 65920000000137042,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000101292
+    "id": 65920000000101292,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "account_id": 65920000000000079,
@@ -575,34 +936,122 @@
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000099921
+    "id": 65920000000099921,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000097686
+    "id": 65920000000097686,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000089915
+    "id": 65920000000089915,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000083079
+    "id": 65920000000083079,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000076017
+    "id": 65920000000076017,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000136991
+    "id": 65920000000136991,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000119706
+    "id": 65920000000119706,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   },
   {
     "access_restricted_by_date": true,
-    "id": 65920000000077807
+    "id": 65920000000077807,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
   }
 ]

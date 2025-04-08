@@ -6,14 +6,14 @@ This file contains fixtures for unit testing Canvas MCP with fake dependencies.
 
 import os
 import sqlite3
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
 
 import pytest
+from tests.fakes.fake_canvasapi import patch_canvasapi
 
 from canvas_mcp.canvas_client import CanvasClient
 from canvas_mcp.utils.db_manager import DatabaseManager
-from tests.fakes.fake_canvasapi import patch_canvasapi
 
 # Apply the patch before importing any code that uses canvasapi
 patch_canvasapi()
@@ -30,12 +30,13 @@ def ensure_test_db(test_db_path: Path) -> None:
     """Ensure the test database exists."""
     # Ensure test data directory exists
     os.makedirs(test_db_path.parent, exist_ok=True)
-    
+
     # Only create the database if it doesn't exist
     if not test_db_path.exists():
         print(f"Test database not found, will create: {test_db_path}")
         # Initialize the test database using the correct path
         from init_db import create_database
+
         create_database(str(test_db_path))
         print("Test database initialized.")
     else:
@@ -79,7 +80,9 @@ def synced_course_ids(canvas_client: CanvasClient) -> list[int]:
 
 
 @pytest.fixture(scope="function")
-def synced_assignments(canvas_client: CanvasClient, synced_course_ids: list[int]) -> int:
+def synced_assignments(
+    canvas_client: CanvasClient, synced_course_ids: list[int]
+) -> int:
     """Return the number of assignments after syncing assignments."""
     return canvas_client.sync_assignments(synced_course_ids)
 
@@ -91,7 +94,9 @@ def synced_modules(canvas_client: CanvasClient, synced_course_ids: list[int]) ->
 
 
 @pytest.fixture(scope="function")
-def synced_announcements(canvas_client: CanvasClient, synced_course_ids: list[int]) -> int:
+def synced_announcements(
+    canvas_client: CanvasClient, synced_course_ids: list[int]
+) -> int:
     """Return the number of announcements after syncing announcements."""
     return canvas_client.sync_announcements(synced_course_ids)
 

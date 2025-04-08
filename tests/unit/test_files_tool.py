@@ -7,8 +7,6 @@ These tests verify that the files tools correctly interact with the Canvas clien
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest
-
 from canvas_mcp.tools.files import register_file_tools
 
 
@@ -18,6 +16,7 @@ class TestFilesTools:
     @patch("canvas_mcp.utils.file_extractor.extract_text_from_file")
     def test_extract_text_from_course_file_success(self, mock_extract, canvas_client):
         """Test the extract_text_from_course_file tool with successful extraction."""
+
         # Create a mock MCP server
         class MockMCP:
             def tool(self):
@@ -25,6 +24,7 @@ class TestFilesTools:
                     # Store the function with its name
                     setattr(self, func.__name__, func)
                     return func
+
                 return decorator
 
         # Register the tools
@@ -40,11 +40,13 @@ class TestFilesTools:
         mock_extract.return_value = {
             "success": True,
             "file_type": "pdf",
-            "text": "This is the extracted text from the PDF file."
+            "text": "This is the extracted text from the PDF file.",
         }
 
         # Call the extract_text_from_course_file tool
-        result = mock_mcp.extract_text_from_course_file(ctx, "https://example.com/file.pdf")
+        result = mock_mcp.extract_text_from_course_file(
+            ctx, "https://example.com/file.pdf"
+        )
 
         # Verify the result
         assert isinstance(result, dict)
@@ -56,6 +58,7 @@ class TestFilesTools:
     @patch("canvas_mcp.utils.file_extractor.extract_text_from_file")
     def test_extract_text_from_course_file_failure(self, mock_extract, canvas_client):
         """Test the extract_text_from_course_file tool with failed extraction."""
+
         # Create a mock MCP server
         class MockMCP:
             def tool(self):
@@ -63,6 +66,7 @@ class TestFilesTools:
                     # Store the function with its name
                     setattr(self, func.__name__, func)
                     return func
+
                 return decorator
 
         # Register the tools
@@ -78,11 +82,13 @@ class TestFilesTools:
         mock_extract.return_value = {
             "success": False,
             "file_type": "pdf",
-            "error": "Failed to extract text from PDF file."
+            "error": "Failed to extract text from PDF file.",
         }
 
         # Call the extract_text_from_course_file tool
-        result = mock_mcp.extract_text_from_course_file(ctx, "https://example.com/file.pdf")
+        result = mock_mcp.extract_text_from_course_file(
+            ctx, "https://example.com/file.pdf"
+        )
 
         # Verify the result
         assert isinstance(result, dict)

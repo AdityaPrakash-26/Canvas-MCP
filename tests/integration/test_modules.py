@@ -36,9 +36,9 @@ def test_get_course_modules(test_client, target_course_info):
 
     # Check that we got a list of modules with items
     assert isinstance(modules_with_items, list)
-    assert len(modules_with_items) == len(
-        modules
-    ), "Module count mismatch between calls with and without items"
+    assert len(modules_with_items) == len(modules), (
+        "Module count mismatch between calls with and without items"
+    )
 
     # Check if any modules have items
     has_items = any(

@@ -130,7 +130,7 @@ class TestCanvasClient(unittest.TestCase):
         max_term_id = max(term_ids)
 
         # Count courses in the most recent term
-        current_term_courses = [
+        [
             course
             for course in active_courses
             if getattr(course, "enrollment_term_id", None) == max_term_id

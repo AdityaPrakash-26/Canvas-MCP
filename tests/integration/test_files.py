@@ -49,9 +49,9 @@ def test_get_course_files(test_client, target_course_info):
 
     # Store a PDF file URL for later tests
     target_course_info["test_pdf_url"] = pdf_files[0].get("url")
-    assert (
-        target_course_info["test_pdf_url"] is not None
-    ), "PDF file URL is required for later tests"
+    assert target_course_info["test_pdf_url"] is not None, (
+        "PDF file URL is required for later tests"
+    )
     print(f"Found PDF file: {pdf_files[0].get('name')}")
 
 

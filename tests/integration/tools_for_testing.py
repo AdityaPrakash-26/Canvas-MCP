@@ -6,7 +6,7 @@ It creates a mock MCP server and registers all the tools,
 then exposes them for direct use in tests.
 """
 
-from typing import Any, Callable, Dict
+from collections.abc import Callable
 
 from mcp.server.fastmcp import FastMCP
 
@@ -14,7 +14,7 @@ from mcp.server.fastmcp import FastMCP
 mock_mcp = FastMCP("Mock MCP for Testing")
 
 # Dictionary to store the tools
-tools: Dict[str, Callable] = {}
+tools: dict[str, Callable] = {}
 
 
 # Create a mock tool decorator that captures the function
