@@ -11,6 +11,8 @@ from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
 
+from canvas_mcp.utils.formatters import format_deadlines
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,9 +65,8 @@ def register_assignment_tools(mcp: FastMCP) -> None:
         conn, cursor = db_manager.connect()
 
         try:
-            # For testing purposes, we'll use a fixed date in 2025 to match the test data
-            # In a real application, we would use datetime.now()
-            now = datetime(2025, 4, 1)  # April 1, 2025
+            # Use current date for production use
+            now = datetime.now()
             end_date = now + timedelta(days=days)
 
             # Format dates for SQLite comparison
@@ -105,7 +106,10 @@ def register_assignment_tools(mcp: FastMCP) -> None:
             rows = cursor.fetchall()
 
             # Convert to list of dictionaries
-            return db_manager.rows_to_dicts(rows)
+            deadlines = db_manager.rows_to_dicts(rows)
+
+            # Format deadlines for display
+            return format_deadlines(deadlines)
         finally:
             # Close the connection
             conn.close()

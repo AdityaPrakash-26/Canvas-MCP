@@ -206,6 +206,33 @@ def generate_fixtures() -> None:
         except Exception as e:
             print(f"Error getting files: {e}")
 
+        # Get conversations
+        try:
+            print("Fetching conversations...")
+            # Use canvas object directly instead of user
+            conversations = list(canvas.get_conversations())
+            conversations_data = [object_to_dict(conv) for conv in conversations]
+            save_fixture("conversations.json", conversations_data)
+
+            # Get details for each conversation
+            for conv in conversations[:5]:  # Limit to first 5 conversations
+                try:
+                    print(f"Fetching details for conversation {conv.id}...")
+                    conv_detail = canvas.get_conversation(conv.id)
+                    conv_detail_data = object_to_dict(conv_detail)
+
+                    # Make sure messages are included
+                    if hasattr(conv_detail, "messages") and conv_detail.messages:
+                        conv_detail_data["messages"] = [
+                            object_to_dict(msg) for msg in conv_detail.messages
+                        ]
+
+                    save_fixture(f"conversation_{conv.id}.json", conv_detail_data)
+                except Exception as e:
+                    print(f"Error getting conversation details for {conv.id}: {e}")
+        except Exception as e:
+            print(f"Error getting conversations: {e}")
+
         print("Fixture generation complete!")
 
     except Exception as e:

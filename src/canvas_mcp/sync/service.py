@@ -20,7 +20,7 @@ from canvas_mcp.sync.assignments import (
     _persist_assignments,
     sync_assignments,
 )
-from canvas_mcp.sync.conversations import _persist_conversations, sync_conversations
+from canvas_mcp.sync.conversations import sync_conversations
 from canvas_mcp.sync.courses import (
     _filter_courses_by_term,
     _persist_courses_and_syllabi,
@@ -64,7 +64,6 @@ class SyncService:
 
         # Wrap database methods with connection management
         self._persist_announcements = self._wrap_with_connection(_persist_announcements)
-        self._persist_conversations = self._wrap_with_connection(_persist_conversations)
         self._get_courses_to_sync = self._wrap_with_connection(_get_courses_to_sync)
         self._persist_assignments = self._wrap_with_connection(_persist_assignments)
         self._persist_courses_and_syllabi = self._wrap_with_connection(

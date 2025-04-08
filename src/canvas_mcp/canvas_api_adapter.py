@@ -290,7 +290,23 @@ class CanvasApiAdapter:
             return []
 
         try:
-            return list(self.canvas.get_conversations())
+            # First try to get the current user
+            user = self.get_current_user_raw()
+            if not user:
+                logger.error("Failed to get current user for conversations")
+                return []
+
+            # Try to get conversations through the user object
+            logger.info(
+                f"Getting conversations for user {getattr(user, 'id', 'Unknown')}"
+            )
+            try:
+                return list(user.get_conversations())
+            except AttributeError as e:
+                logger.warning(f"User object has no get_conversations method: {e}")
+                # Fall back to direct canvas client method
+                logger.info("Falling back to canvas.get_conversations() method")
+                return list(self.canvas.get_conversations())
         except CanvasException as e:
             logger.error(f"Canvas API error getting conversations: {e}")
             return []
@@ -312,7 +328,25 @@ class CanvasApiAdapter:
             return None
 
         try:
-            return self.canvas.get_conversation(conversation_id)
+            logger.info(f"Fetching conversation detail for ID: {conversation_id}")
+            conversation = self.canvas.get_conversation(conversation_id)
+
+            # Log the conversation attributes to debug
+            if conversation:
+                logger.info("Conversation detail retrieved successfully")
+                logger.info(f"Conversation attributes: {dir(conversation)}")
+
+                # Check if messages are available
+                if hasattr(conversation, "messages"):
+                    logger.info(f"Found {len(conversation.messages)} messages")
+                    if conversation.messages:
+                        logger.info(
+                            f"First message attributes: {dir(conversation.messages[0])}"
+                        )
+                else:
+                    logger.warning("Conversation has no messages attribute")
+
+            return conversation
         except CanvasException as e:
             logger.error(
                 f"Canvas API error getting conversation {conversation_id}: {e}"

@@ -244,7 +244,7 @@ class CanvasMCPTestClient:
         )
 
     def get_course_announcements(
-        self, course_id: int, limit: int = 10
+        self, course_id: int, limit: int = 10, num_weeks: int = 2
     ) -> list[dict[str, Any]]:
         """
         Get announcements for a specific course.
@@ -252,11 +252,14 @@ class CanvasMCPTestClient:
         Args:
             course_id: Course ID
             limit: Maximum number of announcements to return
+            num_weeks: Number of weeks to look back for announcements
 
         Returns:
             List of announcements
         """
-        return self.tools["get_course_announcements"](self.context, course_id, limit)
+        return self.tools["get_course_announcements"](
+            self.context, course_id, limit, num_weeks
+        )
 
     def search_course_content(
         self, query: str, course_id: int | None = None
@@ -272,3 +275,36 @@ class CanvasMCPTestClient:
             List of matching items
         """
         return self.tools["search_course_content"](self.context, query, course_id)
+
+    def get_course_communications(
+        self, course_id: int, limit: int = 20, num_weeks: int = 2
+    ) -> list[dict[str, Any]]:
+        """
+        Get all communications (announcements and conversations) for a specific course.
+
+        Args:
+            course_id: Course ID
+            limit: Maximum number of communications to return
+            num_weeks: Number of weeks to look back for communications
+
+        Returns:
+            List of communications (announcements and conversations)
+        """
+        return self.tools["get_course_communications"](
+            self.context, course_id, limit, num_weeks
+        )
+
+    def get_communications(
+        self, limit: int = 50, num_weeks: int = 2
+    ) -> list[dict[str, Any]]:
+        """
+        Get all communications (announcements and conversations) from all courses.
+
+        Args:
+            limit: Maximum number of communications to return
+            num_weeks: Number of weeks to look back for communications
+
+        Returns:
+            List of communications (announcements and conversations)
+        """
+        return self.tools["get_communications"](self.context, limit, num_weeks)

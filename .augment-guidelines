@@ -1,0 +1,89 @@
+# Development Standards & Practices
+- Follow Python 3.12+ standards with modern type annotations, using pathlib, httpx[http2], and structlog while adhering to KISS, YAGNI, CQS, SOC, SLAP, and PIE principles.
+- Use uv for Python package management and follow NumPy style docstrings starting on the first line.
+- Use modern Python typing: list instead of typing.List, X | Y instead of Union[X, Y], X | None instead of Optional[X].
+- User prefers using ruff as a precommit hook for formatting and checking.
+- User prefers addressing root causes of bugs rather than implementing workarounds or fixing isolated symptoms.
+- User prefers putting utility functions in a general utils.py file rather than creating specialized utility files.
+- User prefers breaking up large files into smaller ones when they become too complex.
+- User prioritizes making the codebase more intuitive for AI agents.
+- User prefers having a separate AI Agent README distinct from the human-focused README.md file.
+- User is considering adding structlog to the project and wants input on whether it's worth adding now.
+- User wants comprehensive documentation for the codebase, including cleaning up the scripts folder and adding a README that explains the most important test utilities and how to use them.
+- User wants database schema documentation added to the docs folder.
+- User wants @CLAUDE.md documentation file updated with essential repository information.
+- Claude should always check READMEs in every folder upon initialization, and the CLAUDE.md file should include comprehensive sections on testing, documentation, development workflow, and troubleshooting.
+
+# Git Practices
+- User prefers not to rebase git branches but to get vanilla origin versions of branches.
+- User prefers to reset git repositories to origin state while stashing changes to preserve work.
+- User prefers to keep .idea directory (JetBrains IDE files) out of git by adding it to .gitignore.
+- User approves committing changes directly to the repository without requiring explicit approval for each change.
+
+# Testing Philosophy
+- User prefers running tests first before making code changes to understand the current state.
+- User prioritizes comprehensive tool testing as being of utmost importance for the Canvas-MCP server.
+- Canvas-MCP has diagnostic scripts in scripts/diagnostics directory for testing and debugging.
+- Tests should use a separate test database, not the main application database.
+- User prefers having separate database initialization scripts for tests and the main application.
+- User prefers wiping the database before running integration tests to ensure a clean state.
+- User prefers using direct SQLite queries to verify database state during testing rather than relying on API responses.
+- User prefers testing principles: mock boundaries not internals, assert on outcomes not mocks, use realistic fakes/stubs.
+- User wants testing procedures documented in README files to help with future maintenance.
+- User prefers testing tools programmatically without using the Anthropic SDK and wants test scripts placed in the scripts directory.
+- User prefers CLI tools to support direct command-line arguments for testing without requiring interactive mode.
+- User prefers using the existing CLI tool at /Users/darin/Projects/Canvas-MCP/scripts/extract_tools_test.py for testing.
+- Canvas-MCP testing loop: reset DB, sync data, test tools, analyze results, repeat.
+- Documentation for testing tools is located at docs/live_testing.md.
+
+# Testing Utilities
+- `scripts/extract_tools_test.py` - Main tool for testing MCP tools directly
+  - Usage: `python scripts/extract_tools_test.py --tool <tool_name> --args '{"param": "value"}'`
+  - Run all tests: `python scripts/extract_tools_test.py --test`
+- `scripts/diagnostics/test_tools_integration.py` - Test integration between tools
+- `scripts/diagnostics/test_tools_comprehensive.py` - Comprehensive tool testing
+- `scripts/checks/check_database_integrity.py` - Check database integrity
+- `scripts/checks/check_database_relationships.py` - Check database relationships
+- Integration tests are in `tests/integration/` directory
+- Unit tests are in `tests/unit/` directory
+- Test fixtures are in `tests/data/` directory
+
+# Canvas-MCP Architecture
+- Canvas-MCP uses a layered architecture with Pydantic 2.0 models, CanvasApiAdapter, SyncService orchestrator, and sqlite-utils for persistence.
+- Canvas-MCP has server.py exposing MCP tools, canvas_client.py for Canvas API interaction, and utility modules for database, file extraction, and query parsing.
+- Canvas-MCP filters courses by enrollment_state='active' and defaults to current term only.
+- SQLite foreign key constraints should be enabled during database initialization.
+- User prefers refactoring with functional decomposition (API fetchers, pure transformation functions, DB helpers) over strict Repository/Adapter patterns.
+- Canvas-MCP can be run using 'uv run --directory $DIRECTORY canvas-mcp' command.
+- User has 4 active courses this semester and the course filtering functionality was working but may have broken after recent refactoring.
+- Canvas-MCP conversations feature allows access to direct messages from instructors alongside announcements.
+- Canvas-MCP database schema includes tables for courses, assignments, modules, module_items, announcements, conversations, and calendar_events.
+
+# MCP Tools & Resources
+- Synchronization tools: `sync_canvas_data`
+- Course tools: `get_course_list`
+- Assignment tools: `get_upcoming_deadlines`, `get_course_assignments`
+- Module tools: `get_course_modules`
+- Syllabus tools: `get_syllabus`
+- Announcement tools: `get_course_announcements`
+- File tools: `get_course_files`, `extract_text_from_course_file`
+- Search tools: `search_course_content`
+- Calendar tools: `get_course_calendar_events`
+- All tools receive a context object with access to database, API adapter, and sync service
+- Tools are tested using `scripts/extract_tools_test.py`
+
+# Integration Testing Setup
+- Integration tests use course SP25_CS_540_1 (ID: 146127) to verify real API responses.
+- Integration tests are organized in tests/integration directory with separate files for different functionality.
+- Tests use conditional sync with session-scoped fixtures to optimize performance while allowing individual test files to run independently.
+- Integration tests should set environment variables before importing server components.
+- Canvas-MCP has a generate_fixtures.py script for creating proper test data.
+- User wants to create an MCP client for testing and has MCP documentation available.
+
+# Course-Specific Requirements
+- The instructor for IDS 385 course uses Canvas Messages/Inbox for direct messages to students instead of the Announcements feature.
+- User wants to explore Canvas API documentation for accessing inbox messages to potentially implement this feature.
+- The get_conversations method in Canvas API might be a superset that includes both direct messages and announcements.
+- User prefers a simplified approach for conversations that focuses only on sender and message content, with a unified view that shows conversation data alongside announcements.
+- User wants course information displayed alongside conversation messages in the unified communications view.
+- User prefers storing author names instead of IDs, handling duplicates, filtering conversations by term date and valid courses only, and doesn't require backward compatibility for new features.

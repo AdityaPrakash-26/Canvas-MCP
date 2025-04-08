@@ -35,7 +35,7 @@ def sync_all(
     assignment_count = sync_service.sync_assignments(course_ids)
     module_count = sync_service.sync_modules(course_ids)
     announcement_count = sync_service.sync_announcements(course_ids)
-    conversation_count = sync_service.sync_conversations(course_ids)
+    conversation_count = sync_service.sync_conversations()
 
     return {
         "courses": len(course_ids),

@@ -4,67 +4,29 @@ Unit tests for the courses tools.
 These tests verify that the courses tools correctly interact with the database.
 """
 
-from types import SimpleNamespace
-
-from canvas_mcp.tools.courses import register_course_tools
+# pytest is used for fixtures
 
 
 class TestCoursesTools:
     """Test the courses tools."""
 
-    def test_get_course_list_empty(self, db_manager, clean_db):
+    def test_get_course_list_empty(
+        self, mock_mcp, mock_context, clean_db
+    ):  # clean_db ensures empty database
         """Test the get_course_list tool with an empty database."""
-
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    self.get_course_list = func
-                    return func
-
-                return decorator
-
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_course_tools(mock_mcp)
-
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
-
         # Call the get_course_list tool
-        result = mock_mcp.get_course_list(ctx)
+        result = mock_mcp.get_course_list(mock_context)
 
         # Verify the result
         assert isinstance(result, list)
         assert len(result) == 0
 
     def test_get_course_list_with_data(
-        self, sync_service, db_manager, synced_course_ids
-    ):
+        self, mock_mcp, mock_context, synced_course_ids
+    ):  # synced_course_ids ensures data exists
         """Test the get_course_list tool with data in the database."""
-
-        # Create a mock MCP server
-        class MockMCP:
-            def tool(self):
-                def decorator(func):
-                    self.get_course_list = func
-                    return func
-
-                return decorator
-
-        # Register the tools
-        mock_mcp = MockMCP()
-        register_course_tools(mock_mcp)
-
-        # Create a mock context
-        lifespan_context = {"db_manager": db_manager}
-        request_context = SimpleNamespace(lifespan_context=lifespan_context)
-        ctx = SimpleNamespace(request_context=request_context)
-
         # Call the get_course_list tool
-        result = mock_mcp.get_course_list(ctx)
+        result = mock_mcp.get_course_list(mock_context)
 
         # Verify the result
         assert isinstance(result, list)
