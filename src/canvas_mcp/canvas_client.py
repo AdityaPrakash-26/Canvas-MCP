@@ -575,162 +575,207 @@ class CanvasClient:
         if self.canvas is None:
             raise ImportError("canvasapi module is required for this operation")
 
-        # Connect to database
-        conn, cursor = self.connect_db()
+        # Define a helper function that will be decorated with with_connection
+        @self.db_manager.with_connection
+        def sync_course_assignments(conn, cursor, local_course_id, canvas_course_id):
+            """Sync assignments for a single course with proper transaction handling."""
+            course_assignment_count = 0
 
-        # Get all courses if not specified
-        if course_ids is None:
-            cursor.execute("SELECT id, canvas_course_id FROM courses")
-            courses = cursor.fetchall()
-        else:
-            courses = []
-            for course_id in course_ids:
+            # Get course from Canvas
+            canvas_course = self.canvas.get_course(canvas_course_id)
+
+            # Get assignments for the course
+            assignments = canvas_course.get_assignments()
+
+            for assignment in assignments:
+                # Convert submission_types to string
+                submission_types = ",".join(getattr(assignment, "submission_types", []))
+
+                # Check if assignment exists
                 cursor.execute(
-                    "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,),
+                    "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
+                    (local_course_id, assignment.id),
                 )
-                course = cursor.fetchone()
-                if course:
-                    courses.append(course)
+                existing_assignment = cursor.fetchone()
 
-        assignment_count = 0
-        for course in courses:
-            try:
-                local_course_id = course["id"]
-                canvas_course_id = course["canvas_course_id"]
-
-                # Get course from Canvas
-                canvas_course = self.canvas.get_course(canvas_course_id)
-
-                # Get assignments for the course
-                assignments = canvas_course.get_assignments()
-
-                for assignment in assignments:
-                    # Convert submission_types to string
-                    submission_types = ",".join(
-                        getattr(assignment, "submission_types", [])
-                    )
-
-                    # Check if assignment exists
+                if existing_assignment:
+                    # Update existing assignment
                     cursor.execute(
-                        "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
-                        (local_course_id, assignment.id),
+                        """
+                        UPDATE assignments SET
+                            title = ?,
+                            description = ?,
+                            assignment_type = ?,
+                            due_date = ?,
+                            available_from = ?,
+                            available_until = ?,
+                            points_possible = ?,
+                            submission_types = ?,
+                            updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            assignment.name,
+                            getattr(assignment, "description", None),
+                            self._get_assignment_type(assignment),
+                            getattr(assignment, "due_at", None),
+                            getattr(assignment, "unlock_at", None),
+                            getattr(assignment, "lock_at", None),
+                            getattr(assignment, "points_possible", None),
+                            submission_types,
+                            datetime.now().isoformat(),
+                            existing_assignment["id"],
+                        ),
                     )
-                    existing_assignment = cursor.fetchone()
+                    assignment_id = existing_assignment["id"]
+                else:
+                    # Check if this canvas_assignment_id already exists in another course
+                    # This is a defensive check to prevent constraint violations
+                    cursor.execute(
+                        "SELECT id, course_id FROM assignments WHERE canvas_assignment_id = ?",
+                        (assignment.id,),
+                    )
+                    duplicate = cursor.fetchone()
 
-                    if existing_assignment:
-                        # Update existing assignment
+                    if duplicate and duplicate["course_id"] != local_course_id:
+                        print(
+                            f"Warning: Assignment ID {assignment.id} already exists in course {duplicate['course_id']}"
+                        )
+                        print(
+                            f"This may indicate a Canvas API issue or data inconsistency."
+                        )
+                        # Generate a unique ID by appending the course ID
+                        # This is a workaround to prevent constraint violations
+                        modified_canvas_id = int(f"{assignment.id}{local_course_id}")
+                        print(
+                            f"Using modified canvas_assignment_id: {modified_canvas_id}"
+                        )
+                    else:
+                        modified_canvas_id = assignment.id
+
+                    # Insert new assignment
+                    cursor.execute(
+                        """
+                        INSERT INTO assignments (
+                            course_id, canvas_assignment_id, title, description,
+                            assignment_type, due_date, available_from, available_until,
+                            points_possible, submission_types, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            local_course_id,
+                            modified_canvas_id,
+                            assignment.name,
+                            getattr(assignment, "description", None),
+                            self._get_assignment_type(assignment),
+                            getattr(assignment, "due_at", None),
+                            getattr(assignment, "unlock_at", None),
+                            getattr(assignment, "lock_at", None),
+                            getattr(assignment, "points_possible", None),
+                            submission_types,
+                            datetime.now().isoformat(),
+                        ),
+                    )
+                    assignment_id = cursor.lastrowid
+
+                course_assignment_count += 1
+
+                # Add to calendar events
+                if hasattr(assignment, "due_at") and assignment.due_at:
+                    # Check if calendar event exists
+                    cursor.execute(
+                        """
+                        SELECT id FROM calendar_events
+                        WHERE course_id = ? AND source_type = ? AND source_id = ?
+                        """,
+                        (local_course_id, "assignment", assignment_id),
+                    )
+                    existing_event = cursor.fetchone()
+
+                    if existing_event:
+                        # Update existing event
                         cursor.execute(
                             """
-                            UPDATE assignments SET
+                            UPDATE calendar_events SET
                                 title = ?,
                                 description = ?,
-                                assignment_type = ?,
-                                due_date = ?,
-                                available_from = ?,
-                                available_until = ?,
-                                points_possible = ?,
-                                submission_types = ?,
+                                event_date = ?,
                                 updated_at = ?
                             WHERE id = ?
                             """,
                             (
                                 assignment.name,
-                                getattr(assignment, "description", None),
-                                self._get_assignment_type(assignment),
-                                getattr(assignment, "due_at", None),
-                                getattr(assignment, "unlock_at", None),
-                                getattr(assignment, "lock_at", None),
-                                getattr(assignment, "points_possible", None),
-                                submission_types,
+                                f"Due date for assignment: {assignment.name}",
+                                assignment.due_at,
                                 datetime.now().isoformat(),
-                                existing_assignment["id"],
+                                existing_event["id"],
                             ),
                         )
-                        assignment_id = existing_assignment["id"]
                     else:
-                        # Insert new assignment
+                        # Insert new event
                         cursor.execute(
                             """
-                            INSERT INTO assignments (
-                                course_id, canvas_assignment_id, title, description,
-                                assignment_type, due_date, available_from, available_until,
-                                points_possible, submission_types, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO calendar_events (
+                                course_id, title, description, event_type,
+                                source_type, source_id, event_date, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 local_course_id,
-                                assignment.id,
                                 assignment.name,
-                                getattr(assignment, "description", None),
+                                f"Due date for assignment: {assignment.name}",
                                 self._get_assignment_type(assignment),
-                                getattr(assignment, "due_at", None),
-                                getattr(assignment, "unlock_at", None),
-                                getattr(assignment, "lock_at", None),
-                                getattr(assignment, "points_possible", None),
-                                submission_types,
+                                "assignment",
+                                assignment_id,
+                                assignment.due_at,
                                 datetime.now().isoformat(),
                             ),
                         )
-                        assignment_id = cursor.lastrowid
-                    assignment_count += 1
 
-                    # Add to calendar events
-                    if hasattr(assignment, "due_at") and assignment.due_at:
-                        # Check if calendar event exists
-                        cursor.execute(
-                            """
-                            SELECT id FROM calendar_events
-                            WHERE course_id = ? AND source_type = ? AND source_id = ?
-                            """,
-                            (local_course_id, "assignment", assignment_id),
-                        )
-                        existing_event = cursor.fetchone()
+            return course_assignment_count
 
-                        if existing_event:
-                            # Update existing event
-                            cursor.execute(
-                                """
-                                UPDATE calendar_events SET
-                                    title = ?,
-                                    description = ?,
-                                    event_date = ?,
-                                    updated_at = ?
-                                WHERE id = ?
-                                """,
-                                (
-                                    assignment.name,
-                                    f"Due date for assignment: {assignment.name}",
-                                    assignment.due_at,
-                                    datetime.now().isoformat(),
-                                    existing_event["id"],
-                                ),
-                            )
-                        else:
-                            # Insert new event
-                            cursor.execute(
-                                """
-                                INSERT INTO calendar_events (
-                                    course_id, title, description, event_type,
-                                    source_type, source_id, event_date, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                (
-                                    local_course_id,
-                                    assignment.name,
-                                    f"Due date for assignment: {assignment.name}",
-                                    self._get_assignment_type(assignment),
-                                    "assignment",
-                                    assignment_id,
-                                    assignment.due_at,
-                                    datetime.now().isoformat(),
-                                ),
-                            )
+        # Get all courses if not specified
+        conn, cursor = self.connect_db()
+        try:
+            if course_ids is None:
+                cursor.execute("SELECT id, canvas_course_id FROM courses")
+                courses = cursor.fetchall()
+            else:
+                courses = []
+                for course_id in course_ids:
+                    cursor.execute(
+                        "SELECT id, canvas_course_id FROM courses WHERE id = ?",
+                        (course_id,),
+                    )
+                    course = cursor.fetchone()
+                    if course:
+                        courses.append(course)
+        finally:
+            conn.close()
+
+        # Process each course in its own transaction
+        assignment_count = 0
+        for course in courses:
+            local_course_id = course["id"]
+            canvas_course_id = course["canvas_course_id"]
+
+            print(
+                f"Syncing assignments for course {canvas_course_id} (local ID: {local_course_id})"
+            )
+
+            try:
+                # Use the decorated function to sync this course's assignments
+                # This will automatically handle the transaction
+                course_assignment_count = sync_course_assignments(
+                    local_course_id, canvas_course_id
+                )
+                print(
+                    f"Successfully synced {course_assignment_count} assignments for course {canvas_course_id}"
+                )
+                assignment_count += course_assignment_count
             except Exception as e:
                 print(f"Error syncing assignments for course {canvas_course_id}: {e}")
-
-        conn.commit()
-        conn.close()
+                # The with_connection decorator will handle rollback
 
         return assignment_count
 
