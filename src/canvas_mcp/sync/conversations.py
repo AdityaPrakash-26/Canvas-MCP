@@ -55,26 +55,13 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
         logger.warning("No courses found to sync conversations")
         return 0
 
-    # Get term start date for filtering
-    conn, cursor = sync_service.db_manager.connect()
-    try:
-        # Get the current term's start date
-        cursor.execute(
-            """
-            SELECT start_date FROM terms
-            WHERE id = (SELECT term_id FROM courses WHERE id = ? LIMIT 1)
-            """,
-            (courses_to_sync[0]["id"],),
-        )
-        term_row = cursor.fetchone()
-        term_start_date = term_row["start_date"] if term_row else None
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Error getting term start date: {e}")
-        term_start_date = None
-    finally:
-        conn.close()
+    # Set a default time period for filtering conversations (3 weeks ago)
+    from datetime import datetime, timedelta
+
+    term_start_date = datetime.now() - timedelta(days=21)  # Default to 3 weeks ago
+    logger.info(
+        f"Using default time period for filtering conversations: {term_start_date}"
+    )
 
     # Create a mapping of course names to local IDs
     course_name_to_id = {}
