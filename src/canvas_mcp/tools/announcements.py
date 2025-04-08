@@ -16,7 +16,9 @@ def register_announcement_tools(mcp: FastMCP) -> None:
     """Register announcement tools with the MCP server."""
 
     @mcp.tool()
-    def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, Any]]:
+    def get_course_announcements(
+        ctx: Context, course_id: int, limit: int = 10
+    ) -> list[dict[str, Any]]:
         """
         Get announcements for a specific course.
 
@@ -27,6 +29,10 @@ def register_announcement_tools(mcp: FastMCP) -> None:
         Returns:
             List of announcements
         """
+
+        # Get database manager from the lifespan context
+        db_manager = ctx.request_context.lifespan_context["db_manager"]
+
         conn, cursor = db_manager.connect()
 
         try:
@@ -51,25 +57,6 @@ def register_announcement_tools(mcp: FastMCP) -> None:
             )
 
             announcements = db_manager.rows_to_dicts(cursor.fetchall())
-
-            # Enhance announcements with additional context
-            for announcement in announcements:
-                # Extract links from the content
-                try:
-                    announcement["links"] = extract_links_from_content(
-                        announcement.get("content", "")
-                    )
-                except Exception as e:
-                    logger.error(f"Error extracting links from announcement: {e}")
-                    announcement["links"] = []
-
-                # Add content preview if content is long
-                if announcement.get("content"):
-                    preview_length = 500
-                    stripped_content = re.sub(r"<[^>]+>", "", announcement["content"])
-                    announcement["content_preview"] = stripped_content[:preview_length] + (
-                        "..." if len(stripped_content) > preview_length else ""
-                    )
 
             return announcements
         finally:
