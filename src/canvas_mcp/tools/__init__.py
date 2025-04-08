@@ -9,6 +9,7 @@ registered with the MCP server.
 __all__ = [
     "assignments",
     "announcements",
+    "calendar",
     "courses",
     "files",
     "modules",

@@ -104,6 +104,7 @@ mcp = FastMCP(
 # Register tool modules
 from canvas_mcp.tools.announcements import register_announcement_tools
 from canvas_mcp.tools.assignments import register_assignment_tools
+from canvas_mcp.tools.calendar import register_calendar_tools
 from canvas_mcp.tools.courses import register_course_tools
 from canvas_mcp.tools.files import register_file_tools
 from canvas_mcp.tools.modules import register_module_tools
@@ -120,6 +121,7 @@ register_syllabus_tools(mcp)
 register_announcement_tools(mcp)
 register_file_tools(mcp)
 register_search_tools(mcp)
+register_calendar_tools(mcp)
 
 
 if __name__ == "__main__":
