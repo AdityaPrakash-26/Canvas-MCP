@@ -16,13 +16,12 @@ def register_sync_tools(mcp: FastMCP) -> None:
     """Register sync tools with the MCP server."""
 
     @mcp.tool()
-    def sync_canvas_data(ctx: Context, _force: bool = False) -> dict[str, Any]:
+    def sync_canvas_data(ctx: Context) -> dict[str, Any]:
         """
         Synchronize data from Canvas LMS to the local database.
 
         Args:
             ctx: Request context containing resources
-            _force: If True, sync all data even if recently updated (unused)
 
         Returns:
             Dictionary with counts of synced items

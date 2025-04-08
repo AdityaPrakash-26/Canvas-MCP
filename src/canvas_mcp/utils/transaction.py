@@ -7,8 +7,8 @@ implementing best practices for SQLite transactions across the Canvas MCP projec
 
 import logging
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator, Tuple
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @contextmanager
 def transaction(
     conn: sqlite3.Connection, cursor: sqlite3.Cursor
-) -> Generator[Tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
+) -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
     """
     Context manager for database transactions.
     Automatically handles commits and rollbacks.
@@ -44,10 +44,10 @@ def transaction(
     try:
         # Begin transaction explicitly
         cursor.execute("BEGIN TRANSACTION")
-        
+
         # Yield connection and cursor for use within the context
         yield conn, cursor
-        
+
         # If we get here without an exception, commit the transaction
         conn.commit()
         logger.debug("Transaction committed successfully")

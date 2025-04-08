@@ -1,5 +1,7 @@
 """
 Canvas API client for synchronizing data with the local database.
+This client handles all interactions with the Canvas LMS API and manages
+the synchronization of course data to the local SQLite database.
 """
 
 import os
@@ -9,7 +11,6 @@ from datetime import datetime
 from typing import Any
 
 from canvas_mcp.utils.db_manager import DatabaseManager
-from canvas_mcp.utils.file_extractor import extract_text_from_file
 
 # Make Canvas available for patching in tests
 try:
@@ -108,116 +109,6 @@ class CanvasClient:
             print(f"Error extracting PDF links: {e}")
 
         return list(set(pdf_links))  # Remove duplicates
-
-    @staticmethod
-    def extract_links(content: str | None) -> list[dict[str, str]]:
-        """
-        Extract links from HTML content.
-
-        Args:
-            content: HTML content to parse
-
-        Returns:
-            List of dictionaries with 'url' and 'text' keys
-        """
-        if not content or not isinstance(content, str):
-            return []
-
-        links = []
-        try:
-            # Find <a> tags with href attributes
-            a_tag_pattern = re.compile(
-                r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL
-            )
-            for match in a_tag_pattern.finditer(content):
-                url = match.group(1)
-                text = re.sub(
-                    r"<[^>]*>", "", match.group(2)
-                ).strip()  # Remove nested HTML tags
-                if url and url not in [link["url"] for link in links]:
-                    links.append({"url": url, "text": text or url})
-
-            # If no <a> tags found, look for bare URLs
-            if not links:
-                url_pattern = re.compile(r"https?://\S+")
-                for match in url_pattern.finditer(content):
-                    url = match.group(0)
-                    if url not in [link["url"] for link in links]:
-                        links.append({"url": url, "text": url})
-
-        except Exception as e:
-            print(f"Error extracting links: {e}")
-            # Fall back to simple search if regex fails
-            if "href=" in content:
-                # Just extract the link without parsing
-                start = content.find('href="') + 6
-                end = content.find('"', start)
-                if start > 6 and end > start:
-                    url = content[start:end]
-                    links.append({"url": url, "text": "Link"})
-
-        return links
-
-    @staticmethod
-    def detect_content_type(content: str | None) -> str:
-        """
-        Detect the content type from the given content string.
-
-        Args:
-            content: The content string to analyze
-
-        Returns:
-            String indicating the content type ('html', 'pdf_link', 'external_link', 'json', etc.)
-        """
-        if not content or not isinstance(content, str):
-            return "html"  # Default for empty content
-
-        # Strip whitespace for easier checks
-        stripped_content = content.strip()
-        content_lower = stripped_content.lower()
-
-        # Check for empty content first
-        if stripped_content in ["<p></p>", "<div></div>", ""]:
-            return "empty"
-
-        # Check for PDF links
-        if ".pdf" in content_lower and (
-            "<a href=" in content_lower or "src=" in content_lower
-        ):
-            return "pdf_link"
-
-        # Check for external links (simple URLs with minimal formatting)
-        if (
-            content_lower.startswith("http://")
-            or content_lower.startswith("https://")
-            or (
-                ("http://" in content or "https://" in content)
-                and len(stripped_content) < 1000
-                and content.count(" ") < 10
-            )
-        ):
-            return "external_link"
-
-        # Check for JSON content
-        if stripped_content.startswith("{") and stripped_content.endswith("}"):
-            try:
-                import json
-
-                json.loads(stripped_content)
-                return "json"
-            except (json.JSONDecodeError, ValueError):
-                pass  # Not valid JSON
-
-        # Check for XML/HTML content
-        if (stripped_content.startswith("<") and stripped_content.endswith(">")) or (
-            "<html" in content_lower
-            or "<body" in content_lower
-            or "<div" in content_lower
-        ):
-            return "html"
-
-        # Default to HTML for anything else
-        return "html"
 
     def __init__(
         self,
@@ -330,237 +221,12 @@ class CanvasClient:
                             == max_term_id
                         ]
             else:
-                # Filter for the specific term requested
-                courses = [
-                    course
-                    for course in courses
-                    if getattr(course, "enrollment_term_id", None) == term_id
-                ]
-
-        # Connect to database
-        conn, cursor = self.connect_db()
-
-        course_ids = []
-        for course in courses:
-            # Check if user has opted out of this course
-            cursor.execute(
-                "SELECT indexing_opt_out FROM user_courses WHERE user_id = ? AND course_id = ?",
-                (user_id, course.id),
-            )
-            row = cursor.fetchone()
-            if row and row["indexing_opt_out"]:
-                print(f"Skipping opted-out course: {course.name}")
-                continue
-
-            # Get detailed course information
-            detailed_course = self.canvas.get_course(course.id)
-
-            # Properly convert all MagicMock attributes to appropriate types for SQLite
-            course_id = int(course.id) if hasattr(course, "id") else None
-            course_code = (
-                str(getattr(course, "course_code", ""))
-                if getattr(course, "course_code", None) is not None
-                else ""
-            )
-            course_name = str(course.name) if hasattr(course, "name") else ""
-            instructor = (
-                str(getattr(detailed_course, "teacher", ""))
-                if getattr(detailed_course, "teacher", None) is not None
-                else None
-            )
-            description = (
-                str(getattr(detailed_course, "description", ""))
-                if getattr(detailed_course, "description", None) is not None
-                else None
-            )
-            start_date = (
-                str(getattr(detailed_course, "start_at", ""))
-                if getattr(detailed_course, "start_at", None) is not None
-                else None
-            )
-            end_date = (
-                str(getattr(detailed_course, "end_at", ""))
-                if getattr(detailed_course, "end_at", None) is not None
-                else None
-            )
-
-            # Check if course exists
-            cursor.execute(
-                "SELECT id FROM courses WHERE canvas_course_id = ?", (course_id,)
-            )
-            existing_course = cursor.fetchone()
-
-            if existing_course:
-                # Update existing course
-                cursor.execute(
-                    """
-                    UPDATE courses SET
-                        course_code = ?,
-                        course_name = ?,
-                        instructor = ?,
-                        description = ?,
-                        start_date = ?,
-                        end_date = ?,
-                        updated_at = ?
-                    WHERE canvas_course_id = ?
-                    """,
-                    (
-                        course_code,
-                        course_name,
-                        instructor,
-                        description,
-                        start_date,
-                        end_date,
-                        datetime.now().isoformat(),
-                        course_id,
-                    ),
+                raise ValueError(
+                    "Invalid term_id. Why are you not getting latest term?"
                 )
-                local_course_id = existing_course["id"]
-            else:
-                # Insert new course
-                cursor.execute(
-                    """
-                    INSERT INTO courses (
-                        canvas_course_id, course_code, course_name,
-                        instructor, description, start_date, end_date, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        course_id,
-                        course_code,
-                        course_name,
-                        instructor,
-                        description,
-                        start_date,
-                        end_date,
-                        datetime.now().isoformat(),
-                    ),
-                )
-                local_course_id = cursor.lastrowid
-            course_ids.append(local_course_id)
 
-            # Store or update syllabus
-            # Check if syllabus body is available
-            syllabus_body = getattr(detailed_course, "syllabus_body", None)
-
-            # Always create a syllabus entry, even if empty
-            content = (
-                syllabus_body
-                if syllabus_body
-                else "<p>No syllabus content available</p>"
-            )
-            content_type = (
-                self.detect_content_type(content) if syllabus_body else "empty"
-            )
-            parsed_content = None
-            is_parsed = False
-
-            # If it's a PDF link, try to extract the content from the PDF
-            if content_type == "pdf_link":
-                pdf_links = self.extract_pdf_links(content)
-
-                if pdf_links:
-                    # Try to extract text from the first PDF link
-                    pdf_url = pdf_links[0]
-
-                    # Try to extract the PDF content
-                    try:
-                        extraction_result = extract_text_from_file(pdf_url, "pdf")
-                        if extraction_result["success"]:
-                            parsed_content = extraction_result["text"]
-                            is_parsed = True
-                            print(
-                                f"Successfully extracted PDF content for course: {course_name}"
-                            )
-                        else:
-                            print(
-                                f"Failed to extract content from PDF for course: {course_name}"
-                            )
-                    except Exception as e:
-                        print(
-                            f"Error extracting PDF content for course {course_name}: {e}"
-                        )
-
-            # Check if syllabus exists
-            cursor.execute(
-                "SELECT id FROM syllabi WHERE course_id = ?", (local_course_id,)
-            )
-            existing_syllabus = cursor.fetchone()
-
-            if existing_syllabus:
-                # Update existing syllabus
-                if is_parsed and parsed_content:
-                    cursor.execute(
-                        """
-                        UPDATE syllabi SET
-                            content = ?,
-                            content_type = ?,
-                            parsed_content = ?,
-                            is_parsed = ?,
-                            updated_at = ?
-                        WHERE course_id = ?
-                        """,
-                        (
-                            content,
-                            content_type,
-                            parsed_content,
-                            is_parsed,
-                            datetime.now().isoformat(),
-                            local_course_id,
-                        ),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        UPDATE syllabi SET
-                            content = ?,
-                            content_type = ?,
-                            updated_at = ?
-                        WHERE course_id = ?
-                        """,
-                        (
-                            content,
-                            content_type,
-                            datetime.now().isoformat(),
-                            local_course_id,
-                        ),
-                    )
-            else:
-                # Insert new syllabus
-                if is_parsed and parsed_content:
-                    cursor.execute(
-                        """
-                        INSERT INTO syllabi
-                        (course_id, content, content_type, parsed_content, is_parsed, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            local_course_id,
-                            content,
-                            content_type,
-                            parsed_content,
-                            is_parsed,
-                            datetime.now().isoformat(),
-                        ),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        INSERT INTO syllabi (course_id, content, content_type, updated_at)
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        (
-                            local_course_id,
-                            content,
-                            content_type,
-                            datetime.now().isoformat(),
-                        ),
-                    )
-
-        conn.commit()
-        conn.close()
-
-        return course_ids
+        assert courses, "No courses found"
+        return courses
 
     def sync_assignments(self, course_ids: list[int] | None = None) -> int:
         """
@@ -642,7 +308,7 @@ class CanvasClient:
                             f"Warning: Assignment ID {assignment.id} already exists in course {duplicate['course_id']}"
                         )
                         print(
-                            f"This may indicate a Canvas API issue or data inconsistency."
+                            "This may indicate a Canvas API issue or data inconsistency."
                         )
                         # Generate a unique ID by appending the course ID
                         # This is a workaround to prevent constraint violations
@@ -1321,67 +987,6 @@ class CanvasClient:
 
         return announcement_count
 
-    def parse_existing_pdf_syllabi(self) -> int:
-        """
-        Parse existing PDF syllabi that haven't been parsed yet.
-
-        Returns:
-            Number of successfully parsed syllabi
-        """
-        # Import the correct function from file_extractor
-        from canvas_mcp.utils.file_extractor import extract_text_from_pdf_url
-
-        conn, cursor = self.connect_db()
-
-        # Find syllabi of type pdf_link that haven't been parsed
-        cursor.execute("""
-            SELECT s.id, s.course_id, s.content, c.course_name
-            FROM syllabi s
-            JOIN courses c ON s.course_id = c.id
-            WHERE s.content_type = 'pdf_link' AND (s.is_parsed = 0 OR s.is_parsed IS NULL)
-        """)
-
-        pdf_syllabi = cursor.fetchall()
-        parsed_count = 0
-
-        for syllabus in pdf_syllabi:
-            syllabus_id = syllabus[0]
-            content = syllabus[2]
-            course_name = syllabus[3]
-
-            # Extract PDF links from the content
-            pdf_links = self.extract_pdf_links(content)
-
-            if not pdf_links:
-                continue
-
-            # Try to extract text from the first PDF link
-            try:
-                pdf_text = extract_text_from_pdf_url(pdf_links[0])
-
-                if pdf_text:
-                    # Update the syllabus with the parsed content
-                    cursor.execute(
-                        """
-                        UPDATE syllabi SET
-                            parsed_content = ?,
-                            is_parsed = 1,
-                            updated_at = ?
-                        WHERE id = ?
-                    """,
-                        (pdf_text, datetime.now().isoformat(), syllabus_id),
-                    )
-
-                    parsed_count += 1
-                    print(f"Successfully parsed PDF syllabus for course: {course_name}")
-            except Exception as e:
-                print(f"Error parsing PDF syllabus for course {course_name}: {e}")
-
-        conn.commit()
-        conn.close()
-
-        return parsed_count
-
     def sync_all(
         self, user_id: str | None = None, term_id: int | None = -1
     ) -> dict[str, int]:
@@ -1432,3 +1037,62 @@ class CanvasClient:
             return "exam"
         else:
             return "assignment"
+
+
+def detect_content_type(content: str | None) -> str:
+    """
+    Detect the content type from the given content string.
+
+    Args:
+        content: The content string to analyze
+
+    Returns:
+        String indicating the content type ('html', 'pdf_link', 'external_link', 'json', etc.)
+    """
+    if not content or not isinstance(content, str):
+        return "html"  # Default for empty content
+
+    # Strip whitespace for easier checks
+    stripped_content = content.strip()
+    content_lower = stripped_content.lower()
+
+    # Check for empty content first
+    if stripped_content in ["<p></p>", "<div></div>", ""]:
+        return "empty"
+
+    # Check for PDF links
+    if ".pdf" in content_lower and (
+        "<a href=" in content_lower or "src=" in content_lower
+    ):
+        return "pdf_link"
+
+    # Check for external links (simple URLs with minimal formatting)
+    if (
+        content_lower.startswith("http://")
+        or content_lower.startswith("https://")
+        or (
+            ("http://" in content or "https://" in content)
+            and len(stripped_content) < 1000
+            and content.count(" ") < 10
+        )
+    ):
+        return "external_link"
+
+    # Check for JSON content
+    if stripped_content.startswith("{") and stripped_content.endswith("}"):
+        try:
+            import json
+
+            json.loads(stripped_content)
+            return "json"
+        except (json.JSONDecodeError, ValueError):
+            pass  # Not valid JSON
+
+    # Check for XML/HTML content
+    if (stripped_content.startswith("<") and stripped_content.endswith(">")) or (
+        "<html" in content_lower or "<body" in content_lower or "<div" in content_lower
+    ):
+        return "html"
+
+    # Default to HTML for anything else
+    return "html"
