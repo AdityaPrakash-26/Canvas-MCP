@@ -3,8 +3,8 @@
 Test script to verify SQLite foreign key behavior.
 """
 
-import sqlite3
 import os
+import sqlite3
 from pathlib import Path
 
 # Create a test database path

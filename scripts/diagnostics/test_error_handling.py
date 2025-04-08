@@ -19,10 +19,10 @@ import time
 from pathlib import Path
 
 # Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
-from src.canvas_mcp.config import get_canvas_api_key, get_canvas_api_url
+from src.canvas_mcp.config import API_KEY, API_URL
 from src.canvas_mcp.sync.service import SyncService
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
@@ -37,8 +37,8 @@ logger = logging.getLogger("error_test")
 def setup_test_environment():
     """Set up the test environment with API adapter and database manager."""
     # Get API credentials
-    api_key = get_canvas_api_key()
-    api_url = get_canvas_api_url()
+    api_key = API_KEY
+    api_url = API_URL
 
     if not api_key or not api_url:
         logger.error(

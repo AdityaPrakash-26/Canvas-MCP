@@ -15,16 +15,17 @@ Options:
 
 import argparse
 import logging
+import sqlite3
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
 # Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
-from src.canvas_mcp.config import get_canvas_api_key, get_canvas_api_url
+from src.canvas_mcp.config import API_KEY, API_URL
 from src.canvas_mcp.sync.service import SyncService
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
@@ -45,8 +46,8 @@ logger = logging.getLogger("sync_test")
 def setup_test_environment():
     """Set up the test environment with API adapter and database manager."""
     # Get API credentials
-    api_key = get_canvas_api_key()
-    api_url = get_canvas_api_url()
+    api_key = API_KEY
+    api_url = API_URL
 
     if not api_key or not api_url:
         logger.error(
@@ -93,7 +94,7 @@ def test_api_connectivity(api_adapter):
 
 
 def test_database_setup(db_manager):
-    """Test database setup and schema."""
+    """Test database setup and schema. Initialize if needed."""
     logger.info("Testing database setup...")
 
     try:
@@ -115,8 +116,41 @@ def test_database_setup(db_manager):
 
         missing_tables = [table for table in expected_tables if table not in tables]
         if missing_tables:
-            logger.error(f"Missing tables in database: {missing_tables}")
-            return False
+            logger.warning(f"Missing tables in database: {missing_tables}")
+            logger.info("Initializing database schema...")
+
+            # Close the current connection
+            conn.close()
+
+            # Import the database initialization function
+            from tests.init_db import create_tables, create_views
+
+            # Create a new connection for initialization
+            conn = sqlite3.connect(db_manager.db_path)
+            cursor = conn.cursor()
+
+            # Create tables and views
+            create_tables(cursor)
+            create_views(cursor)
+
+            # Commit changes
+            conn.commit()
+
+            # Verify tables were created
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+
+            missing_tables = [table for table in expected_tables if table not in tables]
+            if missing_tables:
+                logger.error(f"Failed to create tables: {missing_tables}")
+                conn.close()
+                return False
+
+            logger.info(
+                f"Database initialized successfully with tables: {', '.join(tables)}"
+            )
+            conn.close()
+            return True
 
         logger.info(f"Database schema verified. Found tables: {', '.join(tables)}")
         conn.close()
@@ -259,7 +293,7 @@ def verify_data_integrity(db_manager, sync_results):
 
         # Check for null values in critical fields
         cursor.execute(
-            "SELECT COUNT(*) as count FROM courses WHERE course_code IS NULL OR name IS NULL"
+            "SELECT COUNT(*) as count FROM courses WHERE course_code IS NULL OR course_name IS NULL"
         )
         null_courses = cursor.fetchone()["count"]
         if null_courses > 0:

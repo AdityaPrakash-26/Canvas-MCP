@@ -20,9 +20,7 @@ import sys
 from pathlib import Path
 
 # Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import sqlite3
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
@@ -39,19 +37,22 @@ def check_foreign_keys(db_path, fix=False):
     logger.info("Checking foreign key constraints...")
 
     try:
-        # Connect directly to check pragma settings
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        # Use the DatabaseManager to ensure foreign keys are enabled
+        db_manager = DatabaseManager(db_path)
+        conn, cursor = db_manager.connect()
 
         # Check if foreign keys are enabled
         cursor.execute("PRAGMA foreign_keys")
         foreign_keys_enabled = cursor.fetchone()[0]
 
         if not foreign_keys_enabled:
-            logger.warning("Foreign key constraints are not enabled")
+            logger.warning(
+                "Foreign key constraints are not enabled despite DatabaseManager settings"
+            )
             if fix:
+                # Try to enable and persist foreign keys
                 cursor.execute("PRAGMA foreign_keys = ON")
+                conn.commit()
                 logger.info("Enabled foreign key constraints")
         else:
             logger.info("Foreign key constraints are enabled")
@@ -87,6 +88,7 @@ def check_foreign_keys(db_path, fix=False):
         else:
             logger.info("No foreign key constraint violations found")
 
+        # Close the connection
         conn.close()
         return not violations
     except Exception as e:
@@ -210,8 +212,8 @@ def check_duplicate_records(db_manager, fix=False):
             },
             {
                 "table": "module_items",
-                "fields": ["module_id", "canvas_module_item_id"],
-                "description": "module and Canvas module item ID",
+                "fields": ["module_id", "canvas_item_id"],
+                "description": "module and Canvas item ID",
             },
             {
                 "table": "announcements",
@@ -300,7 +302,7 @@ def check_null_values(db_manager):
         # Define critical fields to check
         critical_fields = [
             {"table": "courses", "field": "course_code", "description": "course code"},
-            {"table": "courses", "field": "name", "description": "course name"},
+            {"table": "courses", "field": "course_name", "description": "course name"},
             {
                 "table": "assignments",
                 "field": "title",
@@ -363,7 +365,7 @@ def check_data_consistency(db_manager):
 
         # Check for courses with no assignments
         cursor.execute("""
-            SELECT c.id, c.course_code, c.name
+            SELECT c.id, c.course_code, c.course_name
             FROM courses c
             LEFT JOIN assignments a ON c.id = a.course_id
             WHERE a.id IS NULL
@@ -376,14 +378,14 @@ def check_data_consistency(db_manager):
             )
             for course in courses_no_assignments:
                 logger.warning(
-                    f"  Course {course['course_code']} ({course['name']}) has no assignments"
+                    f"  Course {course['course_code']} ({course['course_name']}) has no assignments"
                 )
         else:
             logger.info("All courses have at least one assignment")
 
         # Check for courses with no modules
         cursor.execute("""
-            SELECT c.id, c.course_code, c.name
+            SELECT c.id, c.course_code, c.course_name
             FROM courses c
             LEFT JOIN modules m ON c.id = m.course_id
             WHERE m.id IS NULL
@@ -394,7 +396,7 @@ def check_data_consistency(db_manager):
             logger.warning(f"Found {len(courses_no_modules)} courses with no modules")
             for course in courses_no_modules:
                 logger.warning(
-                    f"  Course {course['course_code']} ({course['name']}) has no modules"
+                    f"  Course {course['course_code']} ({course['course_name']}) has no modules"
                 )
         else:
             logger.info("All courses have at least one module")
@@ -420,7 +422,7 @@ def check_data_consistency(db_manager):
 
         # Check for courses with no syllabus
         cursor.execute("""
-            SELECT c.id, c.course_code, c.name
+            SELECT c.id, c.course_code, c.course_name
             FROM courses c
             LEFT JOIN syllabi s ON c.id = s.course_id
             WHERE s.id IS NULL
@@ -431,7 +433,7 @@ def check_data_consistency(db_manager):
             logger.warning(f"Found {len(courses_no_syllabus)} courses with no syllabus")
             for course in courses_no_syllabus:
                 logger.warning(
-                    f"  Course {course['course_code']} ({course['name']}) has no syllabus"
+                    f"  Course {course['course_code']} ({course['course_name']}) has no syllabus"
                 )
         else:
             logger.info("All courses have a syllabus")

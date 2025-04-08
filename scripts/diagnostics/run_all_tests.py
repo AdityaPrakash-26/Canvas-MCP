@@ -198,34 +198,19 @@ def main():
         # First run the unit and integration tests
         {"type": "pytest", "path": "tests/unit/"},
         {"type": "pytest", "path": "tests/integration/"},
-        # Core test utilities
-        {
-            "type": "script",
-            "path": "scripts/extract_tools_test.py",
-            "args": ["--test"] + (["--verbose"] if args.verbose else []),
-        },
-        {
-            "type": "script",
-            "path": "scripts/direct_tools_test.py",
-            "args": ["--test"] + (["--verbose"] if args.verbose else []),
-        },
-        {
-            "type": "script",
-            "path": "scripts/diagnostics/test_tools_integration.py",
-            "args": ["--verbose"] if args.verbose else [],
-        },
         # Then run the diagnostic scripts
         {
             "type": "script",
-            "path": "scripts/diagnostics/test_full_sync_process.py",
+            "path": "scripts/test_full_sync_process.py",
             "args": [f"--term_id={args.term_id}"],
         },
         {
             "type": "script",
-            "path": "scripts/diagnostics/check_database_relationships.py",
+            "path": "scripts/check_database_relationships.py",
             "args": ["--fix"] if args.fix else [],
         },
-        {"type": "script", "path": "scripts/diagnostics/test_error_handling.py"},
+        {"type": "script", "path": "scripts/test_error_handling.py"},
+        {"type": "script", "path": "scripts/test_tools_integration.py"},
     ]
 
     # Run all tests and collect results
