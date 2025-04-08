@@ -48,84 +48,40 @@ def test_get_communications_with_data(
     assert isinstance(result_weeks, list)
 
 
-@pytest.mark.skip("Requires database setup with test data")
-def test_get_communications_with_test_data(mock_mcp, mock_context, db_manager):
-    """Test the get_communications function with specific test data."""
-    # Create test data in the database
-    conn, cursor = db_manager.connect()
+def test_get_communications_with_test_data(
+    mock_mcp, mock_context, setup_communications_data, mock_datetime
+):
+    """Test the get_communications function with synced test data."""
+    # Call the get_communications function
+    result = mock_mcp.get_communications(mock_context)
 
-    try:
-        # Create a test course
-        cursor.execute(
-            """
-            INSERT INTO courses (canvas_course_id, course_code, course_name, instructor, start_date, end_date)
-            VALUES (12345, 'TEST-101', 'Test Course 101', 'Test Instructor', '2025-01-01', '2025-05-01')
-            """
+    # Verify the result
+    assert isinstance(result, list)
+
+    # We should have communications from the fixtures
+    assert len(result) > 0, "Should have communications from fixtures"
+
+    # Check that we have both types of communications
+    announcement_count = sum(
+        1 for item in result if item.get("source_type") == "announcement"
+    )
+    conversation_count = sum(
+        1 for item in result if item.get("source_type") == "conversation"
+    )
+
+    # We should have at least one of each type
+    assert announcement_count > 0, "Should have at least one announcement"
+    assert conversation_count > 0, "Should have at least one conversation"
+
+    # Check that communications have the expected fields
+    for item in result:
+        assert "title" in item, "Communication should have a title"
+        assert "content" in item, "Communication should have content"
+        assert "posted_by" in item, "Communication should have a posted_by field"
+        assert "course_name" in item, "Communication should have a course_name"
+        assert "formatted_posted_at" in item, (
+            "Communication should have a formatted date"
         )
-        course_id = cursor.lastrowid
-
-        # Create a test announcement
-        cursor.execute(
-            """
-            INSERT INTO announcements (canvas_announcement_id, course_id, title, content, posted_by, posted_at, created_at, updated_at)
-            VALUES (1001, ?, 'Test Announcement', 'This is a test announcement', 'Test Instructor', '2025-04-01 12:00:00+00:00', '2025-04-01 12:00:00', '2025-04-01 12:00:00')
-            """,
-            (course_id,),
-        )
-
-        # Check if conversations table exists
-        cursor.execute(
-            """
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name='conversations';
-            """
-        )
-        conversations_table_exists = cursor.fetchone() is not None
-
-        if conversations_table_exists:
-            # Create a test conversation
-            cursor.execute(
-                """
-                INSERT INTO conversations (canvas_conversation_id, course_id, title, content, posted_by, posted_at, created_at, updated_at)
-                VALUES (2001, ?, 'Test Conversation', 'This is a test conversation', 'Instructor', '2025-04-02 14:00:00+00:00', '2025-04-02 14:00:00', '2025-04-02 14:00:00')
-                """,
-                (course_id,),
-            )
-
-        conn.commit()
-
-        # Mock the datetime module for consistent testing
-        with patch("canvas_mcp.utils.formatters.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime.datetime(2025, 4, 5, 12, 0, 0)
-            mock_dt.datetime = datetime.datetime
-            mock_dt.timedelta = datetime.timedelta
-            mock_dt.fromisoformat = datetime.datetime.fromisoformat
-
-            # Call the get_communications function
-            result = mock_mcp.get_communications(mock_context)
-
-            # Verify the result
-            assert isinstance(result, list)
-
-            if conversations_table_exists:
-                assert len(result) == 2, (
-                    "Should have 2 communications (1 announcement, 1 conversation)"
-                )
-
-                # Check that we have both types of communications
-                announcement_count = sum(
-                    1 for item in result if item.get("source_type") == "announcement"
-                )
-                conversation_count = sum(
-                    1 for item in result if item.get("source_type") == "conversation"
-                )
-
-                assert announcement_count == 1, "Should have 1 announcement"
-                assert conversation_count == 1, "Should have 1 conversation"
-            else:
-                assert len(result) == 1, "Should have 1 announcement"
-    finally:
-        conn.close()
 
 
 def test_format_date(mock_datetime):  # mock_datetime ensures consistent date formatting

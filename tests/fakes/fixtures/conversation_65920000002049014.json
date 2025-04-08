@@ -1,0 +1,1127 @@
+{
+  "audience": [
+    65920000000328329,
+    65920000000323236,
+    65920000000325056,
+    65920000000311433,
+    65920000000311753,
+    65920000000286330,
+    65920000000223735,
+    65920000000311769,
+    65920000000234086,
+    65920000000323502,
+    65920000000234352,
+    65920000000223769,
+    65920000000262268,
+    65920000000291112,
+    65920000000312820,
+    65920000000297153,
+    65920000000259287,
+    65920000000208478,
+    65920000000294201,
+    65920000000321013,
+    65920000000291823,
+    65920000000285399,
+    65920000000311651,
+    65920000000317575,
+    65920000000311560,
+    65920000000311339,
+    65920000000317766,
+    65920000000285124,
+    65920000000225694,
+    65920000000255819,
+    65920000000223366,
+    65920000000223610,
+    65920000000258155,
+    65920000000314048,
+    65920000000287034,
+    65920000000323184,
+    65920000000284984,
+    65920000000254829,
+    65920000000289699,
+    65920000000290077,
+    65920000000316484,
+    65920000000291758,
+    65920000000238275,
+    65920000000323791,
+    65920000000297034,
+    65920000000284550,
+    65920000000223462,
+    65920000000298550,
+    65920000000286068,
+    65920000000317129,
+    65920000000295275,
+    65920000000289654,
+    65920000000320536,
+    65920000000311389,
+    65920000000320935,
+    65920000000254472,
+    65920000000260009
+  ],
+  "audience_contexts": {
+    "courses": {
+      "65920000000144735": []
+    },
+    "groups": {}
+  },
+  "avatar_url": "https://canvas.instructure.com/images/messages/avatar-group-50.png",
+  "context_code": "course_65920000000144735",
+  "context_name": "CS-110-1: Computer Science Fundamentals - Spring 2025",
+  "id": 65920000002049014,
+  "last_authored_message": null,
+  "last_authored_message_at": null,
+  "last_message": "Dear CS110,\n\nPlease find the review slide here. \n\nThanks,\n\nInsuk",
+  "last_message_at": "2025-03-31T18:26:00Z",
+  "last_message_at_date": "2025-03-31 18:26:00+00:00",
+  "message_count": 1,
+  "messages": [
+    {}
+  ],
+  "participants": [
+    {
+      "id": 65920000000328329,
+      "name": "Insuk Jang",
+      "full_name": "Insuk Jang",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "TeacherEnrollment"
+        ]
+      },
+      "common_groups": {},
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000323236,
+      "name": "Ada Lu",
+      "full_name": "Ada Lu",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000325056,
+      "name": "Adam Lee",
+      "full_name": "Adam Lee",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000311433,
+      "name": "Aiden Chae",
+      "full_name": "Aiden Chae",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://secure.gravatar.com/avatar/905aade682793edc6c090740b5c1ddb3?s=128&d=identicon"
+    },
+    {
+      "id": 65920000000311753,
+      "name": "Albert Jung",
+      "full_name": "Albert Jung",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12198857/QtFSOnAhvsyKLxkVWHmkQeyiCOng68V9SxV84N7J"
+    },
+    {
+      "id": 65920000000286330,
+      "name": "Albert Wei",
+      "full_name": "Albert Wei",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000096253": [
+          "StudentEnrollment"
+        ],
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000223735,
+      "name": "Alexandra Vigder",
+      "full_name": "Alexandra Vigder",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ],
+        "65920000000159624": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000311769,
+      "name": "Andrew Chen",
+      "full_name": "Andrew Chen",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/12512674/Hgx7S66vcpH9kzjoTcrhow6UG9uYrY5iTyJemMBM"
+    },
+    {
+      "id": 65920000000234086,
+      "name": "Andrew Yang",
+      "full_name": "Andrew Yang",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000096253": [
+          "StudentEnrollment"
+        ],
+        "65920000000043271": [
+          "StudentEnrollment"
+        ],
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000323502,
+      "name": "Aoun Hakim",
+      "full_name": "Aoun Hakim",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12292105/Ip7Iv0dVifrTd8Q99QuxXxACok6KbRdiDDqzqu64"
+    },
+    {
+      "id": 65920000000234352,
+      "name": "Artem Linde",
+      "full_name": "Artem Linde",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000223769,
+      "name": "Bennett Speicher",
+      "full_name": "Bennett Speicher",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000262268,
+      "name": "Couther Hadi",
+      "full_name": "Couther Hadi",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000291112,
+      "name": "Daniel Sufder",
+      "full_name": "Daniel Sufder",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000208181,
+      "name": "Darin Kishore",
+      "full_name": "Darin Kishore",
+      "pronouns": null,
+      "common_courses": {},
+      "common_groups": {},
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000312820,
+      "name": "Domenic Castellano",
+      "full_name": "Domenic Castellano",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12503607/4g2XX6ekHMTrXOP93teK21pFI6FoQeSozBm67OEd"
+    },
+    {
+      "id": 65920000000297153,
+      "name": "Eshan Momin",
+      "full_name": "Eshan Momin",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000138770": [
+          "StudentEnrollment"
+        ],
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000259287,
+      "name": "Eugene Guo",
+      "full_name": "Eugene Guo",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12148684/yGRSwXykfOrh8b0iJfby5sf84UKlDw6cN7uosE6Y"
+    },
+    {
+      "id": 65920000000208478,
+      "name": "Griffin Trejo Noble",
+      "full_name": "Griffin Trejo Noble",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000294201,
+      "name": "Gustavo Schroeder",
+      "full_name": "Gustavo Schroeder",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12491732/UFhp1wjkxzWNuxRQoNCKmvQuwYaUR0yxj3NlgQv2"
+    },
+    {
+      "id": 65920000000321013,
+      "name": "Hadassah Phillips",
+      "full_name": "Hadassah Phillips",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000291823,
+      "name": "India Cole",
+      "full_name": "India Cole",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12576966/pOr2lkwmbIE98d1pTKJ5cUzsN6TDRvf1D7mb2RG4"
+    },
+    {
+      "id": 65920000000285399,
+      "name": "Ivy Chen",
+      "full_name": "Ivy Chen",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ],
+        "65920000000096253": [
+          "StudentEnrollment"
+        ],
+        "65920000000043271": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/13511346/4ZYOuvvj75XbkUlzTWe9IMZEsFYS4pIBnWFA4bzq"
+    },
+    {
+      "id": 65920000000311651,
+      "name": "Jaslynn Zhao",
+      "full_name": "Jaslynn Zhao",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/12478794/raRigIqFPo9bic3UKet6Jq25nzsVvHJ8YXjhwzRj"
+    },
+    {
+      "id": 65920000000317575,
+      "name": "Jenny Pasternack",
+      "full_name": "Jenny Pasternack",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000311560,
+      "name": "Jin Nguyen",
+      "full_name": "Jin Nguyen",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000311339,
+      "name": "Joshua Lai",
+      "full_name": "Joshua Lai",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ],
+        "65920000000159624": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/12525143/kat3bWzRp1u3U9OKHFOliGtUeCx0kBPWbqAj0s3d"
+    },
+    {
+      "id": 65920000000317766,
+      "name": "Justin Meneses",
+      "full_name": "Justin Meneses",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ],
+        "65920000000159624": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12321328/0XFmGBeRwHsvaWc9t223YkNmZN7Ogqw4m0uaOxUQ"
+    },
+    {
+      "id": 65920000000285124,
+      "name": "Kaitlin Ogilvie",
+      "full_name": "Kaitlin Ogilvie",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000225694,
+      "name": "Kaiyuan Hou",
+      "full_name": "Kaiyuan Hou",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000255819,
+      "name": "Kaya Monrose",
+      "full_name": "Kaya Monrose",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000223366,
+      "name": "Kaylah Holmes",
+      "full_name": "Kaylah Holmes",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ],
+        "65920000000043271": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {},
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/11749480/iCML5f1bp8fAL3B9p0U2P7zXCPxhw02pGeygHKsa"
+    },
+    {
+      "id": 65920000000223610,
+      "name": "Kyle Kang",
+      "full_name": "Kyle Kang",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000043271": [
+          "StudentEnrollment"
+        ],
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000258155,
+      "name": "Lilian Nguyen",
+      "full_name": "Lilian Nguyen",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/7916531/JW0nacppGsDwk1ZJIRBn0fGhclc5StGXZFQg9K7S"
+    },
+    {
+      "id": 65920000000314048,
+      "name": "Liz Hoskins",
+      "full_name": "Liz Hoskins",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12671608/NheGlUIbs01MuxZqFz91FZrWZRugYlEBJpPwMBT9"
+    },
+    {
+      "id": 65920000000287034,
+      "name": "Lola Pawar",
+      "full_name": "Lola Pawar",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000323184,
+      "name": "Maanu Obalapuram",
+      "full_name": "Maanu Obalapuram",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ],
+        "65920000000138770": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/12541742/5vo2nbqzfbnuSJuEBUEYIxI1rf080MzRJy1tconk"
+    },
+    {
+      "id": 65920000000284984,
+      "name": "Maya Zeruld",
+      "full_name": "Maya Zeruld",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159624": [
+          "Member"
+        ],
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000254829,
+      "name": "Nadia Priyam",
+      "full_name": "Nadia Priyam",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000096253": [
+          "StudentEnrollment"
+        ],
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/10292231/8t9zzYpt7wIMcMiK40QUoo60BZjzMH3uxkrRdxkA"
+    },
+    {
+      "id": 65920000000289699,
+      "name": "Nicolas Arze Sumar",
+      "full_name": "Nicolas Arze Sumar",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/11287568/HyaX38XsDSUtBJYCrEH0sIdh9yhCGpNP3NsAzqd4"
+    },
+    {
+      "id": 65920000000290077,
+      "name": "Nini Ye",
+      "full_name": "Nini Ye",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ],
+        "65920000000096253": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/11934377/hZpuLljvdxbedbaRbmnR0lQkpF9W1hn5CD50ZpCu"
+    },
+    {
+      "id": 65920000000316484,
+      "name": "Owen Jacobson",
+      "full_name": "Owen Jacobson",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159624": [
+          "Member"
+        ],
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000291758,
+      "name": "Rachel Zwaig",
+      "full_name": "Rachel Zwaig",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12283494/j6OpT3kIMGntZoUIULRPgm9c7WTGw0m1CzBhJYPo"
+    },
+    {
+      "id": 65920000000238275,
+      "name": "Raphael Palacio",
+      "full_name": "Raphael Palacio",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ],
+        "65920000000043271": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ],
+        "65920000000108436": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/11322264/upXHFtIYnY64pNNvkU3GISxmNZELOwtxwq0HzcNA"
+    },
+    {
+      "id": 65920000000323791,
+      "name": "Saachi Sharma",
+      "full_name": "Saachi Sharma",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000297034,
+      "name": "Sharan Dodwani",
+      "full_name": "Sharan Dodwani",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000284550,
+      "name": "Stephanie Field",
+      "full_name": "Stephanie Field",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159624": [
+          "Member"
+        ],
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000223462,
+      "name": "Tamiia Quinn",
+      "full_name": "Tamiia Quinn",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ],
+        "65920000000159624": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000298550,
+      "name": "Tony Lee",
+      "full_name": "Tony Lee",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ],
+        "65920000000043271": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12368224/qF6o5svpvuovkEvVA3I5mhVpPAdbJDX3uLXk5c3U"
+    },
+    {
+      "id": 65920000000286068,
+      "name": "Uday Makharia",
+      "full_name": "Uday Makharia",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000096253": [
+          "StudentEnrollment"
+        ],
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/11294788/m0rBw7YmphzuKAYg7eTsTARDPUYCqvCeYhrWxXbf"
+    },
+    {
+      "id": 65920000000317129,
+      "name": "Vedin Barve",
+      "full_name": "Vedin Barve",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {},
+      "avatar_url": "https://emory.instructure.com/images/thumbnails/12660953/ThVPBcc06PID1Xxszr3q8spGkMKyyzlc3NegeRtZ"
+    },
+    {
+      "id": 65920000000295275,
+      "name": "Vicente Martinez",
+      "full_name": "Vicente Martinez",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000289654,
+      "name": "Will Chen",
+      "full_name": "Will Chen",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000320536,
+      "name": "Yashasvi Desai",
+      "full_name": "Yashasvi Desai",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/11879587/nCDNP6CeuMhVOYsei9ex0wAqKN9UTwzn8Qs6fs6o"
+    },
+    {
+      "id": 65920000000311389,
+      "name": "Yujia Zhang",
+      "full_name": "Yujia Zhang",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000320935,
+      "name": "Yuvv Agarwaal",
+      "full_name": "Yuvv Agarwaal",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159519": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000254472,
+      "name": "Zhenghao Yuan",
+      "full_name": "Zhenghao Yuan",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.instructure.com/images/messages/avatar-50.png"
+    },
+    {
+      "id": 65920000000260009,
+      "name": "Zoe Liu",
+      "full_name": "Zoe Liu",
+      "pronouns": null,
+      "common_courses": {
+        "65920000000144735": [
+          "StudentEnrollment"
+        ],
+        "65920000000096253": [
+          "StudentEnrollment"
+        ]
+      },
+      "common_groups": {
+        "65920000000159518": [
+          "Member"
+        ]
+      },
+      "avatar_url": "https://canvas.emory.edu/images/thumbnails/12562836/B85JuO6o5hMEoAGdDLxed258qv7sdoXbqGYfHLGC"
+    }
+  ],
+  "private": false,
+  "properties": [
+    "attachments"
+  ],
+  "starred": false,
+  "subject": "cs110 midterm 2 review slide",
+  "submissions": [],
+  "subscribed": true,
+  "visible": true,
+  "workflow_state": "read"
+}

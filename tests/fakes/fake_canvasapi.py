@@ -49,6 +49,46 @@ class FakeCanvasObject:
 class FakeUser(FakeCanvasObject):
     """Fake implementation of Canvas User object."""
 
+    def get_conversations(self, **kwargs) -> list["FakeConversation"]:
+        """
+        Get conversations for this user.
+
+        Args:
+            **kwargs: Optional filtering parameters
+                - scope: Filter by scope (unread, starred, archived)
+                - filter: Filter by type (sent, received, all)
+
+        Returns:
+            List of FakeConversation objects
+        """
+        # Load conversations from fixture
+        conversations_data = _load_fixture("conversations.json")
+        conversations = [
+            FakeConversation(conv_data) for conv_data in conversations_data
+        ]
+
+        # Apply filters
+        if kwargs.get("scope"):
+            scope = kwargs["scope"]
+            if scope == "unread":
+                conversations = [
+                    c
+                    for c in conversations
+                    if getattr(c, "workflow_state", "") == "unread"
+                ]
+            elif scope == "starred":
+                conversations = [
+                    c for c in conversations if getattr(c, "starred", False)
+                ]
+            elif scope == "archived":
+                conversations = [
+                    c
+                    for c in conversations
+                    if getattr(c, "workflow_state", "") == "archived"
+                ]
+
+        return conversations
+
     def get_courses(self, **kwargs) -> list["FakeCourse"]:
         """
         Get courses for this user.
@@ -320,6 +360,12 @@ class FakeFile(FakeCanvasObject):
     pass
 
 
+class FakeConversation(FakeCanvasObject):
+    """Fake implementation of Canvas Conversation object."""
+
+    pass
+
+
 class FakeCanvas:
     """Fake implementation of canvasapi.Canvas class."""
 
@@ -388,6 +434,51 @@ class FakeCanvas:
         # For simplicity, just return the current user
         # The user_id parameter is ignored
         return self.get_current_user()
+
+    def get_conversations(self, **kwargs) -> list[FakeConversation]:
+        """
+        Get conversations from the Canvas API.
+
+        Args:
+            **kwargs: Optional filtering parameters
+
+        Returns:
+            List of FakeConversation objects
+        """
+        # Load conversations from fixture
+        conversations_data = _load_fixture("conversations.json")
+        return [FakeConversation(conv_data) for conv_data in conversations_data]
+
+    def get_conversation(self, conversation_id: int | str) -> FakeConversation:
+        """
+        Get a specific conversation by ID.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            FakeConversation object
+        """
+        # First try to load the exact conversation ID
+        conversation_data = _load_fixture(f"conversation_{conversation_id}.json")
+
+        # If not found, try with the test conversation IDs (2001, 2002, 2003)
+        if not conversation_data:
+            # Map real conversation IDs to test conversation IDs
+            # This allows us to use the test fixtures for any conversation ID
+            test_ids = [2001, 2002, 2003]
+            test_id = test_ids[hash(str(conversation_id)) % len(test_ids)]
+            conversation_data = _load_fixture(f"conversation_{test_id}.json")
+
+            # If we found a test conversation, update its ID to match the requested ID
+            if conversation_data:
+                conversation_data["id"] = int(conversation_id)
+
+        if not conversation_data:
+            # If still not found, raise exception like the real API would
+            raise Exception(f"Conversation not found: {conversation_id}")
+
+        return FakeConversation(conversation_data)
 
 
 def _load_fixture(filename: str) -> Any:
