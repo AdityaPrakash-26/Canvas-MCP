@@ -72,6 +72,26 @@ def create_database(db_path: str | Path) -> None:
         CREATE INDEX IF NOT EXISTS idx_courses_course_name ON courses(course_name);
         """)
 
+        # Syllabi table
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS syllabi (
+            id INTEGER PRIMARY KEY,
+            course_id INTEGER NOT NULL,
+            content TEXT,
+            content_type TEXT DEFAULT 'html',
+            parsed_content TEXT,
+            is_parsed BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+        );
+        """)
+
+        # Create index on course_id for syllabi
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_syllabi_course_id ON syllabi(course_id);
+        """)
+
         # Assignments table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS assignments (
