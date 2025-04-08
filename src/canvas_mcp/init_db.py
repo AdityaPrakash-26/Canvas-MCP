@@ -78,7 +78,7 @@ def create_database(db_path: str | Path) -> None:
             id INTEGER PRIMARY KEY,
             course_id INTEGER NOT NULL,
             canvas_assignment_id INTEGER,
-            name TEXT NOT NULL,
+            name TEXT,
             title TEXT, -- Alias for name
             description TEXT,
             due_at TIMESTAMP,
@@ -140,6 +140,7 @@ def create_database(db_path: str | Path) -> None:
             item_type TEXT,
             content_id INTEGER,
             url TEXT,
+            page_url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE
