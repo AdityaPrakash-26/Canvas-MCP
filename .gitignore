@@ -3,6 +3,8 @@
 .AppleDouble
 .LSOverride
 
+tests/test_data/
+
 .mcp.json
 downloaded_files/
 # Byte-compiled / optimized / DLL files
