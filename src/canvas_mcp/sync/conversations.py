@@ -6,7 +6,7 @@ the Canvas API and the local database.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from canvas_mcp.models import DBConversation
 
@@ -56,8 +56,6 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
         return 0
 
     # Set a default time period for filtering conversations (3 weeks ago)
-    from datetime import datetime, timedelta
-
     term_start_date = datetime.now() - timedelta(days=21)  # Default to 3 weeks ago
     logger.info(
         f"Using default time period for filtering conversations: {term_start_date}"
@@ -274,63 +272,3 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
 
     logger.info(f"Successfully synced {conversation_count} conversations")
     return conversation_count
-
-
-def _persist_conversations(
-    sync_service, conn, cursor, valid_conversations: list[DBConversation]
-) -> int:
-    """
-    Persist conversations to the database.
-
-    Args:
-        conn: Database connection
-        cursor: Database cursor
-        valid_conversations: List of validated conversation models
-
-    Returns:
-        Number of conversations persisted
-    """
-    count = 0
-
-    for db_conversation in valid_conversations:
-        try:
-            # Convert Pydantic model to dict
-            conversation_dict = db_conversation.model_dump(
-                exclude={"created_at", "updated_at"}
-            )
-            conversation_dict["updated_at"] = datetime.now().isoformat()
-
-            # Check if conversation exists
-            cursor.execute(
-                "SELECT id FROM conversations WHERE canvas_conversation_id = ?",
-                (db_conversation.canvas_conversation_id,),
-            )
-            existing = cursor.fetchone()
-
-            if existing:
-                # Update existing conversation
-                conversation_id = existing["id"]
-                placeholders = ", ".join([f"{k} = ?" for k in conversation_dict.keys()])
-                values = list(conversation_dict.values())
-
-                cursor.execute(
-                    f"UPDATE conversations SET {placeholders} WHERE id = ?",
-                    values + [conversation_id],
-                )
-            else:
-                # Insert new conversation
-                columns = ", ".join(conversation_dict.keys())
-                placeholders = ", ".join(["?" for _ in conversation_dict.keys()])
-
-                cursor.execute(
-                    f"INSERT INTO conversations ({columns}) VALUES ({placeholders})",
-                    list(conversation_dict.values()),
-                )
-
-            count += 1
-        except Exception as e:
-            logger.error(
-                f"Error persisting conversation {db_conversation.canvas_conversation_id}: {e}"
-            )
-
-    return count
