@@ -10,6 +10,8 @@ from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
 
+from canvas_mcp.utils.formatters import format_communications
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,8 +19,8 @@ def register_announcement_tools(mcp: FastMCP) -> None:
     """Register announcement tools with the MCP server."""
 
     @mcp.tool()
-    def get_all_communications(
-        ctx: Context, limit: int = 50, num_weeks: int = 2
+    def get_communications(
+        ctx: Context, limit: int = 50, num_weeks: int = 3
     ) -> list[dict[str, Any]]:
         """
         Get all communications (announcements and conversations) from all courses.
@@ -26,7 +28,7 @@ def register_announcement_tools(mcp: FastMCP) -> None:
         Args:
             ctx: Request context containing resources
             limit: Maximum number of communications to return
-            num_weeks: Number of weeks to look back for communications (default: 2)
+            num_weeks: Number of weeks to look back for communications (default: 3)
 
         Returns:
             List of communications (announcements and conversations)
@@ -114,13 +116,16 @@ def register_announcement_tools(mcp: FastMCP) -> None:
                 )
 
             rows = cursor.fetchall()
-            return db_manager.rows_to_dicts(rows)
+            communications = db_manager.rows_to_dicts(rows)
+
+            # Format communications for display
+            return format_communications(communications)
         finally:
             conn.close()
 
     @mcp.tool()
     def get_course_communications(
-        ctx: Context, course_id: int, limit: int = 20, num_weeks: int = 2
+        ctx: Context, course_id: int, limit: int = 20, num_weeks: int = 3
     ) -> list[dict[str, Any]]:
         """
         Get all communications (announcements and conversations) for a specific course.
@@ -129,7 +134,7 @@ def register_announcement_tools(mcp: FastMCP) -> None:
             ctx: Request context containing resources
             course_id: Course ID
             limit: Maximum number of communications to return
-            num_weeks: Number of weeks to look back for communications (default: 2)
+            num_weeks: Number of weeks to look back for communications (default: 3)
 
         Returns:
             List of communications (announcements and conversations)
@@ -237,7 +242,10 @@ def register_announcement_tools(mcp: FastMCP) -> None:
                 )
 
             rows = cursor.fetchall()
-            return db_manager.rows_to_dicts(rows)
+            communications = db_manager.rows_to_dicts(rows)
+
+            # Format communications for display
+            return format_communications(communications)
         finally:
             conn.close()
 
@@ -291,6 +299,9 @@ def register_announcement_tools(mcp: FastMCP) -> None:
             )
 
             rows = cursor.fetchall()
-            return db_manager.rows_to_dicts(rows)
+            announcements = db_manager.rows_to_dicts(rows)
+
+            # Format announcements for display
+            return format_communications(announcements)
         finally:
             conn.close()

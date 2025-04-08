@@ -38,33 +38,31 @@ def register_calendar_tools(mcp: FastMCP) -> None:
 
         try:
             # Get course name
-            cursor.execute(
-                "SELECT course_name FROM courses WHERE id = ?", (course_id,)
-            )
+            cursor.execute("SELECT course_name FROM courses WHERE id = ?", (course_id,))
             course_row = cursor.fetchone()
             if not course_row:
                 return [{"error": f"Course with ID {course_id} not found"}]
-            
+
             course_name = course_row["course_name"]
 
             # Get calendar events for the course
             cursor.execute(
                 """
-                SELECT 
-                    id, 
-                    title, 
-                    description, 
-                    event_date, 
-                    event_type, 
-                    source_type, 
+                SELECT
+                    id,
+                    title,
+                    description,
+                    event_date,
+                    event_type,
+                    source_type,
                     source_id,
                     location_name,
                     location_address
-                FROM 
-                    calendar_events 
-                WHERE 
-                    course_id = ? 
-                ORDER BY 
+                FROM
+                    calendar_events
+                WHERE
+                    course_id = ?
+                ORDER BY
                     event_date DESC
                 LIMIT ?
                 """,
@@ -75,17 +73,19 @@ def register_calendar_tools(mcp: FastMCP) -> None:
             # Format the results
             result = []
             for event in events:
-                result.append({
-                    "id": event["id"],
-                    "title": event["title"],
-                    "description": event["description"],
-                    "date": event["event_date"],
-                    "event_type": event["event_type"],
-                    "source_type": event["source_type"],
-                    "location": event["location_name"],
-                    "location_address": event["location_address"],
-                    "course_name": course_name
-                })
+                result.append(
+                    {
+                        "id": event["id"],
+                        "title": event["title"],
+                        "description": event["description"],
+                        "date": event["event_date"],
+                        "event_type": event["event_type"],
+                        "source_type": event["source_type"],
+                        "location": event["location_name"],
+                        "location_address": event["location_address"],
+                        "course_name": course_name,
+                    }
+                )
 
             return result
         except Exception as e:
