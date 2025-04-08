@@ -4,10 +4,9 @@ Database initialization for Canvas MCP.
 This module provides functions to initialize the SQLite database for Canvas MCP.
 """
 
-import os
+import logging
 import sqlite3
 from pathlib import Path
-import logging
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -80,8 +79,10 @@ def create_database(db_path: str | Path) -> None:
             course_id INTEGER NOT NULL,
             canvas_assignment_id INTEGER,
             name TEXT NOT NULL,
+            title TEXT, -- Alias for name
             description TEXT,
             due_at TIMESTAMP,
+            due_date TIMESTAMP, -- Alias for due_at
             points_possible REAL,
             assignment_type TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -107,7 +108,9 @@ def create_database(db_path: str | Path) -> None:
             course_id INTEGER NOT NULL,
             canvas_module_id INTEGER,
             name TEXT NOT NULL,
+            description TEXT,
             position INTEGER,
+            unlock_date TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
