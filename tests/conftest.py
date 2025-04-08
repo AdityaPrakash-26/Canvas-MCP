@@ -5,9 +5,11 @@ This file contains fixtures and configuration for the Canvas MCP tests.
 """
 
 import os
+import shutil
 import sqlite3
 import sys
 from collections.abc import Generator
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,8 +18,14 @@ import pytest
 # Add the project root directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# Test database path
-TEST_DB_PATH = Path(__file__).parent / "test_data" / "test_canvas_mcp.db"
+# Test database paths
+TEST_DATA_DIR = Path(__file__).parent / "test_data"
+TEST_DB_PATH = TEST_DATA_DIR / "test_canvas_mcp.db"
+CACHED_DB_PATH = TEST_DATA_DIR / "cached_canvas_mcp.db"
+CACHE_METADATA_PATH = TEST_DATA_DIR / "cache_metadata.txt"
+
+# Cache validity period (in days)
+CACHE_VALIDITY_DAYS = 7
 
 # Set environment variable to use test database BEFORE importing server components
 os.environ["CANVAS_MCP_TEST_DB"] = str(TEST_DB_PATH)
@@ -26,12 +34,12 @@ print(f"Test environment variable CANVAS_MCP_TEST_DB set to: {TEST_DB_PATH}")
 # Import database creation function
 from init_db import create_database
 
+# Import test client
+from tests.integration.test_client import CanvasMCPTestClient
+
 # Import database utilities
 from canvas_mcp.canvas_client import CanvasClient
 from canvas_mcp.utils.db_manager import DatabaseManager
-
-# Import test client
-from tests.integration.test_client import CanvasMCPTestClient
 
 
 @pytest.fixture(scope="session")
@@ -42,13 +50,39 @@ def test_db_path() -> Path:
 
 @pytest.fixture(scope="session")
 def ensure_test_db(test_db_path: Path) -> None:
-    """Ensure the test database exists."""
+    """Ensure the test database exists, using a cached version if available and valid."""
     # Ensure test data directory exists
     os.makedirs(test_db_path.parent, exist_ok=True)
 
-    # Only create the database if it doesn't exist
-    # This allows us to reuse the database across test runs
-    if not test_db_path.exists():
+    # Check if we have a valid cached database
+    cache_is_valid = False
+    if CACHED_DB_PATH.exists() and CACHE_METADATA_PATH.exists():
+        try:
+            # Read the cache timestamp
+            with open(CACHE_METADATA_PATH) as f:
+                cache_timestamp_str = f.read().strip()
+                cache_timestamp = datetime.fromisoformat(cache_timestamp_str)
+
+            # Check if the cache is still valid
+            cache_age = datetime.now() - cache_timestamp
+            if cache_age < timedelta(days=CACHE_VALIDITY_DAYS):
+                cache_is_valid = True
+                print(
+                    f"Found valid cached database (age: {cache_age.days} days, {cache_age.seconds // 3600} hours)"
+                )
+            else:
+                print(
+                    f"Cached database is too old ({cache_age.days} days, {cache_age.seconds // 3600} hours)"
+                )
+        except (ValueError, OSError) as e:
+            print(f"Error reading cache metadata: {e}")
+
+    # Use the cached database if it's valid
+    if cache_is_valid and not test_db_path.exists():
+        print(f"Copying cached database to: {test_db_path}")
+        shutil.copy2(CACHED_DB_PATH, test_db_path)
+        print("Using cached database for tests.")
+    elif not test_db_path.exists():
         print(f"Test database not found, will create: {test_db_path}")
         # Initialize the test database using the correct path
         print(f"Initializing test database at: {test_db_path}")
@@ -96,7 +130,7 @@ def test_context(test_client: CanvasMCPTestClient) -> dict[str, Any]:
     return test_client.context
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def db_connection(
     test_client: CanvasMCPTestClient,
 ) -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
@@ -114,38 +148,57 @@ TARGET_CANVAS_COURSE_ID = 65920000000146127
 
 
 @pytest.fixture(scope="session")
-def target_course_info() -> dict[str, Any]:
-    """Return information about the target course."""
-    return {
-        "code": TARGET_COURSE_CODE,
-        "canvas_id": TARGET_CANVAS_COURSE_ID,
-        "internal_id": None,  # Will be populated during tests
-    }
+def ensure_course_data(test_client, db_connection) -> int:
+    """Ensure the target course data exists in the database.
 
+    This fixture will check if the target course exists in the database.
+    If not, it will run a sync operation to populate the database.
 
-@pytest.fixture(scope="function")
-def find_target_course_id(
-    db_connection: tuple[sqlite3.Connection, sqlite3.Cursor],
-    target_course_info: dict[str, Any],
-) -> int | None:
-    """Find the internal ID of the target course."""
+    Returns:
+        The internal ID of the target course
+    """
     _, cursor = db_connection
 
-    # Try to find the target course ID
+    # Check if the target course exists
     cursor.execute(
         "SELECT id FROM courses WHERE course_code = ? OR canvas_course_id = ?",
-        (
-            target_course_info["code"],
-            target_course_info["canvas_id"],
-        ),
+        (TARGET_COURSE_CODE, TARGET_CANVAS_COURSE_ID),
     )
     result = cursor.fetchone()
 
     if result:
         course_id = result["id"]
-        # Update the target_course_info dictionary
-        target_course_info["internal_id"] = course_id
         print(f"Found target course with internal ID: {course_id}")
         return course_id
 
-    return None
+    # Course not found, run sync
+    print("Target course not found in database, running sync operation...")
+    sync_result = test_client.sync_canvas_data(_force=True)
+    print(f"Sync completed: {sync_result}")
+
+    # Check again for the course
+    cursor.execute(
+        "SELECT id FROM courses WHERE course_code = ? OR canvas_course_id = ?",
+        (TARGET_COURSE_CODE, TARGET_CANVAS_COURSE_ID),
+    )
+    result = cursor.fetchone()
+
+    if not result:
+        pytest.fail(f"Failed to find target course {TARGET_COURSE_CODE} after sync")
+
+    course_id = result["id"]
+    print(f"Found target course with internal ID: {course_id}")
+    return course_id
+
+
+@pytest.fixture(scope="session")
+def target_course_info(ensure_course_data) -> dict[str, Any]:
+    """Return information about the target course."""
+    return {
+        "code": TARGET_COURSE_CODE,
+        "canvas_id": TARGET_CANVAS_COURSE_ID,
+        "internal_id": ensure_course_data,  # Already populated by ensure_course_data fixture
+    }
+
+
+# This fixture is no longer needed since target_course_info is now fully populated

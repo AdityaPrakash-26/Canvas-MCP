@@ -6,8 +6,32 @@ data from Canvas to the local database.
 """
 
 import os
+import shutil
+from datetime import datetime
+from pathlib import Path
+
+import pytest
+
+from tests.conftest import CACHED_DB_PATH, CACHE_METADATA_PATH, TEST_DB_PATH
 
 # No need to import sync_canvas_data, we'll use the test_client
+
+
+def cache_database(source_path: Path, cache_path: Path, metadata_path: Path) -> None:
+    """Cache the database for future test runs."""
+    # Ensure the parent directory exists
+    os.makedirs(cache_path.parent, exist_ok=True)
+
+    # Copy the database to the cache location
+    print(f"Caching database to: {cache_path}")
+    shutil.copy2(source_path, cache_path)
+
+    # Write the cache timestamp
+    timestamp = datetime.now().isoformat()
+    with open(metadata_path, "w") as f:
+        f.write(timestamp)
+
+    print(f"Database cached successfully at: {timestamp}")
 
 
 def test_sync_canvas_data(test_client, db_connection, target_course_info):
@@ -35,7 +59,7 @@ def test_sync_canvas_data(test_client, db_connection, target_course_info):
         print(f"Synced {result['courses']} courses.")
 
     # Verify our target course exists after sync
-    conn, cursor = db_connection
+    _, cursor = db_connection
     print(f"Verifying target course with Canvas ID: {target_course_info['canvas_id']}")
     cursor.execute(
         "SELECT id, course_code FROM courses WHERE canvas_course_id = ?",
@@ -56,3 +80,6 @@ def test_sync_canvas_data(test_client, db_connection, target_course_info):
         f"Confirmed target course exists. Internal ID: {target_course_info['internal_id']}, "
         f"Code: {target_course_info['code']}"
     )
+
+    # Cache the database for future test runs
+    cache_database(TEST_DB_PATH, CACHED_DB_PATH, CACHE_METADATA_PATH)
