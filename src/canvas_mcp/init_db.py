@@ -85,6 +85,7 @@ def create_database(db_path: str | Path) -> None:
             due_date TIMESTAMP, -- Alias for due_at
             points_possible REAL,
             assignment_type TEXT,
+            submission_types TEXT,
             available_from TIMESTAMP,
             available_until TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -136,6 +137,7 @@ def create_database(db_path: str | Path) -> None:
             position INTEGER,
             content_type TEXT,
             type TEXT,
+            item_type TEXT,
             content_id INTEGER,
             url TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
