@@ -278,3 +278,48 @@ class CanvasApiAdapter:
                 f"Unexpected error getting files for course {course.id}: {e}"
             )
             return []
+
+    def get_conversations_raw(self) -> list[Any]:
+        """Get conversations from Canvas API.
+
+        Returns:
+            List of raw conversation objects
+        """
+        if not self.canvas:
+            logger.warning("Canvas API client not available")
+            return []
+
+        try:
+            return list(self.canvas.get_conversations())
+        except CanvasException as e:
+            logger.error(f"Canvas API error getting conversations: {e}")
+            return []
+        except Exception as e:
+            logger.exception(f"Unexpected error getting conversations: {e}")
+            return []
+
+    def get_conversation_detail_raw(self, conversation_id: int) -> Any:
+        """Get detailed conversation from Canvas API.
+
+        Args:
+            conversation_id: Canvas conversation ID
+
+        Returns:
+            Raw conversation detail object or None if not found
+        """
+        if not self.canvas:
+            logger.warning("Canvas API client not available")
+            return None
+
+        try:
+            return self.canvas.get_conversation(conversation_id)
+        except CanvasException as e:
+            logger.error(
+                f"Canvas API error getting conversation {conversation_id}: {e}"
+            )
+            return None
+        except Exception as e:
+            logger.exception(
+                f"Unexpected error getting conversation {conversation_id}: {e}"
+            )
+            return None

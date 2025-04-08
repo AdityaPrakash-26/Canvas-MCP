@@ -11,6 +11,8 @@ from typing import Any
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# No imports needed for sync functions as they're accessed via sync_service
+
 
 def sync_all(
     sync_service, user_id: str | None = None, term_id: int | None = -1
@@ -33,12 +35,14 @@ def sync_all(
     assignment_count = sync_service.sync_assignments(course_ids)
     module_count = sync_service.sync_modules(course_ids)
     announcement_count = sync_service.sync_announcements(course_ids)
+    conversation_count = sync_service.sync_conversations(course_ids)
 
     return {
         "courses": len(course_ids),
         "assignments": assignment_count,
         "modules": module_count,
         "announcements": announcement_count,
+        "conversations": conversation_count,
     }
 
 

@@ -8,7 +8,7 @@ between the Canvas API and the local database.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class DBCourse(BaseModel):
@@ -193,9 +193,35 @@ class DBAnnouncement(BaseModel):
             raise ValueError("Title cannot be None or empty")
         return v
 
+
+class DBConversation(BaseModel):
+    """Model for a conversation in the database."""
+
+    course_id: int
+    canvas_conversation_id: int = Field(..., alias="id")
+    title: str
+    content: str | None = None
+    posted_by: str | None = None  # Will store author name, not ID
+    posted_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = datetime.now()
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+        extra = "ignore"
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str | None) -> str:
+        """Ensure title is not None or empty."""
+        if v is None or v.strip() == "":
+            raise ValueError("Title cannot be None or empty")
+        return v
+
     @field_validator("posted_by")
     @classmethod
-    def extract_author(cls, v: str | None, values: dict[str, Any]) -> str | None:
+    def extract_author(cls, v: str | None) -> str | None:
         """Extract author name from announcement data if not provided."""
         if v is not None:
             return v
