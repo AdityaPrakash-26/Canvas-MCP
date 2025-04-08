@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.extract_tools_test import extract_tools
 from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
 from src.canvas_mcp.config import API_KEY, API_URL
+from src.canvas_mcp.init_db import create_database
 from src.canvas_mcp.sync.service import SyncService
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
@@ -62,7 +63,7 @@ def setup_test_environment():
         db_manager = DatabaseManager(str(test_db_path))
 
         # Initialize the database
-        db_manager.initialize_database()
+        create_database(str(test_db_path))
 
         sync_service = SyncService(db_manager, api_adapter)
 
