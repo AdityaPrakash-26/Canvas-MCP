@@ -269,6 +269,30 @@ def create_tables(cursor: sqlite3.Cursor) -> None:
     CREATE INDEX IF NOT EXISTS idx_announcements_posted_at ON announcements(posted_at);
     """)
 
+    # Conversations table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS conversations (
+        id INTEGER PRIMARY KEY,
+        course_id INTEGER NOT NULL,
+        canvas_conversation_id INTEGER,
+        title TEXT NOT NULL,
+        content TEXT,
+        posted_by TEXT,
+        posted_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+    );
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_conversations_course_id ON conversations(course_id);
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_conversations_posted_at ON conversations(posted_at);
+    """)
+
     # Grades table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS grades (

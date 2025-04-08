@@ -5,8 +5,8 @@ This module contains tools for accessing announcement information.
 """
 
 import logging
-from typing import Any
 from datetime import datetime, timedelta
+from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
 
@@ -40,44 +40,78 @@ def register_announcement_tools(mcp: FastMCP) -> None:
             # Calculate the date for filtering by weeks
             cutoff_date = (datetime.now() - timedelta(weeks=num_weeks)).isoformat()
 
-            # Query both announcements and conversations from all courses
+            # Check if conversations table exists
             cursor.execute(
                 """
-                SELECT
-                    'announcement' as source_type,
-                    a.id,
-                    a.title,
-                    a.content,
-                    a.posted_by,
-                    a.posted_at,
-                    c.course_name as course_name
-                FROM
-                    announcements a
-                JOIN
-                    courses c ON a.course_id = c.id
-                WHERE
-                    a.posted_at >= ?
-                UNION ALL
-                SELECT
-                    'conversation' as source_type,
-                    cv.id,
-                    cv.title,
-                    cv.content,
-                    cv.posted_by,
-                    cv.posted_at,
-                    c.course_name as course_name
-                FROM
-                    conversations cv
-                JOIN
-                    courses c ON cv.course_id = c.id
-                WHERE
-                    cv.posted_at >= ?
-                ORDER BY
-                    posted_at DESC
-                LIMIT ?
-                """,
-                (cutoff_date, cutoff_date, limit),
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='conversations';
+                """
             )
+            conversations_table_exists = cursor.fetchone() is not None
+
+            if conversations_table_exists:
+                # Query both announcements and conversations from all courses
+                cursor.execute(
+                    """
+                    SELECT
+                        'announcement' as source_type,
+                        a.id,
+                        a.title,
+                        a.content,
+                        a.posted_by,
+                        a.posted_at,
+                        c.course_name as course_name
+                    FROM
+                        announcements a
+                    JOIN
+                        courses c ON a.course_id = c.id
+                    WHERE
+                        a.posted_at >= ?
+                    UNION ALL
+                    SELECT
+                        'conversation' as source_type,
+                        cv.id,
+                        cv.title,
+                        cv.content,
+                        cv.posted_by,
+                        cv.posted_at,
+                        c.course_name as course_name
+                    FROM
+                        conversations cv
+                    JOIN
+                        courses c ON cv.course_id = c.id
+                    WHERE
+                        cv.posted_at >= ?
+                    ORDER BY
+                        posted_at DESC
+                    LIMIT ?
+                    """,
+                    (cutoff_date, cutoff_date, limit),
+                )
+            else:
+                # Only query announcements if conversations table doesn't exist
+                cursor.execute(
+                    """
+                    SELECT
+                        'announcement' as source_type,
+                        a.id,
+                        a.title,
+                        a.content,
+                        a.posted_by,
+                        a.posted_at,
+                        c.course_name as course_name
+                    FROM
+                        announcements a
+                    JOIN
+                        courses c ON a.course_id = c.id
+                    WHERE
+                        a.posted_at >= ?
+                    ORDER BY
+                        posted_at DESC
+                    LIMIT ?
+                    """,
+                    (cutoff_date, limit),
+                )
 
             rows = cursor.fetchall()
             return db_manager.rows_to_dicts(rows)
@@ -119,50 +153,88 @@ def register_announcement_tools(mcp: FastMCP) -> None:
             # Calculate the date for filtering by weeks
             cutoff_date = (datetime.now() - timedelta(weeks=num_weeks)).isoformat()
 
-            # Query both announcements and conversations
+            # Check if conversations table exists
             cursor.execute(
                 """
-                SELECT
-                    'announcement' as source_type,
-                    id,
-                    title,
-                    content,
-                    posted_by,
-                    posted_at,
-                    ? as course_name
-                FROM
-                    announcements
-                WHERE
-                    course_id = ? AND
-                    posted_at >= ?
-                UNION ALL
-                SELECT
-                    'conversation' as source_type,
-                    id,
-                    title,
-                    content,
-                    posted_by,
-                    posted_at,
-                    ? as course_name
-                FROM
-                    conversations
-                WHERE
-                    course_id = ? AND
-                    posted_at >= ?
-                ORDER BY
-                    posted_at DESC
-                LIMIT ?
-                """,
-                (
-                    course_name,
-                    course_id,
-                    cutoff_date,
-                    course_name,
-                    course_id,
-                    cutoff_date,
-                    limit,
-                ),
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='conversations';
+                """
             )
+            conversations_table_exists = cursor.fetchone() is not None
+
+            if conversations_table_exists:
+                # Query both announcements and conversations
+                cursor.execute(
+                    """
+                    SELECT
+                        'announcement' as source_type,
+                        id,
+                        title,
+                        content,
+                        posted_by,
+                        posted_at,
+                        ? as course_name
+                    FROM
+                        announcements
+                    WHERE
+                        course_id = ? AND
+                        posted_at >= ?
+                    UNION ALL
+                    SELECT
+                        'conversation' as source_type,
+                        id,
+                        title,
+                        content,
+                        posted_by,
+                        posted_at,
+                        ? as course_name
+                    FROM
+                        conversations
+                    WHERE
+                        course_id = ? AND
+                        posted_at >= ?
+                    ORDER BY
+                        posted_at DESC
+                    LIMIT ?
+                    """,
+                    (
+                        course_name,
+                        course_id,
+                        cutoff_date,
+                        course_name,
+                        course_id,
+                        cutoff_date,
+                        limit,
+                    ),
+                )
+            else:
+                # Only query announcements if conversations table doesn't exist
+                cursor.execute(
+                    """
+                    SELECT
+                        'announcement' as source_type,
+                        id,
+                        title,
+                        content,
+                        posted_by,
+                        posted_at,
+                        ? as course_name
+                    FROM
+                        announcements
+                    WHERE
+                        course_id = ? AND
+                        posted_at >= ?
+                    ORDER BY
+                        posted_at DESC
+                    LIMIT ?
+                    """,
+                    (
+                        course_name,
+                        course_id,
+                        cutoff_date,
+                        limit,
+                    ),
+                )
 
             rows = cursor.fetchall()
             return db_manager.rows_to_dicts(rows)

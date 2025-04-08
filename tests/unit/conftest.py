@@ -36,7 +36,7 @@ def ensure_test_db(test_db_path: Path) -> None:
     if not test_db_path.exists():
         print(f"Test database not found, will create: {test_db_path}")
         # Initialize the test database using the correct path
-        from init_db import create_database
+        from tests.init_db import create_database
 
         create_database(str(test_db_path))
         print("Test database initialized.")
@@ -126,10 +126,16 @@ def clean_db(db_manager: DatabaseManager) -> None:
             "modules",
             "module_items",
             "announcements",
+            "conversations",
             "files",
         ]
         for table in tables:
-            cursor.execute(f"DELETE FROM {table}")
+            # Check if table exists before trying to delete from it
+            cursor.execute(
+                f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'"
+            )
+            if cursor.fetchone():
+                cursor.execute(f"DELETE FROM {table}")
         conn.commit()
     finally:
         conn.close()

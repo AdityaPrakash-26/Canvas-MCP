@@ -6,7 +6,6 @@ information from the database.
 """
 
 # No need to import get_course_announcements, we'll use the test_client
-import pytest
 
 
 def test_get_course_announcements(test_client, target_course_info):
