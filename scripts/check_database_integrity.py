@@ -16,16 +16,14 @@ Options:
 """
 
 import argparse
-import os
-import sqlite3
 import sys
 from pathlib import Path
 
 # Add the project root to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.canvas_mcp.utils.db_manager import DatabaseManager
 import src.canvas_mcp.config as config
+from src.canvas_mcp.utils.db_manager import DatabaseManager
 
 
 def check_orphaned_assignments(conn, cursor, fix=False):
@@ -207,7 +205,7 @@ def check_foreign_key_constraints(conn, cursor, fix=False):
                     cursor.execute(
                         f"""
                     DELETE FROM {table}
-                    WHERE id IN ({','.join(['?'] * len(violating_ids))})
+                    WHERE id IN ({",".join(["?"] * len(violating_ids))})
                     """,
                         violating_ids,
                     )
