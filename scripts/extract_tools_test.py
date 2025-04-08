@@ -205,6 +205,11 @@ def test_tools():
     files = tools["get_course_files"](ctx, course_id=course_id)
     logger.info(f"Found {len(files)} files")
 
+    # Test get_course_calendar_events
+    logger.info(f"Testing get_course_calendar_events with course_id={course_id}...")
+    calendar_events = tools["get_course_calendar_events"](ctx, course_id=course_id)
+    logger.info(f"Found {len(calendar_events)} calendar events")
+
     # Test search_course_content
     logger.info(f"Testing search_course_content with course_id={course_id}...")
     search_results = tools["search_course_content"](
