@@ -131,9 +131,6 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
 
             if message_created_at_str:
                 try:
-                    # Try to parse the timestamp
-                    from datetime import datetime
-
                     if isinstance(message_created_at_str, str):
                         # Try ISO format first
                         try:
@@ -142,11 +139,30 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
                             )
                         except ValueError:
                             # Try other common formats
-                            import dateutil.parser
+                            try:
+                                import dateutil.parser
 
-                            message_created_at = dateutil.parser.parse(
-                                message_created_at_str
-                            )
+                                message_created_at = dateutil.parser.parse(
+                                    message_created_at_str
+                                )
+                            except ImportError:
+                                # Fallback if dateutil is not available
+                                try:
+                                    # Try common formats
+                                    for fmt in [
+                                        "%Y-%m-%dT%H:%M:%S",
+                                        "%Y-%m-%d %H:%M:%S",
+                                    ]:
+                                        try:
+                                            message_created_at = datetime.strptime(
+                                                message_created_at_str, fmt
+                                            )
+                                            break
+                                        except ValueError:
+                                            continue
+                                except Exception:
+                                    # Last resort: use current time
+                                    message_created_at = datetime.now()
                     else:
                         # If it's already a datetime object, use it directly
                         message_created_at = message_created_at_str
@@ -208,10 +224,11 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
                 "id": conv_id,
                 "course_id": matching_course_id,
                 "title": getattr(raw_conv, "subject", "No Subject"),
-                "content": message_body,  # Direct field name, no alias needed
+                "content": message_body or "",  # Ensure content is never None
                 "posted_by": author_name,
                 "posted_at": message_created_at,  # Direct field name, no alias needed
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
             }
 
             # Validate using Pydantic model
