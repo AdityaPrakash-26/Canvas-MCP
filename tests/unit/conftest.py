@@ -17,18 +17,18 @@ from tests.fakes.fake_canvasapi import patch_canvasapi
 
 from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
 from canvas_mcp.sync import SyncService
-from canvas_mcp.utils.db_manager import DatabaseManager
+from canvas_mcp.tools.announcements import register_announcement_tools
 
 # Import tool registration functions
 from canvas_mcp.tools.assignments import register_assignment_tools
-from canvas_mcp.tools.courses import register_course_tools
-from canvas_mcp.tools.modules import register_module_tools
-from canvas_mcp.tools.syllabus import register_syllabus_tools
-from canvas_mcp.tools.announcements import register_announcement_tools
-from canvas_mcp.tools.files import register_file_tools
-from canvas_mcp.tools.search import register_search_tools
 from canvas_mcp.tools.calendar import register_calendar_tools
+from canvas_mcp.tools.courses import register_course_tools
+from canvas_mcp.tools.files import register_file_tools
+from canvas_mcp.tools.modules import register_module_tools
+from canvas_mcp.tools.search import register_search_tools
+from canvas_mcp.tools.syllabus import register_syllabus_tools
 from canvas_mcp.tools.sync import register_sync_tools
+from canvas_mcp.utils.db_manager import DatabaseManager
 
 # Apply the patch before importing any code that uses canvasapi
 patch_canvasapi()

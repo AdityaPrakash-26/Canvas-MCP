@@ -10,10 +10,10 @@ from pathlib import Path
 import requests
 
 # Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import Canvas MCP components
-import src.canvas_mcp.config as config
+import canvas_mcp.config as config
 
 
 def format_datetime(dt):

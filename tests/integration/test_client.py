@@ -294,7 +294,7 @@ class CanvasMCPTestClient:
             self.context, course_id, limit, num_weeks
         )
 
-    def get_all_communications(
+    def get_communications(
         self, limit: int = 50, num_weeks: int = 2
     ) -> list[dict[str, Any]]:
         """
@@ -307,4 +307,4 @@ class CanvasMCPTestClient:
         Returns:
             List of communications (announcements and conversations)
         """
-        return self.tools["get_all_communications"](self.context, limit, num_weeks)
+        return self.tools["get_communications"](self.context, limit, num_weeks)

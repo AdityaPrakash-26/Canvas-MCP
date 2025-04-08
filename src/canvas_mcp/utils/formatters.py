@@ -5,8 +5,8 @@ This module contains utility functions for formatting data for display.
 """
 
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def format_date(date_str: str | None) -> str:
         date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
 
         # Get current date for comparison
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Format based on how far in the future/past the date is
         if date.date() == now.date():
@@ -47,7 +47,7 @@ def format_date(date_str: str | None) -> str:
         return date_str
 
 
-def format_deadlines(deadlines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def format_deadlines(deadlines: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Format deadlines for display.
 
@@ -73,7 +73,7 @@ def format_deadlines(deadlines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return formatted_deadlines
 
 
-def format_communications(communications: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def format_communications(communications: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Format communications for display.
 
