@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
 import canvas_mcp.config as config
 from canvas_mcp.utils.db_manager import DatabaseManager
@@ -87,14 +87,14 @@ mcp = FastMCP(
 )
 
 # Register tool modules
-from canvas_mcp.tools.sync import register_sync_tools
-from canvas_mcp.tools.courses import register_course_tools
-from canvas_mcp.tools.assignments import register_assignment_tools
-from canvas_mcp.tools.modules import register_module_tools
-from canvas_mcp.tools.syllabus import register_syllabus_tools
 from canvas_mcp.tools.announcements import register_announcement_tools
+from canvas_mcp.tools.assignments import register_assignment_tools
+from canvas_mcp.tools.courses import register_course_tools
 from canvas_mcp.tools.files import register_file_tools
+from canvas_mcp.tools.modules import register_module_tools
 from canvas_mcp.tools.search import register_search_tools
+from canvas_mcp.tools.syllabus import register_syllabus_tools
+from canvas_mcp.tools.sync import register_sync_tools
 
 # Register all tools
 register_sync_tools(mcp)
