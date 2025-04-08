@@ -193,7 +193,8 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
             # Look for files with "syllabus" in the name
             syllabus_files = []
             for file in files:
-                if "syllabus" in file["name"].lower():
+                file_name = file.get("name", "")
+                if file_name and "syllabus" in file_name.lower():
                     syllabus_files.append(file)
 
             if not syllabus_files:
