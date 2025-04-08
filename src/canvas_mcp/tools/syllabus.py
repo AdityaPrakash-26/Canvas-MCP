@@ -217,10 +217,12 @@ def register_syllabus_tools(mcp: FastMCP) -> None:
             if extract_content and "url" in syllabus_file:
                 file_url = syllabus_file["url"]
                 file_type = None
-                if "content_type" in syllabus_file:
-                    if "pdf" in syllabus_file["content_type"].lower():
+                content_type = syllabus_file.get("content_type")
+                if content_type:
+                    content_type_lower = content_type.lower()
+                    if "pdf" in content_type_lower:
                         file_type = "pdf"
-                    elif "word" in syllabus_file["content_type"].lower():
+                    elif "word" in content_type_lower:
                         file_type = "docx"
 
                 # Import here to avoid circular imports
