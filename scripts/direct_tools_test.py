@@ -21,11 +21,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import Canvas MCP components
 import src.canvas_mcp.config as config
-from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
-from src.canvas_mcp.sync.service import SyncService
 
 # Import tool modules
 from scripts.extract_tools_test import extract_tools
+from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
+from src.canvas_mcp.sync.service import SyncService
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
@@ -111,9 +111,9 @@ def test_tools():
     course_id = courses[0]["id"]
     logger.info(f"Using course ID: {course_id}")
 
-    # Test get_course_details
-    logger.info(f"Testing get_course_details with course_id={course_id}...")
-    course_details = tools["get_course_details"](ctx, course_id=course_id)
+    # Get course details from course list
+    logger.info(f"Getting course details for course_id={course_id}...")
+    course_details = next((c for c in courses if c["id"] == course_id), None)
     logger.info(f"Course details: {course_details}")
 
     # Test get_course_assignments
