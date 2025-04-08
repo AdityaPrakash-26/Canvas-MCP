@@ -5,18 +5,18 @@ These tests verify that the syllabus-related tools correctly retrieve
 information from the database.
 """
 
-import pytest
-
-from canvas_mcp.tools.syllabus import get_syllabus, get_syllabus_file
+# No need to import syllabus functions, we'll use the test_client
 
 
-def test_get_syllabus(test_context, target_course_info):
+def test_get_syllabus(test_client, target_course_info):
     """Test getting the syllabus for a course."""
     # Ensure we have the target course ID
     assert target_course_info["internal_id"] is not None, "Target course ID is required"
 
     # Get syllabus in raw format
-    syllabus_raw = get_syllabus(test_context, target_course_info["internal_id"], format="raw")
+    syllabus_raw = test_client.get_syllabus(
+        target_course_info["internal_id"], format="raw"
+    )
 
     # Check that we got a syllabus
     assert isinstance(syllabus_raw, dict)
@@ -25,7 +25,9 @@ def test_get_syllabus(test_context, target_course_info):
     assert syllabus_raw["content"] != "", "Syllabus content is empty"
 
     # Get syllabus in parsed format
-    syllabus_parsed = get_syllabus(test_context, target_course_info["internal_id"], format="parsed")
+    syllabus_parsed = test_client.get_syllabus(
+        target_course_info["internal_id"], format="parsed"
+    )
 
     # Check that we got a syllabus
     assert isinstance(syllabus_parsed, dict)
@@ -33,14 +35,14 @@ def test_get_syllabus(test_context, target_course_info):
     assert syllabus_parsed["content"] != "", "Parsed syllabus content is empty"
 
 
-def test_get_syllabus_file(test_context, target_course_info):
+def test_get_syllabus_file(test_client, target_course_info):
     """Test getting syllabus file for a course."""
     # Ensure we have the target course ID
     assert target_course_info["internal_id"] is not None, "Target course ID is required"
 
     # Get syllabus file for the target course
-    result = get_syllabus_file(
-        test_context, target_course_info["internal_id"], extract_content=False
+    result = test_client.get_syllabus_file(
+        target_course_info["internal_id"], extract_content=False
     )
 
     # Check that we got a result

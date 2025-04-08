@@ -27,8 +27,11 @@ print(f"Test environment variable CANVAS_MCP_TEST_DB set to: {TEST_DB_PATH}")
 from init_db import create_database
 
 # Import database utilities
-from src.canvas_mcp.canvas_client import CanvasClient
-from src.canvas_mcp.utils.db_manager import DatabaseManager
+from canvas_mcp.canvas_client import CanvasClient
+from canvas_mcp.utils.db_manager import DatabaseManager
+
+# Import test client
+from tests.integration.test_client import CanvasMCPTestClient
 
 
 @pytest.fixture(scope="session")
@@ -79,31 +82,26 @@ def canvas_client(db_manager: DatabaseManager) -> CanvasClient:
 
 
 @pytest.fixture(scope="session")
-def test_context(
-    db_manager: DatabaseManager, canvas_client: CanvasClient
-) -> dict[str, Any]:
+def test_client(
+    ensure_test_db: None, test_db_path: Path
+) -> CanvasMCPTestClient:  # ensure_test_db is used as a dependency
+    """Return a test client for the Canvas MCP tools."""
+    return CanvasMCPTestClient(test_db_path)
+
+
+@pytest.fixture(scope="session")
+def test_context(test_client: CanvasMCPTestClient) -> dict[str, Any]:
     """Return a test context for the MCP tools."""
-    from types import SimpleNamespace
-
-    # Create a structure mimicking ctx.request_context.lifespan_context
-    lifespan_context_data = {
-        "db_manager": db_manager,
-        "canvas_client": canvas_client,
-    }
-
-    # Create a structure mimicking ctx.request_context
-    request_context_mock = SimpleNamespace(lifespan_context=lifespan_context_data)
-
-    # Create a structure mimicking ctx
-    return SimpleNamespace(request_context=request_context_mock)
+    # Just return the context from the test client
+    return test_client.context
 
 
 @pytest.fixture(scope="function")
 def db_connection(
-    db_manager: DatabaseManager,
+    test_client: CanvasMCPTestClient,
 ) -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
     """Return a connection and cursor for the test database."""
-    conn, cursor = db_manager.connect()
+    conn, cursor = test_client.db_manager.connect()
     try:
         yield conn, cursor
     finally:
@@ -129,7 +127,7 @@ def target_course_info() -> dict[str, Any]:
 def find_target_course_id(
     db_connection: tuple[sqlite3.Connection, sqlite3.Cursor],
     target_course_info: dict[str, Any],
-) -> int:
+) -> int | None:
     """Find the internal ID of the target course."""
     _, cursor = db_connection
 

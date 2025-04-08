@@ -5,18 +5,18 @@ These tests verify that the announcement-related tools correctly retrieve
 information from the database.
 """
 
-import pytest
-
-from canvas_mcp.tools.announcements import get_course_announcements
+# No need to import get_course_announcements, we'll use the test_client
 
 
-def test_get_course_announcements(test_context, target_course_info):
+def test_get_course_announcements(test_client, target_course_info):
     """Test getting course announcements."""
     # Ensure we have the target course ID
     assert target_course_info["internal_id"] is not None, "Target course ID is required"
 
     # Get announcements for the target course
-    announcements = get_course_announcements(test_context, target_course_info["internal_id"])
+    announcements = test_client.get_course_announcements(
+        target_course_info["internal_id"]
+    )
 
     # Check that we got a list of announcements
     assert isinstance(announcements, list)

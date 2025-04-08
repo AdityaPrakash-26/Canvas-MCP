@@ -5,15 +5,13 @@ These tests verify that the course-related tools correctly retrieve
 information from the database.
 """
 
-import pytest
-
-from canvas_mcp.tools.courses import get_course_list
+# No need to import get_course_list, we'll use the test_client
 
 
-def test_get_course_list(test_context, target_course_info):
+def test_get_course_list(test_client, target_course_info):
     """Test getting the list of courses."""
     # Get course list
-    courses = get_course_list(test_context)
+    courses = test_client.get_course_list()
 
     # Check that we got a list of courses
     assert isinstance(courses, list)
@@ -30,9 +28,9 @@ def test_get_course_list(test_context, target_course_info):
             break
 
     # Ensure we found the target course
-    assert target_course is not None, (
-        f"Target course {target_course_info['code']} not found in course list"
-    )
+    assert (
+        target_course is not None
+    ), f"Target course {target_course_info['code']} not found in course list"
 
     # Store its internal ID if not already set
     if target_course_info["internal_id"] is None:
