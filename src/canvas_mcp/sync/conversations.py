@@ -124,7 +124,41 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
 
             # Get the most recent message
             message = conv_detail.messages[0]
-            message_created_at = getattr(message, "created_at", None)
+
+            # Parse the created_at timestamp
+            message_created_at_str = getattr(message, "created_at", None)
+            message_created_at = None
+
+            if message_created_at_str:
+                try:
+                    # Try to parse the timestamp
+                    from datetime import datetime
+
+                    if isinstance(message_created_at_str, str):
+                        # Try ISO format first
+                        try:
+                            message_created_at = datetime.fromisoformat(
+                                message_created_at_str.replace("Z", "+00:00")
+                            )
+                        except ValueError:
+                            # Try other common formats
+                            import dateutil.parser
+
+                            message_created_at = dateutil.parser.parse(
+                                message_created_at_str
+                            )
+                    else:
+                        # If it's already a datetime object, use it directly
+                        message_created_at = message_created_at_str
+                except Exception as e:
+                    logger.warning(
+                        f"Error parsing timestamp {message_created_at_str}: {e}"
+                    )
+                    # Use current time as fallback
+                    message_created_at = datetime.now()
+            else:
+                # Use current time as fallback if no timestamp is available
+                message_created_at = datetime.now()
 
             # Skip if message is older than term start date
             if (
@@ -139,11 +173,19 @@ def sync_conversations(sync_service, course_ids: list[int] | None = None) -> int
 
             # Clean up HTML if present
             if message_body and "<" in message_body and ">" in message_body:
-                from bs4 import BeautifulSoup
-
                 try:
-                    soup = BeautifulSoup(message_body, "html.parser")
-                    message_body = soup.get_text(separator=" ", strip=True)
+                    # Try to import BeautifulSoup
+                    try:
+                        from bs4 import BeautifulSoup
+
+                        soup = BeautifulSoup(message_body, "html.parser")
+                        message_body = soup.get_text(separator=" ", strip=True)
+                    except ImportError:
+                        # If BeautifulSoup is not available, use a simple regex approach
+                        import re
+
+                        message_body = re.sub(r"<[^>]+>", " ", message_body)
+                        message_body = re.sub(r"\s+", " ", message_body).strip()
                 except Exception as e:
                     logger.warning(f"Error cleaning HTML from message: {e}")
 
