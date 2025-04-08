@@ -245,7 +245,8 @@ def get_course_list() -> list[dict[str, Any]]:
     conn, cursor = db_manager.connect()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
         SELECT
             c.id,
             c.canvas_course_id,
@@ -258,7 +259,8 @@ def get_course_list() -> list[dict[str, Any]]:
             courses c
         ORDER BY
             c.start_date DESC
-        """)
+        """
+        )
 
         rows = cursor.fetchall()
         return db_manager.rows_to_dicts(rows)
@@ -546,8 +548,28 @@ def get_course_announcements(course_id: int, limit: int = 10) -> list[dict[str, 
             (course_id, limit),
         )
 
-        rows = cursor.fetchall()
-        return db_manager.rows_to_dicts(rows)
+        announcements = db_manager.rows_to_dicts(cursor.fetchall())
+
+        # Enhance announcements with additional context
+        for announcement in announcements:
+            # Extract links from the content
+            try:
+                announcement["links"] = extract_links_from_content(
+                    announcement.get("content", "")
+                )
+            except Exception as e:
+                logger.error(f"Error extracting links from announcement: {e}")
+                announcement["links"] = []
+
+            # Add content preview if content is long
+            if announcement.get("content"):
+                preview_length = 500
+                stripped_content = re.sub(r"<[^>]+>", "", announcement["content"])
+                announcement["content_preview"] = stripped_content[:preview_length] + (
+                    "..." if len(stripped_content) > preview_length else ""
+                )
+
+        return announcements
     finally:
         conn.close()
 
@@ -747,9 +769,11 @@ def get_syllabus_file(course_id: int, extract_content: bool = True) -> dict[str,
                     result["extracted_content"] = {
                         "success": True,
                         "file_type": extraction["file_type"],
-                        "text_preview": (extracted_content[:500] + "...")
-                        if len(extracted_content) > 500
-                        else extracted_content,
+                        "text_preview": (
+                            (extracted_content[:500] + "...")
+                            if len(extracted_content) > 500
+                            else extracted_content
+                        ),
                     }
 
                 except Exception as db_error:

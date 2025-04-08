@@ -1166,15 +1166,15 @@ class CanvasClient:
                         "url": file.url if hasattr(file, "url") else None,
                         "id": file.id if hasattr(file, "id") else None,
                         "size": file.size if hasattr(file, "size") else None,
-                        "content_type": file.content_type
-                        if hasattr(file, "content_type")
-                        else None,
-                        "created_at": file.created_at
-                        if hasattr(file, "created_at")
-                        else None,
-                        "updated_at": file.updated_at
-                        if hasattr(file, "updated_at")
-                        else None,
+                        "content_type": (
+                            file.content_type if hasattr(file, "content_type") else None
+                        ),
+                        "created_at": (
+                            file.created_at if hasattr(file, "created_at") else None
+                        ),
+                        "updated_at": (
+                            file.updated_at if hasattr(file, "updated_at") else None
+                        ),
                         "source": "files",
                     }
                 )
@@ -1182,6 +1182,46 @@ class CanvasClient:
             print(f"Error getting files for course {canvas_course_id}: {e}")
 
         return course_files
+
+    def _extract_announcement_author(self, announcement) -> str | None:
+        """
+        Extract the author's display name from a Canvas announcement.
+
+        Args:
+            announcement: Canvas announcement object
+
+        Returns:
+            The author's display name or None if not found
+        """
+        try:
+            # Try multiple methods to extract the author's name
+            # First, try the author attribute which might be a dictionary or object
+            author = getattr(announcement, "author", None)
+
+            # If author is a dictionary
+            if isinstance(author, dict):
+                return author.get("display_name")
+
+            # If author is an object with attributes
+            if hasattr(author, "display_name"):
+                return getattr(author, "display_name")
+
+            # If the announcement has a user_name attribute
+            if hasattr(announcement, "user_name"):
+                return getattr(announcement, "user_name")
+
+            # Fallback to creator's name if available
+            if hasattr(announcement, "created_by"):
+                creator = announcement.created_by
+                if isinstance(creator, dict):
+                    return creator.get("display_name")
+                elif hasattr(creator, "display_name"):
+                    return creator.display_name
+
+            return None
+        except Exception as e:
+            print(f"Error extracting announcement author: {e}")
+            return None
 
     def sync_announcements(self, course_ids: list[int] | None = None) -> int:
         """
@@ -1229,6 +1269,9 @@ class CanvasClient:
                 )
 
                 for announcement in announcements:
+                    # Extract author name using the new method
+                    author_name = self._extract_announcement_author(announcement)
+
                     # Check if announcement exists
                     cursor.execute(
                         "SELECT id FROM announcements WHERE course_id = ? AND canvas_announcement_id = ?",
@@ -1251,7 +1294,7 @@ class CanvasClient:
                             (
                                 announcement.title,
                                 getattr(announcement, "message", None),
-                                getattr(announcement, "author_name", None),
+                                author_name,
                                 getattr(announcement, "posted_at", None),
                                 datetime.now().isoformat(),
                                 existing_announcement["id"],
@@ -1271,7 +1314,7 @@ class CanvasClient:
                                 announcement.id,
                                 announcement.title,
                                 getattr(announcement, "message", None),
-                                getattr(announcement, "author_name", None),
+                                author_name,
                                 getattr(announcement, "posted_at", None),
                                 datetime.now().isoformat(),
                             ),
@@ -1299,12 +1342,14 @@ class CanvasClient:
         conn, cursor = self.connect_db()
 
         # Find syllabi of type pdf_link that haven't been parsed
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT s.id, s.course_id, s.content, c.course_name
             FROM syllabi s
             JOIN courses c ON s.course_id = c.id
             WHERE s.content_type = 'pdf_link' AND (s.is_parsed = 0 OR s.is_parsed IS NULL)
-        """)
+        """
+        )
 
         pdf_syllabi = cursor.fetchall()
         parsed_count = 0
