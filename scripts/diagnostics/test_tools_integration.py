@@ -28,6 +28,16 @@ from src.canvas_mcp.config import API_KEY, API_URL
 from src.canvas_mcp.sync.service import SyncService
 
 # Import tools
+from src.canvas_mcp.tools.sync import sync_canvas_data
+from src.canvas_mcp.tools.courses import get_course_list
+from src.canvas_mcp.tools.assignments import (
+    get_course_assignments,
+    get_upcoming_deadlines,
+)
+from src.canvas_mcp.tools.modules import get_course_modules
+from src.canvas_mcp.tools.syllabus import get_syllabus
+from src.canvas_mcp.tools.calendar import get_course_calendar_events
+from src.canvas_mcp.tools.search import search_course_content
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
