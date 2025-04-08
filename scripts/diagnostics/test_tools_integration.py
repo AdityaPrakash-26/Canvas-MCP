@@ -26,18 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.canvas_mcp.canvas_api_adapter import CanvasApiAdapter
 from src.canvas_mcp.config import API_KEY, API_URL
 from src.canvas_mcp.sync.service import SyncService
-
-# Import tools
-from src.canvas_mcp.tools.sync import sync_canvas_data
-from src.canvas_mcp.tools.courses import get_course_list
-from src.canvas_mcp.tools.assignments import (
-    get_course_assignments,
-    get_upcoming_deadlines,
-)
-from src.canvas_mcp.tools.modules import get_course_modules
-from src.canvas_mcp.tools.syllabus import get_syllabus
-from src.canvas_mcp.tools.calendar import get_course_calendar_events
-from src.canvas_mcp.tools.search import search_course_content
+from src.canvas_mcp.server import extract_tools
 from src.canvas_mcp.utils.db_manager import DatabaseManager
 
 # Configure logging
@@ -81,6 +70,28 @@ def setup_test_environment():
         }
         request_context = SimpleNamespace(lifespan_context=lifespan_context)
         ctx = SimpleNamespace(request_context=request_context)
+
+        # Extract tools
+        global \
+            sync_canvas_data, \
+            get_course_list, \
+            get_course_assignments, \
+            get_upcoming_deadlines
+        global \
+            get_course_modules, \
+            get_syllabus, \
+            get_course_calendar_events, \
+            search_course_content
+
+        tools = extract_tools()
+        sync_canvas_data = tools["sync_canvas_data"]
+        get_course_list = tools["get_course_list"]
+        get_course_assignments = tools["get_course_assignments"]
+        get_upcoming_deadlines = tools["get_upcoming_deadlines"]
+        get_course_modules = tools["get_course_modules"]
+        get_syllabus = tools["get_syllabus"]
+        get_course_calendar_events = tools["get_course_calendar_events"]
+        search_course_content = tools["search_course_content"]
 
         return ctx, sync_service, db_manager, api_adapter
     except Exception as e:
