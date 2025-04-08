@@ -1,0 +1,11 @@
+# Run with `pre-commit run --all-files` to manually check all files
+fail_fast: false
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-script
+        name: Run ruff (non-blocking)
+        entry: ./run_ruff.sh
+        language: script
+        pass_filenames: false
+        stages: [manual]

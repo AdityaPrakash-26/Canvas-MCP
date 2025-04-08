@@ -1,5 +1,7 @@
 """
 Canvas API client for synchronizing data with the local database.
+This client handles all interactions with the Canvas LMS API and manages
+the synchronization of course data to the local SQLite database.
 """
 
 import os
@@ -8,9 +10,7 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
-from dotenv import load_dotenv
-
-from canvas_mcp.utils.file_extractor import extract_text_from_file
+from canvas_mcp.utils.db_manager import DatabaseManager
 
 # Make Canvas available for patching in tests
 try:
@@ -110,145 +110,28 @@ class CanvasClient:
 
         return list(set(pdf_links))  # Remove duplicates
 
-    @staticmethod
-    def extract_links(content: str | None) -> list[dict[str, str]]:
-        """
-        Extract links from HTML content.
-
-        Args:
-            content: HTML content to parse
-
-        Returns:
-            List of dictionaries with 'url' and 'text' keys
-        """
-        if not content or not isinstance(content, str):
-            return []
-
-        links = []
-        try:
-            # Find <a> tags with href attributes
-            a_tag_pattern = re.compile(
-                r'<a\s+[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL
-            )
-            for match in a_tag_pattern.finditer(content):
-                url = match.group(1)
-                text = re.sub(
-                    r"<[^>]*>", "", match.group(2)
-                ).strip()  # Remove nested HTML tags
-                if url and url not in [link["url"] for link in links]:
-                    links.append({"url": url, "text": text or url})
-
-            # If no <a> tags found, look for bare URLs
-            if not links:
-                url_pattern = re.compile(r"https?://\S+")
-                for match in url_pattern.finditer(content):
-                    url = match.group(0)
-                    if url not in [link["url"] for link in links]:
-                        links.append({"url": url, "text": url})
-
-        except Exception as e:
-            print(f"Error extracting links: {e}")
-            # Fall back to simple search if regex fails
-            if "href=" in content:
-                # Just extract the link without parsing
-                start = content.find('href="') + 6
-                end = content.find('"', start)
-                if start > 6 and end > start:
-                    url = content[start:end]
-                    links.append({"url": url, "text": "Link"})
-
-        return links
-
-    @staticmethod
-    def detect_content_type(content: str | None) -> str:
-        """
-        Detect the content type from the given content string.
-
-        Args:
-            content: The content string to analyze
-
-        Returns:
-            String indicating the content type ('html', 'pdf_link', 'external_link', 'json', etc.)
-        """
-        if not content or not isinstance(content, str):
-            return "html"  # Default for empty content
-
-        # Strip whitespace for easier checks
-        stripped_content = content.strip()
-        content_lower = stripped_content.lower()
-
-        # Check for empty content first
-        if stripped_content in ["<p></p>", "<div></div>", ""]:
-            return "empty"
-
-        # Check for PDF links
-        if ".pdf" in content_lower and (
-            "<a href=" in content_lower or "src=" in content_lower
-        ):
-            return "pdf_link"
-
-        # Check for external links (simple URLs with minimal formatting)
-        if (
-            content_lower.startswith("http://")
-            or content_lower.startswith("https://")
-            or (
-                ("http://" in content or "https://" in content)
-                and len(stripped_content) < 1000
-                and content.count(" ") < 10
-            )
-        ):
-            return "external_link"
-
-        # Check for JSON content
-        if stripped_content.startswith("{") and stripped_content.endswith("}"):
-            try:
-                import json
-
-                json.loads(stripped_content)
-                return "json"
-            except (json.JSONDecodeError, ValueError):
-                pass  # Not valid JSON
-
-        # Check for XML/HTML content
-        if (stripped_content.startswith("<") and stripped_content.endswith(">")) or (
-            "<html" in content_lower
-            or "<body" in content_lower
-            or "<div" in content_lower
-        ):
-            return "html"
-
-        # Default to HTML for anything else
-        return "html"
-
     def __init__(
-        self, db_path: str, api_key: str | None = None, api_url: str | None = None
+        self,
+        db_manager: DatabaseManager,
+        api_key: str | None = None,
+        api_url: str | None = None,
     ):
         """
         Initialize the Canvas client.
 
         Args:
-            db_path: Path to the SQLite database (REQUIRED)
+            db_manager: DatabaseManager instance for database operations
             api_key: Canvas API key (if None, will look for CANVAS_API_KEY in environment)
             api_url: Canvas API URL (if None, will use default Canvas URL)
         """
-        # Load environment variables ONLY for API key/URL if not provided
-        load_dotenv()
-        if api_key is None:
-            api_key = os.environ.get("CANVAS_API_KEY")
-            if not api_key:
-                print("Warning: CANVAS_API_KEY not found in environment.")
-
-        # The db_path provided should be the definitive path
-        # Removed check for CANVAS_MCP_TEST_DB as it should be handled before client creation
-
+        self.db_manager = db_manager
         self.api_key = api_key
         self.api_url = api_url or os.environ.get(
             "CANVAS_API_URL", "https://canvas.instructure.com"
         )
-        self.db_path = db_path
 
         print(
-            f"CanvasClient initialized with DB: {self.db_path}, URL: {self.api_url}, Key Present: {bool(self.api_key)}"
+            f"CanvasClient initialized with URL: {self.api_url}, Key Present: {bool(self.api_key)}"
         )
 
         # Import canvasapi here to avoid making it a hard dependency
@@ -278,18 +161,15 @@ class CanvasClient:
 
     def connect_db(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]:
         """
-        Connect to the SQLite database.
+        Connect to the SQLite database using the DatabaseManager.
 
         Returns:
             Tuple of (connection, cursor)
         """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        return conn, cursor
+        return self.db_manager.connect()
 
     def sync_courses(
-        self, user_id: str | None = None, term_id: int | None = None
+        self, user_id: str | None = None, term_id: int | None = -1
     ) -> list[int]:
         """
         Synchronize course data from Canvas to the local database.
@@ -297,7 +177,7 @@ class CanvasClient:
         Args:
             user_id: Optional user ID to filter courses
             term_id: Optional term ID to filter courses
-                     (use -1 to select only the most recent term)
+                     (default is -1, which selects only the most recent term)
 
         Returns:
             List of local course IDs that were synced
@@ -316,7 +196,8 @@ class CanvasClient:
 
         # Get courses from Canvas directly using the user object
         # This fixes the authentication issue reported in integration testing
-        courses = list(user.get_courses())
+        # Only get active courses to filter out dropped courses
+        courses = list(user.get_courses(enrollment_state="active"))
 
         # Apply term filtering if requested
         if term_id is not None:
@@ -340,237 +221,12 @@ class CanvasClient:
                             == max_term_id
                         ]
             else:
-                # Filter for the specific term requested
-                courses = [
-                    course
-                    for course in courses
-                    if getattr(course, "enrollment_term_id", None) == term_id
-                ]
-
-        # Connect to database
-        conn, cursor = self.connect_db()
-
-        course_ids = []
-        for course in courses:
-            # Check if user has opted out of this course
-            cursor.execute(
-                "SELECT indexing_opt_out FROM user_courses WHERE user_id = ? AND course_id = ?",
-                (user_id, course.id),
-            )
-            row = cursor.fetchone()
-            if row and row["indexing_opt_out"]:
-                print(f"Skipping opted-out course: {course.name}")
-                continue
-
-            # Get detailed course information
-            detailed_course = self.canvas.get_course(course.id)
-
-            # Properly convert all MagicMock attributes to appropriate types for SQLite
-            course_id = int(course.id) if hasattr(course, "id") else None
-            course_code = (
-                str(getattr(course, "course_code", ""))
-                if getattr(course, "course_code", None) is not None
-                else ""
-            )
-            course_name = str(course.name) if hasattr(course, "name") else ""
-            instructor = (
-                str(getattr(detailed_course, "teacher", ""))
-                if getattr(detailed_course, "teacher", None) is not None
-                else None
-            )
-            description = (
-                str(getattr(detailed_course, "description", ""))
-                if getattr(detailed_course, "description", None) is not None
-                else None
-            )
-            start_date = (
-                str(getattr(detailed_course, "start_at", ""))
-                if getattr(detailed_course, "start_at", None) is not None
-                else None
-            )
-            end_date = (
-                str(getattr(detailed_course, "end_at", ""))
-                if getattr(detailed_course, "end_at", None) is not None
-                else None
-            )
-
-            # Check if course exists
-            cursor.execute(
-                "SELECT id FROM courses WHERE canvas_course_id = ?", (course_id,)
-            )
-            existing_course = cursor.fetchone()
-
-            if existing_course:
-                # Update existing course
-                cursor.execute(
-                    """
-                    UPDATE courses SET
-                        course_code = ?,
-                        course_name = ?,
-                        instructor = ?,
-                        description = ?,
-                        start_date = ?,
-                        end_date = ?,
-                        updated_at = ?
-                    WHERE canvas_course_id = ?
-                    """,
-                    (
-                        course_code,
-                        course_name,
-                        instructor,
-                        description,
-                        start_date,
-                        end_date,
-                        datetime.now().isoformat(),
-                        course_id,
-                    ),
+                raise ValueError(
+                    "Invalid term_id. Why are you not getting latest term?"
                 )
-                local_course_id = existing_course["id"]
-            else:
-                # Insert new course
-                cursor.execute(
-                    """
-                    INSERT INTO courses (
-                        canvas_course_id, course_code, course_name,
-                        instructor, description, start_date, end_date, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        course_id,
-                        course_code,
-                        course_name,
-                        instructor,
-                        description,
-                        start_date,
-                        end_date,
-                        datetime.now().isoformat(),
-                    ),
-                )
-                local_course_id = cursor.lastrowid
-            course_ids.append(local_course_id)
 
-            # Store or update syllabus
-            # Check if syllabus body is available
-            syllabus_body = getattr(detailed_course, "syllabus_body", None)
-
-            # Always create a syllabus entry, even if empty
-            content = (
-                syllabus_body
-                if syllabus_body
-                else "<p>No syllabus content available</p>"
-            )
-            content_type = (
-                self.detect_content_type(content) if syllabus_body else "empty"
-            )
-            parsed_content = None
-            is_parsed = False
-
-            # If it's a PDF link, try to extract the content from the PDF
-            if content_type == "pdf_link":
-                pdf_links = self.extract_pdf_links(content)
-
-                if pdf_links:
-                    # Try to extract text from the first PDF link
-                    pdf_url = pdf_links[0]
-
-                    # Try to extract the PDF content
-                    try:
-                        extraction_result = extract_text_from_file(pdf_url, "pdf")
-                        if extraction_result["success"]:
-                            parsed_content = extraction_result["text"]
-                            is_parsed = True
-                            print(
-                                f"Successfully extracted PDF content for course: {course_name}"
-                            )
-                        else:
-                            print(
-                                f"Failed to extract content from PDF for course: {course_name}"
-                            )
-                    except Exception as e:
-                        print(
-                            f"Error extracting PDF content for course {course_name}: {e}"
-                        )
-
-            # Check if syllabus exists
-            cursor.execute(
-                "SELECT id FROM syllabi WHERE course_id = ?", (local_course_id,)
-            )
-            existing_syllabus = cursor.fetchone()
-
-            if existing_syllabus:
-                # Update existing syllabus
-                if is_parsed and parsed_content:
-                    cursor.execute(
-                        """
-                        UPDATE syllabi SET
-                            content = ?,
-                            content_type = ?,
-                            parsed_content = ?,
-                            is_parsed = ?,
-                            updated_at = ?
-                        WHERE course_id = ?
-                        """,
-                        (
-                            content,
-                            content_type,
-                            parsed_content,
-                            is_parsed,
-                            datetime.now().isoformat(),
-                            local_course_id,
-                        ),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        UPDATE syllabi SET
-                            content = ?,
-                            content_type = ?,
-                            updated_at = ?
-                        WHERE course_id = ?
-                        """,
-                        (
-                            content,
-                            content_type,
-                            datetime.now().isoformat(),
-                            local_course_id,
-                        ),
-                    )
-            else:
-                # Insert new syllabus
-                if is_parsed and parsed_content:
-                    cursor.execute(
-                        """
-                        INSERT INTO syllabi
-                        (course_id, content, content_type, parsed_content, is_parsed, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            local_course_id,
-                            content,
-                            content_type,
-                            parsed_content,
-                            is_parsed,
-                            datetime.now().isoformat(),
-                        ),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        INSERT INTO syllabi (course_id, content, content_type, updated_at)
-                        VALUES (?, ?, ?, ?)
-                        """,
-                        (
-                            local_course_id,
-                            content,
-                            content_type,
-                            datetime.now().isoformat(),
-                        ),
-                    )
-
-        conn.commit()
-        conn.close()
-
-        return course_ids
+        assert courses, "No courses found"
+        return courses
 
     def sync_assignments(self, course_ids: list[int] | None = None) -> int:
         """
@@ -585,162 +241,207 @@ class CanvasClient:
         if self.canvas is None:
             raise ImportError("canvasapi module is required for this operation")
 
-        # Connect to database
-        conn, cursor = self.connect_db()
+        # Define a helper function that will be decorated with with_connection
+        @self.db_manager.with_connection
+        def sync_course_assignments(conn, cursor, local_course_id, canvas_course_id):
+            """Sync assignments for a single course with proper transaction handling."""
+            course_assignment_count = 0
 
-        # Get all courses if not specified
-        if course_ids is None:
-            cursor.execute("SELECT id, canvas_course_id FROM courses")
-            courses = cursor.fetchall()
-        else:
-            courses = []
-            for course_id in course_ids:
+            # Get course from Canvas
+            canvas_course = self.canvas.get_course(canvas_course_id)
+
+            # Get assignments for the course
+            assignments = canvas_course.get_assignments()
+
+            for assignment in assignments:
+                # Convert submission_types to string
+                submission_types = ",".join(getattr(assignment, "submission_types", []))
+
+                # Check if assignment exists
                 cursor.execute(
-                    "SELECT id, canvas_course_id FROM courses WHERE id = ?",
-                    (course_id,),
+                    "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
+                    (local_course_id, assignment.id),
                 )
-                course = cursor.fetchone()
-                if course:
-                    courses.append(course)
+                existing_assignment = cursor.fetchone()
 
-        assignment_count = 0
-        for course in courses:
-            try:
-                local_course_id = course["id"]
-                canvas_course_id = course["canvas_course_id"]
-
-                # Get course from Canvas
-                canvas_course = self.canvas.get_course(canvas_course_id)
-
-                # Get assignments for the course
-                assignments = canvas_course.get_assignments()
-
-                for assignment in assignments:
-                    # Convert submission_types to string
-                    submission_types = ",".join(
-                        getattr(assignment, "submission_types", [])
-                    )
-
-                    # Check if assignment exists
+                if existing_assignment:
+                    # Update existing assignment
                     cursor.execute(
-                        "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
-                        (local_course_id, assignment.id),
+                        """
+                        UPDATE assignments SET
+                            title = ?,
+                            description = ?,
+                            assignment_type = ?,
+                            due_date = ?,
+                            available_from = ?,
+                            available_until = ?,
+                            points_possible = ?,
+                            submission_types = ?,
+                            updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            assignment.name,
+                            getattr(assignment, "description", None),
+                            self._get_assignment_type(assignment),
+                            getattr(assignment, "due_at", None),
+                            getattr(assignment, "unlock_at", None),
+                            getattr(assignment, "lock_at", None),
+                            getattr(assignment, "points_possible", None),
+                            submission_types,
+                            datetime.now().isoformat(),
+                            existing_assignment["id"],
+                        ),
                     )
-                    existing_assignment = cursor.fetchone()
+                    assignment_id = existing_assignment["id"]
+                else:
+                    # Check if this canvas_assignment_id already exists in another course
+                    # This is a defensive check to prevent constraint violations
+                    cursor.execute(
+                        "SELECT id, course_id FROM assignments WHERE canvas_assignment_id = ?",
+                        (assignment.id,),
+                    )
+                    duplicate = cursor.fetchone()
 
-                    if existing_assignment:
-                        # Update existing assignment
+                    if duplicate and duplicate["course_id"] != local_course_id:
+                        print(
+                            f"Warning: Assignment ID {assignment.id} already exists in course {duplicate['course_id']}"
+                        )
+                        print(
+                            "This may indicate a Canvas API issue or data inconsistency."
+                        )
+                        # Generate a unique ID by appending the course ID
+                        # This is a workaround to prevent constraint violations
+                        modified_canvas_id = int(f"{assignment.id}{local_course_id}")
+                        print(
+                            f"Using modified canvas_assignment_id: {modified_canvas_id}"
+                        )
+                    else:
+                        modified_canvas_id = assignment.id
+
+                    # Insert new assignment
+                    cursor.execute(
+                        """
+                        INSERT INTO assignments (
+                            course_id, canvas_assignment_id, title, description,
+                            assignment_type, due_date, available_from, available_until,
+                            points_possible, submission_types, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            local_course_id,
+                            modified_canvas_id,
+                            assignment.name,
+                            getattr(assignment, "description", None),
+                            self._get_assignment_type(assignment),
+                            getattr(assignment, "due_at", None),
+                            getattr(assignment, "unlock_at", None),
+                            getattr(assignment, "lock_at", None),
+                            getattr(assignment, "points_possible", None),
+                            submission_types,
+                            datetime.now().isoformat(),
+                        ),
+                    )
+                    assignment_id = cursor.lastrowid
+
+                course_assignment_count += 1
+
+                # Add to calendar events
+                if hasattr(assignment, "due_at") and assignment.due_at:
+                    # Check if calendar event exists
+                    cursor.execute(
+                        """
+                        SELECT id FROM calendar_events
+                        WHERE course_id = ? AND source_type = ? AND source_id = ?
+                        """,
+                        (local_course_id, "assignment", assignment_id),
+                    )
+                    existing_event = cursor.fetchone()
+
+                    if existing_event:
+                        # Update existing event
                         cursor.execute(
                             """
-                            UPDATE assignments SET
+                            UPDATE calendar_events SET
                                 title = ?,
                                 description = ?,
-                                assignment_type = ?,
-                                due_date = ?,
-                                available_from = ?,
-                                available_until = ?,
-                                points_possible = ?,
-                                submission_types = ?,
+                                event_date = ?,
                                 updated_at = ?
                             WHERE id = ?
                             """,
                             (
                                 assignment.name,
-                                getattr(assignment, "description", None),
-                                self._get_assignment_type(assignment),
-                                getattr(assignment, "due_at", None),
-                                getattr(assignment, "unlock_at", None),
-                                getattr(assignment, "lock_at", None),
-                                getattr(assignment, "points_possible", None),
-                                submission_types,
+                                f"Due date for assignment: {assignment.name}",
+                                assignment.due_at,
                                 datetime.now().isoformat(),
-                                existing_assignment["id"],
+                                existing_event["id"],
                             ),
                         )
-                        assignment_id = existing_assignment["id"]
                     else:
-                        # Insert new assignment
+                        # Insert new event
                         cursor.execute(
                             """
-                            INSERT INTO assignments (
-                                course_id, canvas_assignment_id, title, description,
-                                assignment_type, due_date, available_from, available_until,
-                                points_possible, submission_types, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO calendar_events (
+                                course_id, title, description, event_type,
+                                source_type, source_id, event_date, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 local_course_id,
-                                assignment.id,
                                 assignment.name,
-                                getattr(assignment, "description", None),
+                                f"Due date for assignment: {assignment.name}",
                                 self._get_assignment_type(assignment),
-                                getattr(assignment, "due_at", None),
-                                getattr(assignment, "unlock_at", None),
-                                getattr(assignment, "lock_at", None),
-                                getattr(assignment, "points_possible", None),
-                                submission_types,
+                                "assignment",
+                                assignment_id,
+                                assignment.due_at,
                                 datetime.now().isoformat(),
                             ),
                         )
-                        assignment_id = cursor.lastrowid
-                    assignment_count += 1
 
-                    # Add to calendar events
-                    if hasattr(assignment, "due_at") and assignment.due_at:
-                        # Check if calendar event exists
-                        cursor.execute(
-                            """
-                            SELECT id FROM calendar_events
-                            WHERE course_id = ? AND source_type = ? AND source_id = ?
-                            """,
-                            (local_course_id, "assignment", assignment_id),
-                        )
-                        existing_event = cursor.fetchone()
+            return course_assignment_count
 
-                        if existing_event:
-                            # Update existing event
-                            cursor.execute(
-                                """
-                                UPDATE calendar_events SET
-                                    title = ?,
-                                    description = ?,
-                                    event_date = ?,
-                                    updated_at = ?
-                                WHERE id = ?
-                                """,
-                                (
-                                    assignment.name,
-                                    f"Due date for assignment: {assignment.name}",
-                                    assignment.due_at,
-                                    datetime.now().isoformat(),
-                                    existing_event["id"],
-                                ),
-                            )
-                        else:
-                            # Insert new event
-                            cursor.execute(
-                                """
-                                INSERT INTO calendar_events (
-                                    course_id, title, description, event_type,
-                                    source_type, source_id, event_date, updated_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                (
-                                    local_course_id,
-                                    assignment.name,
-                                    f"Due date for assignment: {assignment.name}",
-                                    self._get_assignment_type(assignment),
-                                    "assignment",
-                                    assignment_id,
-                                    assignment.due_at,
-                                    datetime.now().isoformat(),
-                                ),
-                            )
+        # Get all courses if not specified
+        conn, cursor = self.connect_db()
+        try:
+            if course_ids is None:
+                cursor.execute("SELECT id, canvas_course_id FROM courses")
+                courses = cursor.fetchall()
+            else:
+                courses = []
+                for course_id in course_ids:
+                    cursor.execute(
+                        "SELECT id, canvas_course_id FROM courses WHERE id = ?",
+                        (course_id,),
+                    )
+                    course = cursor.fetchone()
+                    if course:
+                        courses.append(course)
+        finally:
+            conn.close()
+
+        # Process each course in its own transaction
+        assignment_count = 0
+        for course in courses:
+            local_course_id = course["id"]
+            canvas_course_id = course["canvas_course_id"]
+
+            print(
+                f"Syncing assignments for course {canvas_course_id} (local ID: {local_course_id})"
+            )
+
+            try:
+                # Use the decorated function to sync this course's assignments
+                # This will automatically handle the transaction
+                course_assignment_count = sync_course_assignments(
+                    local_course_id, canvas_course_id
+                )
+                print(
+                    f"Successfully synced {course_assignment_count} assignments for course {canvas_course_id}"
+                )
+                assignment_count += course_assignment_count
             except Exception as e:
                 print(f"Error syncing assignments for course {canvas_course_id}: {e}")
-
-        conn.commit()
-        conn.close()
+                # The with_connection decorator will handle rollback
 
         return assignment_count
 
@@ -1442,3 +1143,62 @@ class CanvasClient:
             return "exam"
         else:
             return "assignment"
+
+
+def detect_content_type(content: str | None) -> str:
+    """
+    Detect the content type from the given content string.
+
+    Args:
+        content: The content string to analyze
+
+    Returns:
+        String indicating the content type ('html', 'pdf_link', 'external_link', 'json', etc.)
+    """
+    if not content or not isinstance(content, str):
+        return "html"  # Default for empty content
+
+    # Strip whitespace for easier checks
+    stripped_content = content.strip()
+    content_lower = stripped_content.lower()
+
+    # Check for empty content first
+    if stripped_content in ["<p></p>", "<div></div>", ""]:
+        return "empty"
+
+    # Check for PDF links
+    if ".pdf" in content_lower and (
+        "<a href=" in content_lower or "src=" in content_lower
+    ):
+        return "pdf_link"
+
+    # Check for external links (simple URLs with minimal formatting)
+    if (
+        content_lower.startswith("http://")
+        or content_lower.startswith("https://")
+        or (
+            ("http://" in content or "https://" in content)
+            and len(stripped_content) < 1000
+            and content.count(" ") < 10
+        )
+    ):
+        return "external_link"
+
+    # Check for JSON content
+    if stripped_content.startswith("{") and stripped_content.endswith("}"):
+        try:
+            import json
+
+            json.loads(stripped_content)
+            return "json"
+        except (json.JSONDecodeError, ValueError):
+            pass  # Not valid JSON
+
+    # Check for XML/HTML content
+    if (stripped_content.startswith("<") and stripped_content.endswith(">")) or (
+        "<html" in content_lower or "<body" in content_lower or "<div" in content_lower
+    ):
+        return "html"
+
+    # Default to HTML for anything else
+    return "html"

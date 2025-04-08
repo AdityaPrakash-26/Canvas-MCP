@@ -1,0 +1,1057 @@
+[
+  {
+    "access_restricted_by_date": true,
+    "id": 659200000000963801,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000096380,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000075158,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 659200000001000311,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 659200000001000312,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 999
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000100031,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 659200000000963911,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000096391,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "deleted",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 659200000000896542,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 999
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000089654,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000078294,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "account_id": 65920000000000175,
+    "apply_assignment_group_weights": true,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_MkdGr2wfOdxHSqwFCx93aZEaBliouTgIxfARBw1O.ics"
+    },
+    "course_code": "SP25_CS_110_1",
+    "course_color": null,
+    "created_at": "2024-10-25T20:05:07Z",
+    "created_at_date": "2024-10-25 20:05:07+00:00",
+    "default_view": "syllabus",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000273,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000144735,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "CS-110-1: Computer Science Fundamentals - Spring 2025",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": null,
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "MkdGr2wfOdxHSqwFCx93aZEaBliouTgIxfARBw1O",
+    "workflow_state": "available"
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000083765,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000092209,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000112015,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000113475,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000111843,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "account_id": 65920000000000175,
+    "apply_assignment_group_weights": true,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_HEKfQJXSgu74Yi5YAAK0CwKSWuf1rlvLAMmr44xn.ics"
+    },
+    "course_code": "SP25_CS_334_2",
+    "course_color": null,
+    "created_at": "2024-10-25T20:02:47Z",
+    "created_at_date": "2024-10-25 20:02:47+00:00",
+    "default_view": "wiki",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000273,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000142317,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "CS-334-2: Machine Learning - Spring 2025",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": null,
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "HEKfQJXSgu74Yi5YAAK0CwKSWuf1rlvLAMmr44xn",
+    "workflow_state": "available"
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000124077,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "account_id": 65920000000000214,
+    "apply_assignment_group_weights": true,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_GfsRX3MzRHZ1wO5NaHwwzupQqa9wLpkR4urzD5iP.ics"
+    },
+    "course_code": "FA23_CS_526_1",
+    "course_color": null,
+    "course_format": "on_campus",
+    "created_at": "2023-03-31T21:13:51Z",
+    "created_at_date": "2023-03-31 21:13:51+00:00",
+    "default_view": "wiki",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000269,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": 65920000000007264,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000119136,
+    "is_public": false,
+    "is_public_to_auth_users": true,
+    "license": "private",
+    "name": "CS-526-1: Algorithms - Fall 2023",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": true,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": null,
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "GfsRX3MzRHZ1wO5NaHwwzupQqa9wLpkR4urzD5iP",
+    "workflow_state": "available"
+  },
+  {
+    "account_id": 65920000000000214,
+    "apply_assignment_group_weights": false,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_XL2lWGj6rnIKk9qS2wdln41w5b3LIpRNVu3okwbF.ics"
+    },
+    "course_code": "SP25_CS_540_1",
+    "course_color": null,
+    "created_at": "2024-12-04T01:01:11Z",
+    "created_at_date": "2024-12-04 01:01:11+00:00",
+    "default_view": "syllabus",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000273,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000146127,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "CS-540-1: Software Engineering - Spring 2025",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": null,
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "XL2lWGj6rnIKk9qS2wdln41w5b3LIpRNVu3okwbF",
+    "workflow_state": "available"
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000076181,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "account_id": 65920000000000075,
+    "apply_assignment_group_weights": false,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_7Ni7yLOY0z25HiXrMcpH7I1X3LpeH33fU7wK3Pq2.ics"
+    },
+    "course_code": "Emory_College_Scholars",
+    "course_color": null,
+    "created_at": "2024-04-09T15:10:19Z",
+    "created_at_date": "2024-04-09 15:10:19+00:00",
+    "default_view": "wiki",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000001,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "Student Non-OPUS",
+        "role_id": 65920000000000057,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000138770,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "Emory College Scholars",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": "2019-10-08T21:14:00Z",
+    "start_at_date": "2019-10-08 21:14:00+00:00",
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "7Ni7yLOY0z25HiXrMcpH7I1X3LpeH33fU7wK3Pq2",
+    "workflow_state": "available"
+  },
+  {
+    "account_id": 65920000000000079,
+    "apply_assignment_group_weights": false,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_ihq1Mf37m5msfpX89e3ADwGfePuQ4usUGoEDwoC6.ics"
+    },
+    "course_code": "OXFP_Emory_Essentials_Oxford_Edition_2020_2021",
+    "course_color": null,
+    "created_at": "2020-04-10T14:55:28Z",
+    "created_at_date": "2020-04-10 14:55:28+00:00",
+    "default_view": "modules",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000001,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000079576,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "Emory Essentials Oxford Edition 2020-2021",
+    "overridden_course_visibility": "",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": true,
+    "root_account_id": 65920000000000001,
+    "start_at": "2020-06-01T04:00:00Z",
+    "start_at_date": "2020-06-01 04:00:00+00:00",
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "ihq1Mf37m5msfpX89e3ADwGfePuQ4usUGoEDwoC6",
+    "workflow_state": "available"
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000084941,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000095382,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000084330,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "account_id": 65920000000000153,
+    "apply_assignment_group_weights": true,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_5cvDwoGKd7J3VyKENIvaGIf3mCpQ107vJq3ZCVvZ.ics"
+    },
+    "course_code": "SP25_IDS_385_2",
+    "course_color": null,
+    "created_at": "2024-10-25T20:05:27Z",
+    "created_at_date": "2024-10-25 20:05:27+00:00",
+    "default_view": "syllabus",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000273,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000145100,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "IDS-385-2: Special Topics - Spring 2025",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": null,
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "5cvDwoGKd7J3VyKENIvaGIf3mCpQ107vJq3ZCVvZ",
+    "workflow_state": "available"
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000137227,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000117031,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "account_id": 65920000000000075,
+    "apply_assignment_group_weights": false,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_dyl0GWnLEV9LYWd590pxdErQFy3ZbTtflol1AaGK.ics"
+    },
+    "course_code": "ECAS_KRN_Placement",
+    "course_color": null,
+    "created_at": "2017-10-26T19:13:22Z",
+    "created_at_date": "2017-10-26 19:13:22+00:00",
+    "default_view": "wiki",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000001,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000043271,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "Korean  Placement Test",
+    "overridden_course_visibility": "",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": "2017-10-26T04:00:00Z",
+    "start_at_date": "2017-10-26 04:00:00+00:00",
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "dyl0GWnLEV9LYWd590pxdErQFy3ZbTtflol1AaGK",
+    "workflow_state": "available"
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000135072,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000084778,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000092278,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000091524,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000112794,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000112942,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000137042,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000101292,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "account_id": 65920000000000079,
+    "apply_assignment_group_weights": false,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_dRga3KnaJ7oMKPIS3YoPGe1yYnFQ9RW1cs2ARZoo.ics"
+    },
+    "course_code": "OXFP_Career_Services",
+    "course_color": null,
+    "created_at": "2021-10-12T20:46:57Z",
+    "created_at_date": "2021-10-12 20:46:57+00:00",
+    "default_view": "wiki",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000001,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000096253,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "Oxford Career Services ",
+    "overridden_course_visibility": "",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": "2022-01-10T20:38:17Z",
+    "start_at_date": "2022-01-10 20:38:17+00:00",
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "dRga3KnaJ7oMKPIS3YoPGe1yYnFQ9RW1cs2ARZoo",
+    "workflow_state": "available"
+  },
+  {
+    "account_id": 65920000000000079,
+    "apply_assignment_group_weights": false,
+    "blueprint": false,
+    "calendar": {
+      "ics": "https://canvas.instructure.com/feeds/calendars/course_ZJkeYlQc8WiY4ShII5lq8FpvhZKlUWILLIkLm5Sv.ics"
+    },
+    "course_code": "OXFP_Counseling_and_Career_Services_2020_21",
+    "course_color": null,
+    "created_at": "2020-06-17T18:24:21Z",
+    "created_at_date": "2020-06-17 18:24:21+00:00",
+    "default_view": "wiki",
+    "end_at": null,
+    "enrollment_term_id": 65920000000000001,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 65920000000000003,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "friendly_name": null,
+    "grade_passback_setting": null,
+    "grading_standard_id": null,
+    "hide_final_grades": false,
+    "homeroom_course": false,
+    "id": 65920000000080620,
+    "is_public": false,
+    "is_public_to_auth_users": false,
+    "license": "private",
+    "name": "Oxford Counseling and Career Services 2020_2021",
+    "overridden_course_visibility": "",
+    "public_syllabus": false,
+    "public_syllabus_to_auth": false,
+    "restrict_enrollments_to_course_dates": false,
+    "root_account_id": 65920000000000001,
+    "start_at": "2020-09-09T15:20:29Z",
+    "start_at_date": "2020-09-09 15:20:29+00:00",
+    "storage_quota_mb": 2147,
+    "storage_quota_mb_date": "2147-01-01 00:00:00+00:00",
+    "template": false,
+    "time_zone": "America/New_York",
+    "uuid": "ZJkeYlQc8WiY4ShII5lq8FpvhZKlUWILLIkLm5Sv",
+    "workflow_state": "available"
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000099921,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000097686,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000089915,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000083079,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000076017,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000136991,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000119706,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  },
+  {
+    "access_restricted_by_date": true,
+    "id": 65920000000077807,
+    "enrollments": [
+      {
+        "type": "student",
+        "role": "StudentEnrollment",
+        "role_id": 1,
+        "user_id": 65920000000208181,
+        "enrollment_state": "active",
+        "limit_privileges_to_course_section": false
+      }
+    ],
+    "enrollment_term_id": 1000
+  }
+]
