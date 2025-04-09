@@ -39,7 +39,7 @@ if not DB_PATH.exists():
     import sys
 
     sys.path.append(str(PROJECT_DIR))
-    from init_db import create_database
+    from canvas_mcp.init_db import create_database
 
     create_database(str(DB_PATH))
     logger.info(f"Database initialized at {DB_PATH}")
