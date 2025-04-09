@@ -19,6 +19,7 @@ def sync_announcements(sync_service, course_ids: list[int] | None = None) -> int
     Synchronize announcement data from Canvas to the local database.
 
     Args:
+        sync_service: The sync service instance
         course_ids: Optional list of local course IDs to sync
 
     Returns:
@@ -31,18 +32,7 @@ def sync_announcements(sync_service, course_ids: list[int] | None = None) -> int
     # Get courses to sync
     conn, cursor = sync_service.db_manager.connect()
     try:
-        if course_ids is None:
-            # Get all courses
-            cursor.execute("SELECT * FROM courses")
-            courses_to_sync = [dict(row) for row in cursor.fetchall()]
-        else:
-            # Get specific courses
-            courses_to_sync = []
-            for course_id in course_ids:
-                cursor.execute("SELECT * FROM courses WHERE id = ?", (course_id,))
-                course = cursor.fetchone()
-                if course:
-                    courses_to_sync.append(dict(course))
+        courses_to_sync = _get_courses_to_sync(cursor, course_ids)
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -62,11 +52,7 @@ def sync_announcements(sync_service, course_ids: list[int] | None = None) -> int
         local_course_id = course["id"]
         canvas_course_id = course["canvas_course_id"]
 
-        logger.info(
-            f"Syncing announcements for course {canvas_course_id} (local ID: {local_course_id})"
-        )
-
-        # Fetch Stage
+        # Fetch course and announcements
         canvas_course = sync_service.api_adapter.get_course_raw(canvas_course_id)
         if not canvas_course:
             logger.error(f"Failed to get course {canvas_course_id} from Canvas API")
@@ -79,21 +65,14 @@ def sync_announcements(sync_service, course_ids: list[int] | None = None) -> int
             logger.info(f"No announcements found for course {canvas_course_id}")
             continue
 
-        # Prepare/Validate Stage
+        # Process announcements
         valid_announcements = []
-
         for raw_announcement in raw_announcements:
             try:
-                # Prepare data for validation
-                # Get author information from the author dictionary or fallback to user_name
-                author_name = None
-                author_dict = getattr(raw_announcement, "author", None)
-                if author_dict and isinstance(author_dict, dict):
-                    author_name = author_dict.get("display_name")
+                # Extract author name
+                author_name = _extract_author_name(raw_announcement)
 
-                if not author_name:
-                    author_name = getattr(raw_announcement, "user_name", None)
-
+                # Create announcement data
                 announcement_data = {
                     "id": raw_announcement.id,
                     "course_id": local_course_id,
@@ -108,42 +87,79 @@ def sync_announcements(sync_service, course_ids: list[int] | None = None) -> int
                 valid_announcements.append(db_announcement)
             except Exception as e:
                 logger.error(
-                    f"Error validating announcement {getattr(raw_announcement, 'id', 'unknown')}: {e}"
+                    f"Error processing announcement {getattr(raw_announcement, 'id', 'unknown')}: {e}"
                 )
 
         # Persist announcements
-        conn, cursor = sync_service.db_manager.connect()
-        try:
-            synced = _persist_announcements(
-                sync_service, conn, cursor, local_course_id, valid_announcements
-            )
-            conn.commit()
-            announcement_count += synced
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Error persisting announcements: {e}")
-        finally:
-            conn.close()
-
-        logger.info(f"Successfully synced announcements for course {canvas_course_id}")
+        if valid_announcements:
+            conn, cursor = sync_service.db_manager.connect()
+            try:
+                synced = _persist_announcements(cursor, valid_announcements)
+                conn.commit()
+                announcement_count += synced
+                logger.info(
+                    f"Synced {synced} announcements for course {canvas_course_id}"
+                )
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Error persisting announcements: {e}")
+            finally:
+                conn.close()
 
     return announcement_count
 
 
-def _persist_announcements(
-    sync_service,
-    conn,
-    cursor,
-    local_course_id: int,
-    valid_announcements: list[DBAnnouncement],
-) -> int:
+def _get_courses_to_sync(cursor, course_ids: list[int] | None = None) -> list[dict]:
+    """
+    Get courses to sync from the database.
+
+    Args:
+        cursor: Database cursor
+        course_ids: Optional list of local course IDs to sync
+
+    Returns:
+        List of course dictionaries
+    """
+    if course_ids is None:
+        # Get all courses
+        cursor.execute("SELECT * FROM courses")
+        return [dict(row) for row in cursor.fetchall()]
+    else:
+        # Get specific courses
+        courses_to_sync = []
+        for course_id in course_ids:
+            cursor.execute("SELECT * FROM courses WHERE id = ?", (course_id,))
+            course = cursor.fetchone()
+            if course:
+                courses_to_sync.append(dict(course))
+        return courses_to_sync
+
+
+def _extract_author_name(raw_announcement) -> str | None:
+    """
+    Extract author name from announcement data.
+
+    Args:
+        raw_announcement: Raw announcement object from Canvas API
+
+    Returns:
+        Author name or None if not found
+    """
+    # Try to get from author dictionary first
+    author_dict = getattr(raw_announcement, "author", None)
+    if author_dict and isinstance(author_dict, dict) and "display_name" in author_dict:
+        return author_dict["display_name"]
+
+    # Fall back to user_name
+    return getattr(raw_announcement, "user_name", None)
+
+
+def _persist_announcements(cursor, valid_announcements: list[DBAnnouncement]) -> int:
     """
     Persist announcements in a single transaction.
 
     Args:
-        conn: Database connection
         cursor: Database cursor
-        local_course_id: Local course ID
         valid_announcements: List of validated announcement models
 
     Returns:
@@ -162,33 +178,37 @@ def _persist_announcements(
             # Check if announcement exists
             cursor.execute(
                 "SELECT id FROM announcements WHERE course_id = ? AND canvas_announcement_id = ?",
-                (local_course_id, db_announcement.canvas_announcement_id),
+                (db_announcement.course_id, db_announcement.canvas_announcement_id),
             )
             existing_announcement = cursor.fetchone()
 
             if existing_announcement:
                 # Update existing announcement
-                placeholders = ", ".join(
-                    [f"{key} = ?" for key in announcement_dict.keys()]
-                )
-                query = f"UPDATE announcements SET {placeholders} WHERE course_id = ? AND canvas_announcement_id = ?"
+                placeholders = ", ".join([f"{k} = ?" for k in announcement_dict.keys()])
+                values = list(announcement_dict.values())
+
                 cursor.execute(
-                    query,
-                    list(announcement_dict.values())
-                    + [local_course_id, db_announcement.canvas_announcement_id],
+                    f"UPDATE announcements SET {placeholders} WHERE course_id = ? AND canvas_announcement_id = ?",
+                    values
+                    + [
+                        db_announcement.course_id,
+                        db_announcement.canvas_announcement_id,
+                    ],
                 )
             else:
                 # Insert new announcement
                 columns = ", ".join(announcement_dict.keys())
                 placeholders = ", ".join(["?" for _ in announcement_dict.keys()])
-                query = f"INSERT INTO announcements ({columns}) VALUES ({placeholders})"
-                cursor.execute(query, list(announcement_dict.values()))
+
+                cursor.execute(
+                    f"INSERT INTO announcements ({columns}) VALUES ({placeholders})",
+                    list(announcement_dict.values()),
+                )
 
             announcement_count += 1
         except Exception as e:
             logger.error(
                 f"Error persisting announcement {db_announcement.canvas_announcement_id}: {e}"
             )
-            # The decorator will handle rollback
 
     return announcement_count
