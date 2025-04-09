@@ -4,11 +4,6 @@ These tests verify that the communications tools correctly interact with the dat
 Note: The announcements feature is being deprecated in favor of the unified communications feature.
 """
 
-import datetime
-from unittest.mock import patch
-
-import pytest
-
 from canvas_mcp.utils.formatters import format_date
 
 

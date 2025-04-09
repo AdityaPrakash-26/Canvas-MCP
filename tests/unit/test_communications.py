@@ -5,9 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
-from canvas_mcp.utils.formatters import format_date
-from canvas_mcp.sync.conversations import sync_conversations
 from canvas_mcp.sync.announcements import sync_announcements
+from canvas_mcp.sync.conversations import sync_conversations
+from canvas_mcp.utils.formatters import format_date
 
 
 @pytest.fixture

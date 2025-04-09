@@ -94,6 +94,12 @@ def format_communications(communications: list[dict[str, Any]]) -> list[dict[str
                 formatted_comm["posted_at"]
             )
 
+        # Ensure content is never empty
+        if "content" in formatted_comm and (
+            not formatted_comm["content"] or formatted_comm["content"].strip() == ""
+        ):
+            formatted_comm["content"] = "[No content available]"
+
         formatted_communications.append(formatted_comm)
 
     return formatted_communications
