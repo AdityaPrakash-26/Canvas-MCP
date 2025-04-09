@@ -1,3 +1,7 @@
+# High Priority
+- When working with the Canvas API, first consult the API at https://gitlab.com/lauraschauer/canvas-openapi-specification/-/raw/main/openapi-specs/openapi3.yaml first using your tools.
+- Remember to use your Natural Language Search (Augument Context Engine) when looking for information about the codebase. 
+
 # Development Standards & Practices
 - Follow Python 3.12+ standards with modern type annotations, using pathlib, httpx[http2], and structlog while adhering to KISS, YAGNI, CQS, SOC, SLAP, and PIE principles.
 - Use uv for Python package management and follow NumPy style docstrings starting on the first line.
@@ -8,11 +12,6 @@
 - User prefers breaking up large files into smaller ones when they become too complex.
 - User prioritizes making the codebase more intuitive for AI agents.
 - User prefers having a separate AI Agent README distinct from the human-focused README.md file.
-- User is considering adding structlog to the project and wants input on whether it's worth adding now.
-- User wants comprehensive documentation for the codebase, including cleaning up the scripts folder and adding a README that explains the most important test utilities and how to use them.
-- User wants database schema documentation added to the docs folder.
-- User wants @CLAUDE.md documentation file updated with essential repository information.
-- Claude should always check READMEs in every folder upon initialization, and the CLAUDE.md file should include comprehensive sections on testing, documentation, development workflow, and troubleshooting.
 
 # Git Practices
 - User prefers not to rebase git branches but to get vanilla origin versions of branches.
@@ -60,15 +59,6 @@
 - Canvas-MCP database schema includes tables for courses, assignments, modules, module_items, announcements, conversations, and calendar_events.
 
 # MCP Tools & Resources
-- Synchronization tools: `sync_canvas_data`
-- Course tools: `get_course_list`
-- Assignment tools: `get_upcoming_deadlines`, `get_course_assignments`
-- Module tools: `get_course_modules`
-- Syllabus tools: `get_syllabus`
-- Announcement tools: `get_course_announcements`
-- File tools: `get_course_files`, `extract_text_from_course_file`
-- Search tools: `search_course_content`
-- Calendar tools: `get_course_calendar_events`
 - All tools receive a context object with access to database, API adapter, and sync service
 - Tools are tested using `scripts/extract_tools_test.py`
 
