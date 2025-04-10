@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 # Import MarkItDown
-from markitdown import MarkItDown, DocumentConverterResult
+from markitdown import DocumentConverterResult, MarkItDown
 
 # Configure logging
 logger = logging.getLogger(__name__)

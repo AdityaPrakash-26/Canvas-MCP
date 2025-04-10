@@ -116,7 +116,6 @@ def register_file_tools(mcp: FastMCP) -> None:
         Provide the URL obtained from tools like 'get_course_files'.
 
         Args:
-            ctx: Request context containing resources
             source_url_or_path: URL or local path of the file/resource.
             file_type: Optional file type hint (generally ignored by MarkItDown).
 
@@ -132,6 +131,8 @@ def register_file_tools(mcp: FastMCP) -> None:
                 "source_url_or_path": source_url_or_path,
             }
         try:
+            # TODO: if the url contains the word `verifier`, we have to do a two step download by fetching file metadata from the canvas API
+
             # Call the refactored utility function from canvas_mcp.utils.file_extractor
             result = extract_text_from_file(source_url_or_path, file_type)
 

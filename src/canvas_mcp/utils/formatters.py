@@ -6,7 +6,15 @@ This module contains utility functions for formatting data for display.
 
 import logging
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 from typing import Any
+
+import markitdown
+from markitdown import DocumentConverterResult, StreamInfo
+
+# Instantiate MarkItDown once for efficiency
+_MARKITDOWN_INSTANCE = markitdown.MarkItDown()
+
 
 logger = logging.getLogger(__name__)
 
@@ -103,3 +111,33 @@ def format_communications(communications: list[dict[str, Any]]) -> list[dict[str
         formatted_communications.append(formatted_comm)
 
     return formatted_communications
+
+
+def convert_html_to_markdown(html_string: str) -> str | None:
+    """Converts an HTML string to Markdown using a shared MarkItDown instance.
+
+    Args:
+        html_string: The HTML content as a string.
+
+    Returns:
+        The converted Markdown content as a string, or None if conversion fails.
+    """
+    if not html_string:
+        return ""
+
+    try:
+        # Convert the string to bytes and wrap it in BytesIO
+        html_bytes: bytes = html_string.encode("utf-8")
+        html_stream = BytesIO(html_bytes)
+
+        # Provide StreamInfo to ensure correct handling
+        stream_info = StreamInfo(mimetype="text/html", charset="utf-8")
+
+        result: DocumentConverterResult = _MARKITDOWN_INSTANCE.convert(
+            html_stream, stream_info=stream_info
+        )
+        return result.text_content
+    except Exception as e:
+        # Consider logging the error here
+        print(f"Error converting HTML to Markdown: {e}")
+        return None  # Or raise the exception, depending on desired behavior
