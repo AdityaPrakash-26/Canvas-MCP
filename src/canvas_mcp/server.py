@@ -96,6 +96,7 @@ mcp = FastMCP(
         "pdfplumber>=0.7.0",
         "beautifulsoup4>=4.12.0",
         "python-docx>=0.8.11",
+        "uvloop"
     ],
     description="A Canvas integration for accessing course information, assignments, and resources.",
     lifespan=app_lifespan,

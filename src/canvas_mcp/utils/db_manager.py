@@ -46,10 +46,27 @@ class DatabaseManager:
         Returns:
             Tuple of (connection, cursor)
         """
-        # Connect to the database
-        conn = sqlite3.connect(self.db_path)
+        # Connect to the database with a timeout
+        conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+
+        # Enable WAL mode - Must be done early
+        try:
+            # Check current mode first
+            current_mode = cursor.execute("PRAGMA journal_mode").fetchone()[0]
+            if current_mode.lower() != 'wal':
+                cursor.execute("PRAGMA journal_mode = WAL")
+                # Verify change
+                new_mode = cursor.execute("PRAGMA journal_mode").fetchone()[0]
+                if new_mode.lower() == 'wal':
+                    logger.info("SQLite WAL mode enabled.")
+                else:
+                    logger.warning(f"Attempted to enable WAL mode, but mode is still {new_mode}.")
+            else:
+                logger.debug("SQLite WAL mode already enabled.")
+        except Exception as e:
+            logger.warning(f"Could not enable/verify WAL mode: {e}") # Log but don't fail
 
         # Enable foreign keys directly with PRAGMA (URI parameter doesn't work reliably)
         cursor.execute("PRAGMA foreign_keys = ON")
@@ -178,3 +195,51 @@ class DatabaseManager:
             List of dictionaries
         """
         return [self.row_to_dict(row) for row in rows]
+
+
+# Import necessary types
+import asyncio
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from canvas_mcp.models import BaseModel
+    from canvas_mcp.sync.service import SyncService
+
+
+async def run_db_persist_in_thread(
+    db_manager: "DatabaseManager",
+    persist_func: Callable[[sqlite3.Connection, sqlite3.Cursor, "SyncService", list["BaseModel"]], int],
+    sync_service_instance: "SyncService",
+    items_to_persist: list["BaseModel"],
+) -> int:
+    """Runs a synchronous DB persistence function in a thread."""
+    if not items_to_persist:
+        return 0
+
+    def db_task_wrapper():
+        conn, cursor = db_manager.connect()
+        try:
+            # Pass conn, cursor, sync_service, and items to the actual persist function
+            count = persist_func(conn, cursor, sync_service_instance, items_to_persist)
+            conn.commit()
+            logger.debug(f"Committed {count} items via {persist_func.__name__}")
+            return count
+        except Exception as e:
+            logger.error(f"Database error in {persist_func.__name__}, rolling back: {e}", exc_info=True)
+            try:
+                conn.rollback()
+            except Exception as rb_e:
+                logger.error(f"Rollback failed: {rb_e}")
+            raise # Re-raise the original exception to signal failure
+        finally:
+            conn.close()
+
+    try:
+        # Execute the wrapper in a thread
+        result = await asyncio.to_thread(db_task_wrapper)
+        return result
+    except Exception as e:
+        # Log error propagated from the thread
+        logger.error(f"Persistence task {persist_func.__name__} failed: {e}")
+        return 0 # Or re-raise depending on desired sync_all behavior

@@ -125,6 +125,11 @@ def create_database(db_path: str | Path) -> None:
         CREATE INDEX IF NOT EXISTS idx_assignments_due_at ON assignments(due_at);
         """)
 
+        # Add unique constraint on canvas_assignment_id and course_id
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_assignments_canvas_course ON assignments (canvas_assignment_id, course_id);
+        """)
+
         # Modules table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS modules (
@@ -145,6 +150,11 @@ def create_database(db_path: str | Path) -> None:
         # Create index on course_id
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_modules_course_id ON modules(course_id);
+        """)
+
+        # Add unique constraint on canvas_module_id and course_id
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_modules_canvas_course ON modules (canvas_module_id, course_id);
         """)
 
         # Module items table
@@ -174,6 +184,11 @@ def create_database(db_path: str | Path) -> None:
         CREATE INDEX IF NOT EXISTS idx_module_items_module_id ON module_items(module_id);
         """)
 
+        # Add unique constraint on canvas_item_id and module_id
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_module_items_canvas_module ON module_items (canvas_item_id, module_id);
+        """)
+
         # Announcements table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS announcements (
@@ -198,6 +213,11 @@ def create_database(db_path: str | Path) -> None:
         # Create index on posted_at
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_announcements_posted_at ON announcements(posted_at);
+        """)
+
+        # Add unique constraint on canvas_announcement_id and course_id
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_announcements_canvas_course ON announcements (canvas_announcement_id, course_id);
         """)
 
         # Conversations table
@@ -226,6 +246,12 @@ def create_database(db_path: str | Path) -> None:
         CREATE INDEX IF NOT EXISTS idx_conversations_posted_at ON conversations(posted_at);
         """)
 
+        # Add unique constraint on canvas_conversation_id (assuming it's globally unique)
+        # If not globally unique, might need combination with course_id or other fields.
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_canvas_id ON conversations (canvas_conversation_id);
+        """)
+
         # Calendar events table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS calendar_events (
@@ -251,6 +277,11 @@ def create_database(db_path: str | Path) -> None:
         # Create index on course_id
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_calendar_events_course_id ON calendar_events(course_id);
+        """)
+
+        # Add unique constraint based on source_type and source_id
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_source ON calendar_events (source_type, source_id);
         """)
 
         # Commit the changes
