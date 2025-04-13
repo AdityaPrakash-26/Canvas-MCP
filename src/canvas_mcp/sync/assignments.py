@@ -182,30 +182,17 @@ def _persist_assignments(
             )
             assignment_dict["updated_at"] = datetime.now().isoformat()
 
-            # Check for duplicate canvas_assignment_id in another course
-            cursor.execute(
-                "SELECT course_id FROM assignments WHERE canvas_assignment_id = ? AND course_id != ?",
-                (db_assignment.canvas_assignment_id, local_course_id),
-            )
-            existing = cursor.fetchone()
+            # REMOVED: Check for duplicate canvas_assignment_id in another course
+            # This logic was problematic as it modified the canvas_assignment_id,
+            # breaking the link to the original Canvas assignment for future syncs.
+            # The primary key constraint should ideally be on (course_id, canvas_assignment_id)
+            # or a unique local ID should be used while preserving the original canvas_assignment_id.
+            # We now assume the schema allows the same canvas_assignment_id across different courses.
 
-            if existing:
-                logger.warning(
-                    f"Assignment ID {db_assignment.canvas_assignment_id} already exists in course {existing['course_id']}"
-                )
-                # Generate a unique ID by appending the course ID
-                modified_canvas_id = int(
-                    f"{db_assignment.canvas_assignment_id}{local_course_id}"
-                )
-                logger.info(
-                    f"Using modified canvas_assignment_id: {modified_canvas_id}"
-                )
-                assignment_dict["canvas_assignment_id"] = modified_canvas_id
-
-            # Check if assignment exists
+            # Check if assignment exists *within this course* using the original canvas_assignment_id
             cursor.execute(
                 "SELECT id FROM assignments WHERE course_id = ? AND canvas_assignment_id = ?",
-                (local_course_id, assignment_dict["canvas_assignment_id"]),
+                (local_course_id, db_assignment.id), # Use original ID
             )
             existing_assignment = cursor.fetchone()
 
@@ -218,7 +205,7 @@ def _persist_assignments(
                 cursor.execute(
                     query,
                     list(assignment_dict.values())
-                    + [local_course_id, assignment_dict["canvas_assignment_id"]],
+                    + [local_course_id, db_assignment.id], # Use original ID
                 )
                 local_assignment_id = existing_assignment["id"]
             else:
@@ -270,7 +257,7 @@ def _persist_assignments(
             assignment_count += 1
         except Exception as e:
             logger.error(
-                f"Error persisting assignment {db_assignment.canvas_assignment_id}: {e}"
+                f"Error persisting assignment {db_assignment.id}: {e}"
             )
             # The decorator will handle rollback
 
