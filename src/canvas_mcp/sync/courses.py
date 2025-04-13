@@ -195,7 +195,6 @@ def _persist_courses_and_syllabi(cursor, valid_courses) -> list[int]:
     Persist courses and syllabi in a single transaction.
 
     Args:
-        conn: Database connection
         cursor: Database cursor
         valid_courses: List of validated course data tuples (DBCourse, syllabus_body)
 
@@ -204,10 +203,14 @@ def _persist_courses_and_syllabi(cursor, valid_courses) -> list[int]:
     """
     local_ids = []
     canvas_to_local_id = {}
+    fetched_canvas_ids = set() # Keep track of canvas_ids from the current sync
 
-    # Persist courses
+    # Persist courses and syllabi first
     for db_course, syllabus_body in valid_courses:
         try:
+            # Add the canvas_id to our set of fetched IDs
+            fetched_canvas_ids.add(db_course.canvas_course_id)
+
             # Convert Pydantic model to dict
             course_dict = db_course.model_dump(exclude={"created_at", "updated_at"})
             course_dict["updated_at"] = datetime.now().isoformat()
@@ -271,6 +274,28 @@ def _persist_courses_and_syllabi(cursor, valid_courses) -> list[int]:
                     cursor.execute(query, list(syllabus_dict.values()))
         except Exception as e:
             logger.error(f"Error persisting course {db_course.canvas_course_id}: {e}")
-            # The decorator will handle rollback
+            # Let the main sync function handle rollback on exception
+
+    # After successfully upserting all current courses, handle deletions
+    # Get all canvas_course_ids currently in the database
+    cursor.execute("SELECT canvas_course_id FROM courses")
+    db_canvas_ids = {row["canvas_course_id"] for row in cursor.fetchall()}
+
+    # Determine which courses to remove (in DB but not in the fetched set)
+    ids_to_remove = db_canvas_ids - fetched_canvas_ids
+
+    if ids_to_remove:
+        logger.info(
+            f"Removing {len(ids_to_remove)} courses that are no longer active or in the current term/filter"
+        )
+        # Create placeholders for the IN clause
+        placeholders = ", ".join(["?" for _ in ids_to_remove])
+        cursor.execute(
+            f"DELETE FROM courses WHERE canvas_course_id IN ({placeholders})",
+            list(ids_to_remove),
+        )
+        # Log which courses are being removed
+        for canvas_id in ids_to_remove:
+             logger.info(f"Removing course with Canvas ID: {canvas_id}")
 
     return local_ids
