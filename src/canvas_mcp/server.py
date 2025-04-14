@@ -5,8 +5,9 @@ This module provides the main server for Canvas MCP.
 It integrates with the Canvas API and local SQLite database to provide
 structured access to course information.
 """
-
+import asyncio
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -34,6 +35,27 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("canvas_mcp")
+
+
+async def cancel_all_tasks():
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def close_io_streams():
+    sys.stdout.close()
+    sys.stderr.close()
+    sys.stdin.close()
+
+
+def handle_shutdown_signal(signum, frame):
+    print("Signal received, shutting down...")
+    asyncio.run(cancel_all_tasks())
+    close_io_streams()
+    asyncio.get_event_loop().stop()
+    sys.exit(0)
 
 
 # Define the lifespan context type
@@ -85,6 +107,17 @@ async def app_lifespan(_: FastMCP) -> AsyncIterator[dict[str, Any]]:
         # Cleanup on shutdown (if needed)
         logger.info("Shutting down Canvas MCP server")
 
+        await cancel_all_tasks()
+
+        if hasattr(sync_service, "shutdown"):
+            logger.info("Shutting down SyncService...")
+            await sync_service.shutdown()
+
+        if hasattr(db_manager, "shutdown"):
+            logger.info("Shutting down DatabaseManager...")
+            db_manager.shutdown()
+
+        logger.info("Shutdown complete.")
 
 # Create an MCP server with lifespan
 mcp = FastMCP(
