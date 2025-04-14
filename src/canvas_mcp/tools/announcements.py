@@ -9,16 +9,20 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
+from cachetools import cached, TTLCache
 
 from canvas_mcp.utils.formatters import format_communications
 
 logger = logging.getLogger(__name__)
 
+# Create a cache with a time-to-live of 10 minutes
+cache = TTLCache(maxsize=100, ttl=600)
 
 def register_announcement_tools(mcp: FastMCP) -> None:
     """Register announcement tools with the MCP server."""
 
     @mcp.tool()
+    @cached(cache)
     def get_communications(
         ctx: Context, limit: int = 50, num_weeks: int = 3
     ) -> list[dict[str, Any]]:

@@ -10,10 +10,14 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
+from cachetools import cached, TTLCache
 
 from canvas_mcp.utils.formatters import format_deadlines
 
 logger = logging.getLogger(__name__)
+
+# Create a cache with a time-to-live of 10 minutes
+cache = TTLCache(maxsize=100, ttl=600)
 
 
 def extract_links_from_content(content: str) -> list[dict[str, str]]:
@@ -44,6 +48,7 @@ def register_assignment_tools(mcp: FastMCP) -> None:
     """Register assignment tools with the MCP server."""
 
     @mcp.tool()
+    @cached(cache)
     def get_upcoming_deadlines(
         ctx: Context, days: int = 7, course_id: int | None = None
     ) -> list[dict[str, Any]]:
@@ -115,6 +120,7 @@ def register_assignment_tools(mcp: FastMCP) -> None:
             conn.close()
 
     @mcp.tool()
+    @cached(cache)
     def get_course_assignments(ctx: Context, course_id: int) -> list[dict[str, Any]]:
         """
         Get all assignments for a specific course.

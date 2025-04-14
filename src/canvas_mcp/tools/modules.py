@@ -6,16 +6,20 @@ This module contains tools for accessing module information.
 
 import logging
 from typing import Any
+from cachetools import cached, TTLCache
 
 from mcp.server.fastmcp import Context, FastMCP
 
 logger = logging.getLogger(__name__)
 
+# Create a cache with a time-to-live of 10 minutes
+cache = TTLCache(maxsize=100, ttl=600)
 
 def register_module_tools(mcp: FastMCP) -> None:
     """Register module tools with the MCP server."""
 
     @mcp.tool()
+    @cached(cache)
     def get_course_modules(
         ctx: Context, course_id: int, include_items: bool = False
     ) -> list[dict[str, Any]]:
