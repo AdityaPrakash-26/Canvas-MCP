@@ -5,9 +5,14 @@ This module contains tools for accessing file information.
 """
 
 import logging
+import httpx
 from typing import Any
+from cachetools import cached, TTLCache
 
 from mcp.server.fastmcp import Context, FastMCP
+
+# Create a cache with a time-to-live of 10 minutes
+cache = TTLCache(maxsize=100, ttl=600)
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +21,7 @@ def register_file_tools(mcp: FastMCP) -> None:
     """Register file tools with the MCP server."""
 
     @mcp.tool()
+    @cached(cache)
     def get_course_files(
         ctx: Context, course_id: int, file_type: str = None
     ) -> list[dict[str, Any]]:
@@ -193,4 +199,41 @@ def register_file_tools(mcp: FastMCP) -> None:
                 "success": False,
                 "file_url": file_url,
                 "error": f"Error extracting text: {str(e)}",
+            }
+
+    @mcp.tool()
+    async def get_markdown_from_url(ctx: Context, url: str) -> dict[str, Any]:
+        """
+        Fetch markdown content from a given URL.
+
+        Args:
+            ctx: Request context containing resources
+            url: The URL to fetch markdown content from
+
+        Returns:
+            Dictionary with the markdown content or an error message
+        """
+        import httpx
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url)
+                response.raise_for_status()  # Raise an error for bad responses
+
+            return {
+                "success": True,
+                "url": url,
+                "content": response.text,
+            }
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Error fetching markdown from {url}: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to fetch markdown: {str(e)}"
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Unexpected error: {str(e)}"
             }
