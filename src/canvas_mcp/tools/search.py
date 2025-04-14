@@ -6,16 +6,20 @@ This module contains tools for searching course content.
 
 import logging
 from typing import Any
+from cachetools import cached, TTLCache
 
 from mcp.server.fastmcp import Context, FastMCP
 
 logger = logging.getLogger(__name__)
 
+# Create a cache with a time-to-live of 10 minutes
+cache = TTLCache(maxsize=100, ttl=600)
 
 def register_search_tools(mcp: FastMCP) -> None:
     """Register search tools with the MCP server."""
 
     @mcp.tool()
+    @cached(cache)
     def search_course_content(
         ctx: Context, query: str, course_id: int | None = None
     ) -> list[dict[str, Any]]:

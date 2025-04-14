@@ -20,6 +20,8 @@ dependencies = [
     "docx>=0.2.4",
     "pydantic>=2.10.6",
     "sqlite-utils>=3.38",
+    "httpx>=0.28.1",
+    "cachetools>=5.5.2",
 ]
 
 [project.optional-dependencies]

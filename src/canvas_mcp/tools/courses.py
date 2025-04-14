@@ -6,16 +6,20 @@ This module contains tools for accessing course information.
 
 import logging
 from typing import Any
+from cachetools import cached, TTLCache
 
 from mcp.server.fastmcp import Context, FastMCP
 
 logger = logging.getLogger(__name__)
 
+# Create a cache with a time-to-live of 10 minutes
+cache = TTLCache(maxsize=100, ttl=600)
 
 def register_course_tools(mcp: FastMCP) -> None:
     """Register course tools with the MCP server."""
 
     @mcp.tool()
+    @cached(cache)
     def get_course_list(ctx: Context) -> list[dict[str, Any]]:
         """
         Get list of all courses in the database.

@@ -6,6 +6,8 @@ These tests verify that the files tools correctly interact with the Canvas clien
 
 from types import SimpleNamespace
 from unittest.mock import patch
+import pytest
+import httpx
 
 from canvas_mcp.tools.files import register_file_tools
 
@@ -95,3 +97,67 @@ class TestFilesTools:
         assert result["success"] is False
         assert "error" in result
         assert result["file_type"] == "pdf"
+
+    @patch("httpx.AsyncClient.get")
+    def test_get_markdown_from_url_success(self, mock_get):
+        """Test the get_markdown_from_url tool with a successful response."""
+        # Create a mock MCP server
+        class MockMCP:
+            def tool(self):
+                def decorator(func):
+                    setattr(self, func.__name__, func)
+                    return func
+                return decorator
+
+        # Register the tools
+        mock_mcp = MockMCP()
+        register_file_tools(mock_mcp)
+
+        # Create a mock context
+        lifespan_context = {}
+        request_context = SimpleNamespace(lifespan_context=lifespan_context)
+        ctx = SimpleNamespace(request_context=request_context)
+
+        # Mock the HTTP client response
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = "# Sample Markdown\nThis is a sample markdown file."
+
+        # Call the get_markdown_from_url tool
+        result = mock_mcp.get_markdown_from_url(ctx, "http://example.com/sample.md")
+
+        # Verify the result
+        assert isinstance(result, dict)
+        assert result["success"] is True
+        assert result["url"] == "http://example.com/sample.md"
+        assert result["content"] == "# Sample Markdown\nThis is a sample markdown file."
+
+    @patch("httpx.AsyncClient.get")
+    def test_get_markdown_from_url_http_error(self, mock_get):
+        """Test the get_markdown_from_url tool for HTTP error handling."""
+        # Create a mock MCP server
+        class MockMCP:
+            def tool(self):
+                def decorator(func):
+                    setattr(self, func.__name__, func)
+                    return func
+                return decorator
+
+        # Register the tools
+        mock_mcp = MockMCP()
+        register_file_tools(mock_mcp)
+
+        # Create a mock context
+        lifespan_context = {}
+        request_context = SimpleNamespace(lifespan_context=lifespan_context)
+        ctx = SimpleNamespace(request_context=request_context)
+
+        # Mock the HTTP client response for an error
+        mock_get.side_effect = httpx.HTTPStatusError("Not Found", request=None)
+
+        # Call the get_markdown_from_url tool
+        result = mock_mcp.get_markdown_from_url(ctx, "http://example.com/sample.md")
+
+        # Verify the result
+        assert isinstance(result, dict)
+        assert result["success"] is False
+        assert "Failed to fetch markdown" in result["error"]

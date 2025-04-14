@@ -6,16 +6,20 @@ This module contains tools for accessing calendar event information.
 
 import logging
 from typing import Any
+from cachetools import cached, TTLCache
 
 from mcp.server.fastmcp import Context, FastMCP
 
 logger = logging.getLogger(__name__)
 
+# Create a cache with a time-to-live of 10 minutes
+cache = TTLCache(maxsize=100, ttl=600)
 
 def register_calendar_tools(mcp: FastMCP) -> None:
     """Register calendar tools with the MCP server."""
 
     @mcp.tool()
+    @cached(cache)
     def get_course_calendar_events(
         ctx: Context, course_id: int, limit: int = 20
     ) -> list[dict[str, Any]]:
