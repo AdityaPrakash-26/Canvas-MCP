@@ -196,8 +196,8 @@ def test_tools():
     logger.info(f"Syllabus type: {type(syllabus).__name__}")
 
     # Test get_course_announcements
-    logger.info(f"Testing get_course_announcements with course_id={course_id}...")
-    announcements = tools["get_course_announcements"](ctx, course_id=course_id)
+    logger.info(f"Testing get_course_communications with course_id={course_id}...")
+    announcements = tools["get_communications"](ctx)
     logger.info(f"Found {len(announcements)} announcements")
 
     # Test get_course_files

@@ -111,8 +111,8 @@ def register_assignment_tools(mcp: FastMCP) -> None:
             # Format deadlines for display
             return format_deadlines(deadlines)
         finally:
-            # Close the connection
             conn.close()
+        # Close the connection
 
     @mcp.tool()
     def get_course_assignments(ctx: Context, course_id: int) -> list[dict[str, Any]]:
