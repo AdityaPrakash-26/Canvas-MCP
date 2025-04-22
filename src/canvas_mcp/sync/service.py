@@ -50,7 +50,9 @@ class SyncService:
         self.api_adapter = api_adapter
         # Define semaphore - adjust limit based on known Canvas limits
         # CRITICAL: Determine the actual rate limit of your Canvas instance!
-        self.api_semaphore = asyncio.Semaphore(10) # Example: Limit to 10 concurrent API calls
+        self.api_semaphore = asyncio.Semaphore(
+            10
+        )  # Example: Limit to 10 concurrent API calls
         logger.info(f"API concurrency limited to {self.api_semaphore._value} calls.")
 
         # Bind methods to the instance - these will be converted to async below

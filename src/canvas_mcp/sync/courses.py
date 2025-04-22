@@ -340,19 +340,26 @@ def _persist_courses_and_syllabi(
         sql = f"INSERT INTO courses ({cols}) VALUES ({phs})"
         try:
             cursor.executemany(sql, courses_to_insert_data)
-            inserted_count = cursor.rowcount
+
+            # Re‑query to fetch the reliable (id, canvas_course_id) pairs
+            inserted_canvas_ids = [row[0] for row in courses_to_insert_data]
+            phs = ",".join("?" * len(inserted_canvas_ids))
+            cursor.execute(
+                f"SELECT id, canvas_course_id FROM courses "
+                f"WHERE canvas_course_id IN ({phs})",
+                inserted_canvas_ids,
+            )
+            rows = cursor.fetchall()
+
+            inserted_count = len(rows)
             logger.debug(f"Batch inserted {inserted_count} courses.")
-            # Get the local IDs for the newly inserted courses
-            last_row_id = cursor.lastrowid
-            # This gets IDs assuming they are sequential; might be fragile.
-            # A more robust way is to re-query based on canvas_course_id.
-            first_new_id = last_row_id - inserted_count + 1
-            for i, data_tuple in enumerate(courses_to_insert_data):
-                canvas_id = data_tuple[0]  # canvas_course_id is the first element
-                new_local_id = first_new_id + i
-                inserted_local_ids[canvas_id] = new_local_id
-                canvas_to_local_id_map[canvas_id] = new_local_id
-                synced_local_ids.append(new_local_id)
+
+            for row in rows:
+                canvas_id = row["canvas_course_id"]
+                local_id = row["id"]
+                inserted_local_ids[canvas_id] = local_id
+                canvas_to_local_id_map[canvas_id] = local_id
+                synced_local_ids.append(local_id)
         except sqlite3.Error as e:
             logger.error(f"Batch course insert failed: {e}")
             raise

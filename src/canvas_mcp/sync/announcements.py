@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def sync_announcements(sync_service: "SyncService", course_ids: list[int] | None = None) -> int:
+async def sync_announcements(
+    sync_service: "SyncService", course_ids: list[int] | None = None
+) -> int:
     """
     Synchronize announcement data from Canvas to the local database asynchronously.
 
@@ -44,8 +46,13 @@ async def sync_announcements(sync_service: "SyncService", course_ids: list[int] 
     conn_map, cursor_map = sync_service.db_manager.connect()
     try:
         placeholders = ", ".join("?" * len(course_ids))
-        cursor_map.execute(f"SELECT id, canvas_course_id FROM courses WHERE id IN ({placeholders})", course_ids)
-        courses_to_sync = {row["canvas_course_id"]: row["id"] for row in cursor_map.fetchall()}
+        cursor_map.execute(
+            f"SELECT id, canvas_course_id FROM courses WHERE id IN ({placeholders})",
+            course_ids,
+        )
+        courses_to_sync = {
+            row["canvas_course_id"]: row["id"] for row in cursor_map.fetchall()
+        }
     except Exception as e:
         logger.error(f"Failed to fetch course mapping for announcements: {e}")
         return 0
@@ -58,12 +65,16 @@ async def sync_announcements(sync_service: "SyncService", course_ids: list[int] 
 
     # --- Parallel Fetch Stage ---
     tasks = []
-    course_context = [] # Store (local_id, canvas_id) for context
+    course_context = []  # Store (local_id, canvas_id) for context
 
-    logger.info(f"Creating tasks to fetch announcements for {len(courses_to_sync)} courses...")
+    logger.info(
+        f"Creating tasks to fetch announcements for {len(courses_to_sync)} courses..."
+    )
     for canvas_course_id, local_course_id in courses_to_sync.items():
         task = asyncio.create_task(
-            _fetch_announcements_for_course(sync_service, canvas_course_id, local_course_id)
+            _fetch_announcements_for_course(
+                sync_service, canvas_course_id, local_course_id
+            )
         )
         tasks.append(task)
         course_context.append((local_course_id, canvas_course_id))
@@ -78,10 +89,14 @@ async def sync_announcements(sync_service: "SyncService", course_ids: list[int] 
     for i, result in enumerate(results_or_exceptions):
         local_course_id, canvas_course_id = course_context[i]
         if isinstance(result, Exception):
-            logger.error(f"Failed fetching announcements for course {local_course_id} (Canvas ID: {canvas_course_id}): {result}")
+            logger.error(
+                f"Failed fetching announcements for course {local_course_id} (Canvas ID: {canvas_course_id}): {result}"
+            )
             continue
         if result is None:
-            logger.warning(f"No announcement data returned for course {local_course_id}")
+            logger.warning(
+                f"No announcement data returned for course {local_course_id}"
+            )
             continue
 
         raw_announcements = result
@@ -95,15 +110,17 @@ async def sync_announcements(sync_service: "SyncService", course_ids: list[int] 
                 # Convert HTML message to Markdown
                 message = getattr(raw_announcement, "message", None)
                 if message:
-                    message = convert_html_to_markdown(message) # Keep HTML conversion
+                    message = convert_html_to_markdown(message)  # Keep HTML conversion
 
                 # Prepare data for validation
                 announcement_data = {
-                    "id": raw_announcement.id, # Alias for canvas_announcement_id
+                    "id": raw_announcement.id,  # Alias for canvas_announcement_id
                     "course_id": local_course_id,
-                    "title": getattr(raw_announcement, "title", "Untitled Announcement"),
-                    "message": message, # Alias for content
-                    "author_name": author_name, # Alias for posted_by
+                    "title": getattr(
+                        raw_announcement, "title", "Untitled Announcement"
+                    ),
+                    "message": message,  # Alias for content
+                    "author_name": author_name,  # Alias for posted_by
                     "posted_at": getattr(raw_announcement, "posted_at", None),
                 }
 
@@ -111,36 +128,52 @@ async def sync_announcements(sync_service: "SyncService", course_ids: list[int] 
                 db_announcement = DBAnnouncement.model_validate(announcement_data)
                 all_valid_announcements.append(db_announcement)
             except Exception as e:
-                logger.error(f"Validation error for announcement {getattr(raw_announcement, 'id', 'N/A')} in course {local_course_id}: {e}", exc_info=True)
+                logger.error(
+                    f"Validation error for announcement {getattr(raw_announcement, 'id', 'N/A')} in course {local_course_id}: {e}",
+                    exc_info=True,
+                )
 
-    logger.info(f"Processed {total_raw_count} raw announcements, {len(all_valid_announcements)} valid announcements found.")
+    logger.info(
+        f"Processed {total_raw_count} raw announcements, {len(all_valid_announcements)} valid announcements found."
+    )
 
     # --- Persist Stage ---
     persisted_count = await run_db_persist_in_thread(
         sync_service.db_manager,
         _persist_announcements,
         sync_service,
-        all_valid_announcements
+        all_valid_announcements,
     )
 
-    logger.info(f"Finished announcement sync. Persisted/updated {persisted_count} announcements.")
+    logger.info(
+        f"Finished announcement sync. Persisted/updated {persisted_count} announcements."
+    )
     return persisted_count
 
 
-async def _fetch_announcements_for_course(sync_service: "SyncService", canvas_course_id: int, local_course_id: int) -> list[Any] | None:
+async def _fetch_announcements_for_course(
+    sync_service: "SyncService", canvas_course_id: int, local_course_id: int
+) -> list[Any] | None:
     """Helper async function to wrap the threaded API call for announcements."""
     async with sync_service.api_semaphore:
-        logger.debug(f"Semaphore acquired for fetching announcements: course {local_course_id}")
+        logger.debug(
+            f"Semaphore acquired for fetching announcements: course {local_course_id}"
+        )
         try:
             raw_announcements = await asyncio.to_thread(
                 sync_service.api_adapter.get_announcements_raw_by_id,
                 canvas_course_id,
-                per_page=100
+                per_page=100,
             )
-            logger.debug(f"Fetched {len(raw_announcements)} announcements for course {local_course_id}")
+            logger.debug(
+                f"Fetched {len(raw_announcements)} announcements for course {local_course_id}"
+            )
             return raw_announcements
         except Exception as e:
-            logger.error(f"Error in thread fetching announcements for course {local_course_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error in thread fetching announcements for course {local_course_id}: {e}",
+                exc_info=True,
+            )
             return None
 
 
@@ -179,18 +212,22 @@ def _persist_announcements(
     now_iso = datetime.now().isoformat()
 
     # 1. Fetch existing announcement IDs
-    existing_map: dict[tuple[int, int], int] = {} # (canvas_announcement_id, course_id) -> local_id
+    existing_map: dict[
+        tuple[int, int], int
+    ] = {}  # (canvas_announcement_id, course_id) -> local_id
     canvas_ids_in_batch = {a.canvas_announcement_id for a in valid_announcements}
     course_ids_in_batch = {a.course_id for a in valid_announcements}
     try:
         if canvas_ids_in_batch and course_ids_in_batch:
-            canvas_phs = ','.join('?' * len(canvas_ids_in_batch))
-            course_phs = ','.join('?' * len(course_ids_in_batch))
+            canvas_phs = ",".join("?" * len(canvas_ids_in_batch))
+            course_phs = ",".join("?" * len(course_ids_in_batch))
             sql = f"SELECT id, canvas_announcement_id, course_id FROM announcements WHERE canvas_announcement_id IN ({canvas_phs}) AND course_id IN ({course_phs})"
             params = list(canvas_ids_in_batch) + list(course_ids_in_batch)
             cursor.execute(sql, params)
             for row in cursor.fetchall():
-                existing_map[(row['canvas_announcement_id'], row['course_id'])] = row['id']
+                existing_map[(row["canvas_announcement_id"], row["course_id"])] = row[
+                    "id"
+                ]
     except sqlite3.Error as e:
         logger.error(f"Failed to query existing announcements: {e}")
         raise
@@ -243,14 +280,26 @@ def _persist_announcements(
             canvas_id = item_dict.get("canvas_announcement_id")
             course_id = item_dict.get("course_id")
             try:
-                set_clause = ", ".join([f"{k} = ?" for k in item_dict if k not in ['canvas_announcement_id', 'course_id']])
-                values = [v for k, v in item_dict.items() if k not in ['canvas_announcement_id', 'course_id']]
+                set_clause = ", ".join(
+                    [
+                        f"{k} = ?"
+                        for k in item_dict
+                        if k not in ["canvas_announcement_id", "course_id"]
+                    ]
+                )
+                values = [
+                    v
+                    for k, v in item_dict.items()
+                    if k not in ["canvas_announcement_id", "course_id"]
+                ]
                 values.append(local_id)
                 sql = f"UPDATE announcements SET {set_clause} WHERE id = ?"
                 cursor.execute(sql, values)
                 update_count += cursor.rowcount
             except sqlite3.Error as e:
-                logger.error(f"Failed to update announcement {canvas_id} (local ID {local_id}) in course {course_id}: {e}")
+                logger.error(
+                    f"Failed to update announcement {canvas_id} (local ID {local_id}) in course {course_id}: {e}"
+                )
     processed_count += update_count
     logger.debug(f"Updated {update_count} announcements.")
 

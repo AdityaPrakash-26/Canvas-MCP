@@ -42,5 +42,7 @@ def register_sync_tools(mcp: FastMCP) -> None:
             return result
 
         except Exception as e:
-            logger.error(f"Error during Canvas data synchronization: {e}", exc_info=True)
+            logger.error(
+                f"Error during Canvas data synchronization: {e}", exc_info=True
+            )
             return {"error": f"Synchronization failed: {str(e)}"}

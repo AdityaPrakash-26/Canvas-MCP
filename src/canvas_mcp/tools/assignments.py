@@ -45,7 +45,7 @@ def register_assignment_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def get_upcoming_deadlines(
-            ctx: Context, days: int = 7, course_id: int | None = None
+        ctx: Context, days: int = 7, course_id: int | None = None
     ) -> list[dict[str, Any]]:
         """
         Get upcoming assignment deadlines.
@@ -162,10 +162,10 @@ def register_assignment_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def get_assignment_details(
-            ctx: Context,
-            course_id: int,
-            assignment_name: str,
-            include_canvas_data: bool = True,
+        ctx: Context,
+        course_id: int,
+        assignment_name: str,
+        include_canvas_data: bool = True,
     ) -> dict[str, Any]:
         """
         Get comprehensive information about a specific assignment by name.
@@ -295,8 +295,8 @@ def register_assignment_tools(mcp: FastMCP) -> None:
                             # Check if it's a PDF
                             content_type = getattr(file, "content_type", "")
                             if (
-                                    "pdf" in content_type.lower()
-                                    or file_name.lower().endswith(".pdf")
+                                "pdf" in content_type.lower()
+                                or file_name.lower().endswith(".pdf")
                             ):
                                 all_pdfs.append(
                                     {
@@ -312,9 +312,9 @@ def register_assignment_tools(mcp: FastMCP) -> None:
                         # Filter PDFs that might be related to this assignment
                         for pdf in all_pdfs:
                             if (
-                                    assignment.get("title") in pdf.get("name", "")
-                                    or assignment_name.lower()
-                                    in pdf.get("name", "").lower()
+                                assignment.get("title") in pdf.get("name", "")
+                                or assignment_name.lower()
+                                in pdf.get("name", "").lower()
                             ):
                                 pdf_files.append(
                                     {

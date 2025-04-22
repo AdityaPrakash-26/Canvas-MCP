@@ -153,8 +153,8 @@ class DBModuleItem(BaseModel):
     """Model for a module item in the database."""
 
     # module_id will be set during persistence, not validation from API
-    module_id: int | None = None # Made optional for initial validation
-    canvas_module_id: int | None = None # Temporary field for linking
+    module_id: int | None = None  # Made optional for initial validation
+    canvas_module_id: int | None = None  # Temporary field for linking
     canvas_item_id: int = Field(..., alias="id")
     title: str | None = None
     item_type: str | None = Field(None, alias="type")

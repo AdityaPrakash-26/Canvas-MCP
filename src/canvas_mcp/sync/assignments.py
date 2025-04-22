@@ -308,19 +308,26 @@ def _persist_assignments(
         sql = f"INSERT INTO assignments ({cols}) VALUES ({phs})"
         try:
             cursor.executemany(sql, assignments_to_insert_data)
-            inserted_count = cursor.rowcount
+
+            # Re‑query for the freshly inserted rows
+            inserted_canvas_ids = [row[1] for row in assignments_to_insert_data]
+            phs = ",".join("?" * len(inserted_canvas_ids))
+            cursor.execute(
+                f"SELECT id, canvas_assignment_id FROM assignments "
+                f"WHERE canvas_assignment_id IN ({phs})",
+                inserted_canvas_ids,
+            )
+            rows = cursor.fetchall()
+
+            inserted_count = len(rows)
             processed_assignment_count += inserted_count
             logger.debug(f"Batch inserted {inserted_count} assignments.")
-            # Get local IDs for newly inserted assignments
-            last_row_id = cursor.lastrowid
-            first_new_id = last_row_id - inserted_count + 1
-            for i, data_tuple in enumerate(assignments_to_insert_data):
-                canvas_id = data_tuple[1]  # canvas_assignment_id is the second element
-                new_local_id = first_new_id + i
-                inserted_assignment_ids[canvas_id] = new_local_id
-                assignment_local_id_map[canvas_id] = (
-                    new_local_id  # Add to map for calendar events
-                )
+
+            for row in rows:
+                canvas_id = row["canvas_assignment_id"]
+                local_id = row["id"]
+                inserted_assignment_ids[canvas_id] = local_id
+                assignment_local_id_map[canvas_id] = local_id
         except sqlite3.IntegrityError as e:
             # Handle potential unique constraint violations if UNIQUE index is added
             logger.warning(

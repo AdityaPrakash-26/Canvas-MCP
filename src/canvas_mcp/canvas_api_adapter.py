@@ -75,7 +75,9 @@ class CanvasApiAdapter:
             logger.exception(f"Unexpected error getting current user: {e}")
             return []
 
-    def get_courses_raw(self, user: Any, enrollment_state: str = "active", per_page: int = 100) -> list[Any]:
+    def get_courses_raw(
+        self, user: Any, enrollment_state: str = "active", per_page: int = 100
+    ) -> list[Any]:
         """
         Get courses for a user from the Canvas API.
 
@@ -93,7 +95,9 @@ class CanvasApiAdapter:
 
         try:
             # Pass per_page to the underlying canvasapi call
-            return list(user.get_courses(enrollment_state=enrollment_state, per_page=per_page))
+            return list(
+                user.get_courses(enrollment_state=enrollment_state, per_page=per_page)
+            )
         except CanvasException as e:
             logger.error(f"Canvas API error getting courses: {e}")
             return []
@@ -179,7 +183,9 @@ class CanvasApiAdapter:
             )
             return None
 
-    def get_assignments_raw_by_id(self, course_id: int, per_page: int = 100) -> list[Any]:
+    def get_assignments_raw_by_id(
+        self, course_id: int, per_page: int = 100
+    ) -> list[Any]:
         """
         Get assignments for a course using its ID.
 
@@ -200,10 +206,14 @@ class CanvasApiAdapter:
                 return []
             return self.get_assignments_raw(course, per_page=per_page)
         except CanvasException as e:
-            logger.error(f"Canvas API error getting assignments for course {course_id}: {e}")
+            logger.error(
+                f"Canvas API error getting assignments for course {course_id}: {e}"
+            )
             return []
         except Exception as e:
-            logger.exception(f"Unexpected error getting assignments for course {course_id}: {e}")
+            logger.exception(
+                f"Unexpected error getting assignments for course {course_id}: {e}"
+            )
             return []
 
     def get_modules_raw(self, course: Any, per_page: int = 100) -> list[Any]:
@@ -259,10 +269,14 @@ class CanvasApiAdapter:
                 return []
             return self.get_modules_raw(course, per_page=per_page)
         except CanvasException as e:
-            logger.error(f"Canvas API error getting modules for course {course_id}: {e}")
+            logger.error(
+                f"Canvas API error getting modules for course {course_id}: {e}"
+            )
             return []
         except Exception as e:
-            logger.exception(f"Unexpected error getting modules for course {course_id}: {e}")
+            logger.exception(
+                f"Unexpected error getting modules for course {course_id}: {e}"
+            )
             return []
 
     def get_module_items_raw(self, module: Any, per_page: int = 100) -> list[Any]:
@@ -287,7 +301,9 @@ class CanvasApiAdapter:
             # Pass per_page to the underlying canvasapi call
             return list(module.get_module_items(per_page=per_page))
         except CanvasException as e:
-            logger.error(f"Canvas API error getting items for module {getattr(module, 'id', 'N/A')}: {e}")
+            logger.error(
+                f"Canvas API error getting items for module {getattr(module, 'id', 'N/A')}: {e}"
+            )
             return []
         except Exception as e:
             logger.exception(
@@ -295,7 +311,9 @@ class CanvasApiAdapter:
             )
             return []
 
-    def get_module_items_raw_by_id(self, module_id: int, per_page: int = 100) -> list[Any]:
+    def get_module_items_raw_by_id(
+        self, module_id: int, per_page: int = 100
+    ) -> list[Any]:
         """
         Get items for a module using its ID.
 
@@ -314,17 +332,21 @@ class CanvasApiAdapter:
             # This adapter method might be less useful without the course context.
             # Assuming we might need a get_module_raw method first.
             # For now, let's log a warning.
-            logger.warning("get_module_items_raw_by_id requires module object, not just ID. Fetch module first.")
+            logger.warning(
+                "get_module_items_raw_by_id requires module object, not just ID. Fetch module first."
+            )
             # Placeholder: If you implement get_module_raw(module_id), use it here.
             # module = self.get_module_raw(module_id) # Hypothetical
             # if not module: return []
             # return self.get_module_items_raw(module, per_page=per_page)
-            return [] # Return empty as direct fetch by ID isn't standard
+            return []  # Return empty as direct fetch by ID isn't standard
         except CanvasException as e:
             logger.error(f"Canvas API error getting items for module {module_id}: {e}")
             return []
         except Exception as e:
-            logger.exception(f"Unexpected error getting items for module {module_id}: {e}")
+            logger.exception(
+                f"Unexpected error getting items for module {module_id}: {e}"
+            )
             return []
 
     def get_announcements_raw(self, course: Any, per_page: int = 100) -> list[Any]:
@@ -347,7 +369,9 @@ class CanvasApiAdapter:
 
         try:
             # Pass per_page to the underlying canvasapi call
-            return list(course.get_discussion_topics(only_announcements=True, per_page=per_page))
+            return list(
+                course.get_discussion_topics(only_announcements=True, per_page=per_page)
+            )
         except CanvasException as e:
             logger.error(
                 f"Canvas API error getting announcements for course {getattr(course, 'id', 'N/A')}: {e}"
@@ -359,7 +383,9 @@ class CanvasApiAdapter:
             )
             return []
 
-    def get_announcements_raw_by_id(self, course_id: int, per_page: int = 100) -> list[Any]:
+    def get_announcements_raw_by_id(
+        self, course_id: int, per_page: int = 100
+    ) -> list[Any]:
         """
         Get announcements for a course using its ID.
 
@@ -380,10 +406,14 @@ class CanvasApiAdapter:
                 return []
             return self.get_announcements_raw(course, per_page=per_page)
         except CanvasException as e:
-            logger.error(f"Canvas API error getting announcements for course {course_id}: {e}")
+            logger.error(
+                f"Canvas API error getting announcements for course {course_id}: {e}"
+            )
             return []
         except Exception as e:
-            logger.exception(f"Unexpected error getting announcements for course {course_id}: {e}")
+            logger.exception(
+                f"Unexpected error getting announcements for course {course_id}: {e}"
+            )
             return []
 
     def get_files_raw(self, course: Any, per_page: int = 100) -> list[Any]:
@@ -408,7 +438,9 @@ class CanvasApiAdapter:
             # Pass per_page to the underlying canvasapi call
             return list(course.get_files(per_page=per_page))
         except CanvasException as e:
-            logger.error(f"Canvas API error getting files for course {getattr(course, 'id', 'N/A')}: {e}")
+            logger.error(
+                f"Canvas API error getting files for course {getattr(course, 'id', 'N/A')}: {e}"
+            )
             return []
         except Exception as e:
             logger.exception(

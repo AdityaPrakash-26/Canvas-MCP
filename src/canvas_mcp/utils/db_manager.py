@@ -55,18 +55,22 @@ class DatabaseManager:
         try:
             # Check current mode first
             current_mode = cursor.execute("PRAGMA journal_mode").fetchone()[0]
-            if current_mode.lower() != 'wal':
+            if current_mode.lower() != "wal":
                 cursor.execute("PRAGMA journal_mode = WAL")
                 # Verify change
                 new_mode = cursor.execute("PRAGMA journal_mode").fetchone()[0]
-                if new_mode.lower() == 'wal':
+                if new_mode.lower() == "wal":
                     logger.info("SQLite WAL mode enabled.")
                 else:
-                    logger.warning(f"Attempted to enable WAL mode, but mode is still {new_mode}.")
+                    logger.warning(
+                        f"Attempted to enable WAL mode, but mode is still {new_mode}."
+                    )
             else:
                 logger.debug("SQLite WAL mode already enabled.")
         except Exception as e:
-            logger.warning(f"Could not enable/verify WAL mode: {e}") # Log but don't fail
+            logger.warning(
+                f"Could not enable/verify WAL mode: {e}"
+            )  # Log but don't fail
 
         # Enable foreign keys directly with PRAGMA (URI parameter doesn't work reliably)
         cursor.execute("PRAGMA foreign_keys = ON")
@@ -209,7 +213,9 @@ if TYPE_CHECKING:
 
 async def run_db_persist_in_thread(
     db_manager: "DatabaseManager",
-    persist_func: Callable[[sqlite3.Connection, sqlite3.Cursor, "SyncService", list["BaseModel"]], int],
+    persist_func: Callable[
+        [sqlite3.Connection, sqlite3.Cursor, "SyncService", list["BaseModel"]], int
+    ],
     sync_service_instance: "SyncService",
     items_to_persist: list["BaseModel"],
 ) -> int:
@@ -226,12 +232,15 @@ async def run_db_persist_in_thread(
             logger.debug(f"Committed {count} items via {persist_func.__name__}")
             return count
         except Exception as e:
-            logger.error(f"Database error in {persist_func.__name__}, rolling back: {e}", exc_info=True)
+            logger.error(
+                f"Database error in {persist_func.__name__}, rolling back: {e}",
+                exc_info=True,
+            )
             try:
                 conn.rollback()
             except Exception as rb_e:
                 logger.error(f"Rollback failed: {rb_e}")
-            raise # Re-raise the original exception to signal failure
+            raise  # Re-raise the original exception to signal failure
         finally:
             conn.close()
 
@@ -242,4 +251,4 @@ async def run_db_persist_in_thread(
     except Exception as e:
         # Log error propagated from the thread
         logger.error(f"Persistence task {persist_func.__name__} failed: {e}")
-        return 0 # Or re-raise depending on desired sync_all behavior
+        return 0  # Or re-raise depending on desired sync_all behavior
