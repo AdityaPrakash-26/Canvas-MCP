@@ -70,10 +70,12 @@ async def sync_courses(
             sync_service.db_manager,
             _persist_courses_and_syllabi,
             sync_service,
-            [], # Pass empty list to trigger cleanup
+            [],  # Pass empty list to trigger cleanup
         )
         return []
-    logger.info(f"Filtered down to {len(filtered_courses)} courses for the target term.")
+    logger.info(
+        f"Filtered down to {len(filtered_courses)} courses for the target term."
+    )
 
     # Prepare/Validate Stage (Fetch details concurrently)
     logger.info("Fetching detailed course info and syllabi concurrently...")
@@ -81,17 +83,21 @@ async def sync_courses(
     for raw_course in filtered_courses:
         canvas_id = getattr(raw_course, "id", 0)
         if canvas_id:
-            tasks.append(asyncio.create_task(_fetch_course_details(sync_service, raw_course)))
+            tasks.append(
+                asyncio.create_task(_fetch_course_details(sync_service, raw_course))
+            )
 
     results_or_exceptions = await asyncio.gather(*tasks, return_exceptions=True)
 
     valid_courses_data: list[tuple[DBCourse, str | None]] = []
     for i, result in enumerate(results_or_exceptions):
-        original_raw_course = filtered_courses[i] # Assuming order is preserved
+        original_raw_course = filtered_courses[i]  # Assuming order is preserved
         if isinstance(result, Exception):
-            logger.error(f"Failed fetching details for course {getattr(original_raw_course, 'id', 'N/A')}: {result}")
+            logger.error(
+                f"Failed fetching details for course {getattr(original_raw_course, 'id', 'N/A')}: {result}"
+            )
             continue
-        if result: # result is (db_course, syllabus_body) or None
+        if result:  # result is (db_course, syllabus_body) or None
             valid_courses_data.append(result)
 
     if not valid_courses_data:
@@ -101,7 +107,7 @@ async def sync_courses(
             sync_service.db_manager,
             _persist_courses_and_syllabi,
             sync_service,
-            [], # Pass empty list to trigger cleanup
+            [],  # Pass empty list to trigger cleanup
         )
         return []
     logger.info(f"Validated {len(valid_courses_data)} courses.")
@@ -112,52 +118,73 @@ async def sync_courses(
         sync_service.db_manager,
         _persist_courses_and_syllabi,
         sync_service,
-        valid_courses_data, # Pass the list of tuples
+        valid_courses_data,  # Pass the list of tuples
     )
 
     # The persistence function now returns the list of local IDs
     # We assume run_db_persist_in_thread is modified or _persist_... returns the IDs
     # For now, let's assume persisted_count holds the list of local_ids
     if isinstance(persisted_count, list):
-         logger.info(f"Persisted/updated {len(persisted_count)} courses and their syllabi.")
-         return persisted_count
+        logger.info(
+            f"Persisted/updated {len(persisted_count)} courses and their syllabi."
+        )
+        return persisted_count
     else:
-         logger.error(f"Persistence function did not return a list of IDs. Got: {persisted_count}")
-         # Fallback: return IDs from the validated data (might be inaccurate if persistence failed partially)
-         return [vc[0].canvas_course_id for vc in valid_courses_data]
+        logger.error(
+            f"Persistence function did not return a list of IDs. Got: {persisted_count}"
+        )
+        # Fallback: return IDs from the validated data (might be inaccurate if persistence failed partially)
+        return [vc[0].canvas_course_id for vc in valid_courses_data]
 
 
-async def _fetch_course_details(sync_service: "SyncService", raw_course: Any) -> tuple[DBCourse, str | None] | None:
+async def _fetch_course_details(
+    sync_service: "SyncService", raw_course: Any
+) -> tuple[DBCourse, str | None] | None:
     """Fetches detailed course info and syllabus body asynchronously."""
     canvas_id = getattr(raw_course, "id", 0)
     if not canvas_id:
         return None
 
-    async with sync_service.api_semaphore: # Use semaphore for API calls
+    async with sync_service.api_semaphore:  # Use semaphore for API calls
         try:
             # Fetch detailed course info in a thread
-            detailed_course = await asyncio.to_thread(sync_service.api_adapter.get_course_raw, canvas_id)
+            detailed_course = await asyncio.to_thread(
+                sync_service.api_adapter.get_course_raw, canvas_id
+            )
 
             # Combine data for validation
             course_data = {
-                "id": canvas_id, # Alias for canvas_course_id
+                "id": canvas_id,  # Alias for canvas_course_id
                 "course_code": getattr(raw_course, "course_code", ""),
-                "name": getattr(raw_course, "name", ""), # Alias for course_name
-                "instructor": getattr(detailed_course, "teacher_name", None) if detailed_course else None,
-                "description": getattr(detailed_course, "description", None) if detailed_course else None,
-                "start_at": getattr(raw_course, "start_at", None), # Alias for start_date
-                "end_at": getattr(raw_course, "end_at", None), # Alias for end_date
+                "name": getattr(raw_course, "name", ""),  # Alias for course_name
+                "instructor": getattr(detailed_course, "teacher_name", None)
+                if detailed_course
+                else None,
+                "description": getattr(detailed_course, "description", None)
+                if detailed_course
+                else None,
+                "start_at": getattr(
+                    raw_course, "start_at", None
+                ),  # Alias for start_date
+                "end_at": getattr(raw_course, "end_at", None),  # Alias for end_date
             }
 
             # Validate using Pydantic model
             db_course = DBCourse.model_validate(course_data)
 
             # Get syllabus body if available
-            syllabus_body = getattr(detailed_course, "syllabus_body", None) if detailed_course else None
+            syllabus_body = (
+                getattr(detailed_course, "syllabus_body", None)
+                if detailed_course
+                else None
+            )
 
             return db_course, syllabus_body
         except Exception as e:
-            logger.error(f"Error validating/fetching details for course {canvas_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error validating/fetching details for course {canvas_id}: {e}",
+                exc_info=True,
+            )
             return None
 
 
@@ -186,21 +213,31 @@ def _filter_courses_by_term(courses: list[Any], term_id: int | None = -1) -> lis
         try:
             max_term_id = max(c.enrollment_term_id for c in active_courses)
             logger.info(f"Filtering courses by most recent term (ID: {max_term_id})")
-            return [c for c in active_courses if getattr(c, "enrollment_term_id", None) == max_term_id]
+            return [
+                c
+                for c in active_courses
+                if getattr(c, "enrollment_term_id", None) == max_term_id
+            ]
         except Exception as e:
-            logger.error(f"Error determining most recent term: {e}. Returning all courses with terms.")
+            logger.error(
+                f"Error determining most recent term: {e}. Returning all courses with terms."
+            )
             return active_courses
     else:
         logger.info(f"Filtering courses by specific term ID: {term_id}")
-        return [c for c in active_courses if getattr(c, "enrollment_term_id", None) == term_id]
+        return [
+            c
+            for c in active_courses
+            if getattr(c, "enrollment_term_id", None) == term_id
+        ]
 
 
 def _persist_courses_and_syllabi(
     conn: sqlite3.Connection,
     cursor: sqlite3.Cursor,
-    sync_service: "SyncService", # Added sync_service param
+    sync_service: "SyncService",  # Added sync_service param
     valid_courses_data: list[tuple[DBCourse, str | None]],
-) -> list[int]: # Return list of local IDs
+) -> list[int]:  # Return list of local IDs
     """
     Persist courses and syllabi in a single transaction using batch operations.
 
@@ -225,24 +262,32 @@ def _persist_courses_and_syllabi(
 
         ids_to_remove = db_canvas_ids - active_canvas_course_ids
         if ids_to_remove:
-            logger.info(f"Removing {len(ids_to_remove)} courses no longer active or in the current term filter.")
+            logger.info(
+                f"Removing {len(ids_to_remove)} courses no longer active or in the current term filter."
+            )
             placeholders = ", ".join("?" * len(ids_to_remove))
-            cursor.execute(f"DELETE FROM courses WHERE canvas_course_id IN ({placeholders})", list(ids_to_remove))
+            cursor.execute(
+                f"DELETE FROM courses WHERE canvas_course_id IN ({placeholders})",
+                list(ids_to_remove),
+            )
             logger.info(f"Removed courses with Canvas IDs: {ids_to_remove}")
             # Note: Related data (assignments, modules, etc.) should cascade delete due to FOREIGN KEY ON DELETE CASCADE.
     except sqlite3.Error as e:
         logger.error(f"Error during course cleanup: {e}")
-        raise # Propagate error to trigger rollback
+        raise  # Propagate error to trigger rollback
 
     if not valid_courses_data:
         logger.info("No valid courses to persist.")
-        return [] # Return empty list if only cleanup happened
+        return []  # Return empty list if only cleanup happened
 
     # 2. Fetch existing courses for update/insert separation
-    existing_courses_map: dict[int, int] = {} # canvas_course_id -> local_id
+    existing_courses_map: dict[int, int] = {}  # canvas_course_id -> local_id
     try:
         placeholders = ", ".join("?" * len(active_canvas_course_ids))
-        cursor.execute(f"SELECT id, canvas_course_id FROM courses WHERE canvas_course_id IN ({placeholders})", list(active_canvas_course_ids))
+        cursor.execute(
+            f"SELECT id, canvas_course_id FROM courses WHERE canvas_course_id IN ({placeholders})",
+            list(active_canvas_course_ids),
+        )
         for row in cursor.fetchall():
             existing_courses_map[row["canvas_course_id"]] = row["id"]
     except sqlite3.Error as e:
@@ -252,7 +297,7 @@ def _persist_courses_and_syllabi(
     # 3. Prepare data for batch insert/update
     courses_to_insert_data = []
     courses_to_update_data = []
-    canvas_to_local_id_map = {} # Map for syllabus linking
+    canvas_to_local_id_map = {}  # Map for syllabus linking
 
     for db_course, syllabus_body in valid_courses_data:
         course_dict = db_course.model_dump(exclude={"created_at", "updated_at"})
@@ -260,7 +305,7 @@ def _persist_courses_and_syllabi(
 
         if db_course.canvas_course_id in existing_courses_map:
             local_id = existing_courses_map[db_course.canvas_course_id]
-            course_dict["local_id"] = local_id # Add local_id for update WHERE clause
+            course_dict["local_id"] = local_id  # Add local_id for update WHERE clause
             courses_to_update_data.append(course_dict)
             canvas_to_local_id_map[db_course.canvas_course_id] = local_id
             synced_local_ids.append(local_id)
@@ -274,8 +319,8 @@ def _persist_courses_and_syllabi(
                 course_dict.get("description"),
                 course_dict.get("start_date"),
                 course_dict.get("end_date"),
-                None, # term_id - currently not handled in model/sync
-                None, # syllabus_body - handled separately
+                None,  # term_id - currently not handled in model/sync
+                None,  # syllabus_body - handled separately
                 course_dict.get("updated_at"),
             )
             courses_to_insert_data.append(insert_tuple)
@@ -288,7 +333,7 @@ def _persist_courses_and_syllabi(
             # For simplicity now, assume we check later or use INSERT OR REPLACE logic
 
     # 4. Execute batch course insert
-    inserted_local_ids = {} # canvas_id -> new_local_id
+    inserted_local_ids = {}  # canvas_id -> new_local_id
     if courses_to_insert_data:
         cols = "canvas_course_id, course_code, course_name, instructor, description, start_date, end_date, term_id, syllabus_body, updated_at"
         phs = ", ".join(["?"] * len(courses_to_insert_data[0]))
@@ -303,7 +348,7 @@ def _persist_courses_and_syllabi(
             # A more robust way is to re-query based on canvas_course_id.
             first_new_id = last_row_id - inserted_count + 1
             for i, data_tuple in enumerate(courses_to_insert_data):
-                canvas_id = data_tuple[0] # canvas_course_id is the first element
+                canvas_id = data_tuple[0]  # canvas_course_id is the first element
                 new_local_id = first_new_id + i
                 inserted_local_ids[canvas_id] = new_local_id
                 canvas_to_local_id_map[canvas_id] = new_local_id
@@ -317,7 +362,9 @@ def _persist_courses_and_syllabi(
     if courses_to_update_data:
         logger.debug(f"Updating {len(courses_to_update_data)} courses individually...")
         for item_dict in courses_to_update_data:
-            local_id = item_dict.pop("local_id") # Remove local_id before creating SET clause
+            local_id = item_dict.pop(
+                "local_id"
+            )  # Remove local_id before creating SET clause
             try:
                 set_clause = ", ".join([f"{k} = ?" for k in item_dict])
                 values = list(item_dict.values()) + [local_id]
@@ -334,21 +381,25 @@ def _persist_courses_and_syllabi(
     # A full batch approach would require fetching existing syllabus IDs first.
     syllabi_to_persist = []
     for db_course, syllabus_body in valid_courses_data:
-         if syllabus_body is not None:
+        if syllabus_body is not None:
             local_course_id = canvas_to_local_id_map.get(db_course.canvas_course_id)
             if local_course_id:
                 content_type = detect_content_type(syllabus_body)
-                syllabi_to_persist.append((
-                    local_course_id,
-                    syllabus_body,
-                    content_type,
-                    None, # parsed_content
-                    False, # is_parsed
-                    now_iso # updated_at
-                ))
+                syllabi_to_persist.append(
+                    (
+                        local_course_id,
+                        syllabus_body,
+                        content_type,
+                        None,  # parsed_content
+                        False,  # is_parsed
+                        now_iso,  # updated_at
+                    )
+                )
 
     if syllabi_to_persist:
-        logger.debug(f"Persisting {len(syllabi_to_persist)} syllabi using INSERT OR REPLACE...")
+        logger.debug(
+            f"Persisting {len(syllabi_to_persist)} syllabi using INSERT OR REPLACE..."
+        )
         # Using INSERT OR REPLACE simplifies logic but might have performance implications
         # It deletes the old row and inserts a new one if a conflict occurs (based on course_id UNIQUE constraint if added)
         # Assuming course_id is unique in syllabi table.
@@ -363,4 +414,4 @@ def _persist_courses_and_syllabi(
             logger.error(f"Syllabus persistence failed: {e}")
             raise
 
-    return synced_local_ids # Return the list of local IDs processed
+    return synced_local_ids  # Return the list of local IDs processed
