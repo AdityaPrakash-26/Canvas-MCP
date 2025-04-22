@@ -400,7 +400,7 @@ def _persist_modules_and_items(
 
                 # Build Canvas‑ID → local‑ID map
                 for row in rows:
-                    module_canvas_to_local_id[row['canvas_module_id']] = row['id']
+                    module_canvas_to_local_id[row["canvas_module_id"]] = row["id"]
             except sqlite3.Error as e:
                 logger.error(f"Batch module insert failed: {e}")
                 raise
@@ -416,6 +416,9 @@ def _persist_modules_and_items(
                 canvas_id = item_dict.get("canvas_module_id")
                 course_id = item_dict.get("course_id")
                 try:
+                    # add the mapping so items link correctly
+                    module_canvas_to_local_id[canvas_id] = local_id
+
                     set_clause = ", ".join(
                         [
                             f"{k} = ?"
@@ -443,6 +446,14 @@ def _persist_modules_and_items(
     if valid_module_items:
         items_to_persist = []
         for db_item in valid_module_items:
+            if db_item.canvas_module_id not in module_canvas_to_local_id:
+                logger.error(
+                    "Invariant violated: missing module‑id mapping for item %s in module %s",
+                    db_item.canvas_item_id,
+                    db_item.canvas_module_id,
+                )
+                continue  # or raise CustomSyncError if you prefer
+
             # Get the local_module_id using the map populated during module persistence
             local_module_id = module_canvas_to_local_id.get(db_item.canvas_module_id)
             if not local_module_id:
