@@ -112,6 +112,7 @@ from canvas_mcp.tools.modules import register_module_tools
 from canvas_mcp.tools.search import register_search_tools
 from canvas_mcp.tools.syllabus import register_syllabus_tools
 from canvas_mcp.tools.sync import register_sync_tools
+from canvas_mcp.tools.grades import register_grade_tools
 
 # Register all tools
 register_sync_tools(mcp)
@@ -123,7 +124,7 @@ register_announcement_tools(mcp)
 register_file_tools(mcp)
 register_search_tools(mcp)
 register_calendar_tools(mcp)
-
+register_grade_tools(mcp)
 
 if __name__ == "__main__":
     mcp.run()

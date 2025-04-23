@@ -578,3 +578,16 @@ class CanvasApiAdapter:
                 f"Unexpected error getting conversation {conversation_id}: {e}"
             )
             return None
+
+    def get_user_enrollment_raw(self, course_id: int) -> Any | None:
+        """
+        Fetches the current user's student enrollment for a given course, including total scores.
+        """
+        course = self.get_course_raw(course_id)
+        if not course:
+            return None
+        enrollments = course.get_enrollments(
+            type=["StudentEnrollment"],
+            include=["total_scores"]  # Necessary to retrieve grade info
+        )
+        return next(iter(enrollments), None)
