@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from tests.fakes.fake_canvasapi import patch_canvasapi
 
 from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
 from canvas_mcp.sync import SyncService
@@ -29,6 +28,7 @@ from canvas_mcp.tools.search import register_search_tools
 from canvas_mcp.tools.syllabus import register_syllabus_tools
 from canvas_mcp.tools.sync import register_sync_tools
 from canvas_mcp.utils.db_manager import DatabaseManager
+from tests.fakes.fake_canvasapi import patch_canvasapi
 
 # Apply the patch before importing any code that uses canvasapi
 patch_canvasapi()

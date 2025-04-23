@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from canvas_mcp.models import DBModule, DBModuleItem
 from canvas_mcp.utils.db_manager import run_db_persist_in_thread
+from canvas_mcp.utils.formatters import convert_html_to_markdown
 
 if TYPE_CHECKING:
     from canvas_mcp.sync.service import SyncService
@@ -88,7 +89,9 @@ async def sync_modules(
     raw_module_map: dict[
         int, Any
     ] = {}  # canvas_module_id -> raw_module object (for item fetching)
-    module_context_map: dict[int, int] = {}  # canvas_module_id -> local_course_id
+    module_context_map: dict[
+        int, tuple[int, int]
+    ] = {}  # canvas_module_id -> (local_course_id, canvas_course_id)
 
     total_raw_modules = 0
     for i, result in enumerate(module_results_or_exceptions):
@@ -129,11 +132,14 @@ async def sync_modules(
 
                 # Prepare task to fetch items for this module
                 raw_module_map[canvas_module_id] = raw_module
-                module_context_map[canvas_module_id] = local_course_id
+                module_context_map[canvas_module_id] = (
+                    local_course_id,
+                    canvas_course_id,
+                )  # Store tuple
                 item_task = asyncio.create_task(
                     _fetch_module_items(
-                        sync_service, raw_module
-                    )  # Pass raw module object
+                        sync_service, raw_module, canvas_course_id
+                    )  # Pass the module object
                 )
                 module_item_fetch_tasks.append(item_task)
 
@@ -167,9 +173,13 @@ async def sync_modules(
         # Find the corresponding module canvas ID based on the task order
         if i < len(valid_module_canvas_ids):
             canvas_module_id = valid_module_canvas_ids[i]
-            local_course_id = module_context_map.get(
-                canvas_module_id
-            )  # Get course context
+            context_tuple = module_context_map.get(canvas_module_id)
+            if not context_tuple:
+                logger.error(
+                    f"Context map missing entry for canvas_module_id {canvas_module_id}"
+                )
+                continue
+            local_course_id, canvas_course_id = context_tuple  # Unpack tuple
         else:
             logger.error(f"Index mismatch processing module item results ({i})")
             continue  # Should not happen
@@ -205,11 +215,67 @@ async def sync_modules(
                         raw_item, "external_url", None
                     ),  # Alias for url
                     "page_url": getattr(raw_item, "page_url", None),
-                    # Content details might be large, consider storing selectively or hashing
-                    "content_details": str(vars(raw_item))
-                    if hasattr(raw_item, "__dict__")
-                    else None,
+                    # content_details will be populated by new logic below
                 }
+
+                # ---------- NEW clean-content block ----------
+                clean_md: str | None = None  # final value for content_details
+                item_type = item_data.get("type")  # Use already extracted type
+                canvas_item_id = item_data.get(
+                    "canvas_item_id"
+                )  # Use already extracted ID
+
+                if item_type == "Page":
+                    page_url = item_data.get("page_url") or getattr(
+                        raw_item, "html_url", None
+                    )  # html_url as fallback
+                    if page_url and canvas_course_id:  # Use unpacked canvas_course_id
+                        # Fetch the page details including the body
+                        page = await asyncio.to_thread(
+                            sync_service.api_adapter.get_page_raw,
+                            canvas_course_id,  # Use unpacked canvas_course_id
+                            page_url,
+                        )
+                        if page and getattr(page, "body", None):
+                            clean_md = convert_html_to_markdown(page.body)
+                        else:
+                            logger.warning(
+                                f"Could not fetch body for page item {canvas_item_id} in module {canvas_module_id}"
+                            )
+                    else:
+                        logger.warning(
+                            f"Missing page_url or course context for page item {canvas_item_id} in module {canvas_module_id}"
+                        )
+
+                elif item_type == "File":
+                    # We'll optionally OCR later; for now index filename + mime
+                    fname = (
+                        item_data.get("title")
+                        or getattr(raw_item, "url", "").rsplit("/", 1)[-1]
+                    )
+                    # Attempt to get content-type from content_details if available from API include
+                    api_content_details = getattr(raw_item, "content_details", {})
+                    mime_type = api_content_details.get(
+                        "content-type", getattr(raw_item, "content_type", "")
+                    )  # Check both places
+                    clean_md = f"[FILE] {fname} ({mime_type})"
+
+                elif item_type in ("Assignment", "Quiz", "Discussion"):
+                    content_id = getattr(raw_item, "content_id", None)
+                    if content_id:
+                        clean_md = f"[LINK] → {item_type} {content_id}"
+                    else:
+                        clean_md = f"[LINK] → {item_type} (ID unknown)"
+
+                else:  # ExternalUrl, ExternalTool, SubHeader, etc.
+                    # Use external_url if available, otherwise title or empty string
+                    clean_md = (
+                        item_data.get("external_url") or item_data.get("title") or ""
+                    )
+                # ---------------------------------------------
+
+                # Assign the generated markdown (or empty string) to content_details
+                item_data["content_details"] = clean_md or ""
 
                 # Validate using Pydantic model (excluding module_id for now)
                 # Need to adjust DBModuleItem model or validation temporarily
@@ -272,7 +338,7 @@ async def _fetch_modules_for_course(
 
 
 async def _fetch_module_items(
-    sync_service: "SyncService", raw_module: Any
+    sync_service: "SyncService", raw_module: Any, canvas_course_id: int
 ) -> list[Any] | None:
     """Helper async function to wrap the threaded API call for module items."""
     module_id = getattr(raw_module, "id", "N/A")
@@ -400,7 +466,7 @@ def _persist_modules_and_items(
 
                 # Build Canvas‑ID → local‑ID map
                 for row in rows:
-                    module_canvas_to_local_id[row['canvas_module_id']] = row['id']
+                    module_canvas_to_local_id[row["canvas_module_id"]] = row["id"]
             except sqlite3.Error as e:
                 logger.error(f"Batch module insert failed: {e}")
                 raise
@@ -416,6 +482,9 @@ def _persist_modules_and_items(
                 canvas_id = item_dict.get("canvas_module_id")
                 course_id = item_dict.get("course_id")
                 try:
+                    # add the mapping so items link correctly
+                    module_canvas_to_local_id[canvas_id] = local_id
+
                     set_clause = ", ".join(
                         [
                             f"{k} = ?"
@@ -443,6 +512,14 @@ def _persist_modules_and_items(
     if valid_module_items:
         items_to_persist = []
         for db_item in valid_module_items:
+            if db_item.canvas_module_id not in module_canvas_to_local_id:
+                logger.error(
+                    "Invariant violated: missing module‑id mapping for item %s in module %s",
+                    db_item.canvas_item_id,
+                    db_item.canvas_module_id,
+                )
+                continue  # or raise CustomSyncError if you prefer
+
             # Get the local_module_id using the map populated during module persistence
             local_module_id = module_canvas_to_local_id.get(db_item.canvas_module_id)
             if not local_module_id:

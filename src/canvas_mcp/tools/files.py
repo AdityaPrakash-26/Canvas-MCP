@@ -132,6 +132,7 @@ def register_file_tools(mcp: FastMCP) -> None:
             }
         try:
             # TODO: if the url contains the word `verifier`, we have to do a two step download by fetching file metadata from the canvas API
+            # ex https://canvas.instructure.com/courses/6592~142317/files/6592~13888362?verifier=sKwTGzXkRigupF3vZXvXjrF0UpYXl9pWp39fTPmj&amp;wrap=1
 
             # Call the refactored utility function from canvas_mcp.utils.file_extractor
             result = extract_text_from_file(source_url_or_path, file_type)

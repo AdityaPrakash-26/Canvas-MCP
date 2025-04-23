@@ -128,6 +128,51 @@ class CanvasApiAdapter:
             logger.exception(f"Unexpected error getting course {course_id}: {e}")
             return None
 
+    def get_page_raw(self, course_id: int, page_url_or_slug: str) -> Any | None:
+        """
+        Get a specific page from a course, ensuring the body is included.
+
+        Args:
+            course_id: The Canvas ID of the course.
+            page_url_or_slug: The URL or slug of the page.
+
+        Returns:
+            Raw Canvas page object with body, or None if not found/error.
+        """
+        if not self.canvas:
+            logger.warning("Canvas API client not available")
+            return None
+
+        course = self.get_course_raw(course_id)
+        if not course:
+            logger.warning(
+                f"Course {course_id} not found when trying to fetch page {page_url_or_slug}"
+            )
+            return None
+
+        # Extract slug from URL if necessary
+        slug = page_url_or_slug.rsplit("/", 1)[-1]
+        try:
+            # Request the page and explicitly include the 'body'
+            page = course.get_page(slug, include=["body"])
+            # Verify body exists, as include is a request hint, not a guarantee in all Canvas versions/setups
+            if not hasattr(page, "body"):
+                logger.warning(
+                    f"Page {slug} in course {course_id} fetched, but 'body' attribute is missing."
+                )
+                # Optionally, try fetching again without include if needed, or just return None/page
+            return page
+        except CanvasException as e:
+            logger.error(
+                f"Canvas API error getting page {slug} in course {course_id}: {e}"
+            )
+            return None
+        except Exception as e:
+            logger.exception(
+                f"Unexpected error getting page {slug} in course {course_id}: {e}"
+            )
+            return None
+
     def get_assignments_raw(self, course: Any, per_page: int = 100) -> list[Any]:
         """
         Get assignments for a course from the Canvas API.
@@ -298,8 +343,10 @@ class CanvasApiAdapter:
             return []
 
         try:
-            # Pass per_page to the underlying canvasapi call
-            return list(module.get_module_items(per_page=per_page))
+            # Pass per_page and include content_details to the underlying canvasapi call
+            return list(
+                module.get_module_items(per_page=per_page, include=["content_details"])
+            )
         except CanvasException as e:
             logger.error(
                 f"Canvas API error getting items for module {getattr(module, 'id', 'N/A')}: {e}"
