@@ -11,9 +11,10 @@ import sqlite3
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from canvas_mcp.models import DBCourse
+from canvas_mcp.models import DBCourse, DBSyllabus
 from canvas_mcp.utils.content_utils import detect_content_type
-from canvas_mcp.utils.db_manager import run_db_persist_in_thread  # Import the helper
+from canvas_mcp.utils.db_manager import run_db_persist_in_thread
+from canvas_mcp.utils.formatters import convert_html_to_markdown
 
 if TYPE_CHECKING:
     from canvas_mcp.sync.service import SyncService
@@ -422,3 +423,7 @@ def _persist_courses_and_syllabi(
             raise
 
     return synced_local_ids  # Return the list of local IDs processed
+
+
+def _md(text: str | None) -> str | None:
+    return convert_html_to_markdown(text) if text else text

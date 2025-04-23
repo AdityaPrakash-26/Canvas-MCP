@@ -4,9 +4,7 @@ Unit tests for the formatters module.
 These tests verify that the formatter functions work correctly.
 """
 
-import pytest
-from io import BytesIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from canvas_mcp.utils.formatters import convert_html_to_markdown, format_date
 

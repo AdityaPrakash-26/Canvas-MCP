@@ -22,6 +22,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _md(text: str | None) -> str | None:
+    return convert_html_to_markdown(text) if text else text
+
+
 async def sync_modules(
     sync_service: "SyncService", course_ids: list[int] | None = None
 ) -> int:
@@ -433,7 +437,7 @@ def _persist_modules_and_items(
                     module_dict.get("course_id"),
                     module_dict.get("canvas_module_id"),
                     module_dict.get("name"),
-                    module_dict.get("description"),
+                    _md(module_dict.get("description")),
                     module_dict.get("position"),
                     module_dict.get("unlock_date"),
                     module_dict.get("require_sequential_progress"),
@@ -484,6 +488,9 @@ def _persist_modules_and_items(
                 try:
                     # add the mapping so items link correctly
                     module_canvas_to_local_id[canvas_id] = local_id
+
+                    # Apply conversion for update
+                    item_dict["description"] = _md(item_dict.get("description"))
 
                     set_clause = ", ".join(
                         [

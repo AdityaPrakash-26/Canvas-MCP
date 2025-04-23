@@ -5,13 +5,8 @@ These tests verify that HTML content in module items is properly converted to Ma
 and can be found by the search functionality.
 """
 
-import sqlite3
 from types import SimpleNamespace
-from unittest.mock import patch
 
-import pytest
-
-from canvas_mcp.models import DBModule, DBModuleItem
 from canvas_mcp.tools.search import register_search_tools
 from canvas_mcp.utils.formatters import convert_html_to_markdown
 
