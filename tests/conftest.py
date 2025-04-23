@@ -31,18 +31,19 @@ CACHE_VALIDITY_DAYS = 7
 os.environ["CANVAS_MCP_TEST_DB"] = str(TEST_DB_PATH)
 print(f"Test environment variable CANVAS_MCP_TEST_DB set to: {TEST_DB_PATH}")
 
+# Add the project root directory to the Python path
+project_root = str(Path(__file__).parent.parent)
+sys.path.insert(0, project_root)
+
 # Import database creation function
-
-sys.path.append(str(Path(__file__).parent.parent))
-from tests.init_db import create_database
-
-# Import test client
-from tests.integration.test_client import CanvasMCPTestClient
-
 # Import database utilities
 from canvas_mcp.canvas_api_adapter import CanvasApiAdapter
 from canvas_mcp.sync import SyncService
 from canvas_mcp.utils.db_manager import DatabaseManager
+from tests.init_db import create_database
+
+# Import test client
+from tests.integration.test_client import CanvasMCPTestClient
 
 # CanvasClient import has been removed as part of the refactoring
 

@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+
 from tests.conftest import CACHE_METADATA_PATH, CACHED_DB_PATH, TEST_DB_PATH
 
 # No need to import sync_canvas_data, we'll use the test_client
