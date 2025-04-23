@@ -6,7 +6,9 @@ It handles API-specific errors and returns raw data structures.
 """
 
 import logging
-from typing import Any
+import re
+import tempfile
+from typing import Any, Optional, Tuple
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -591,3 +593,87 @@ class CanvasApiAdapter:
             include=["total_scores"]  # Necessary to retrieve grade info
         )
         return next(iter(enrollments), None)
+        
+    def _extract_file_id(self, file_url: str) -> Optional[int]:
+        """
+        Extract the numeric file ID from a Canvas file URL.
+        
+        Args:
+            file_url: URL to a Canvas file, possibly with a 'verifier' parameter
+            
+        Returns:
+            File ID as an integer, or None if not found
+        """
+        # Try to match various Canvas file URL patterns
+        patterns = [
+            r'/files/(\d+)/',               # Standard Canvas file URLs
+            r'/files/(\d+)[?#]',            # URLs with query or fragment
+            r'[~](\d+)[?#&]',               # SIS-style IDs
+            r'/files/(\d+)$'                # URL that ends with the file ID
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, file_url)
+            if match:
+                try:
+                    return int(match.group(1))
+                except (ValueError, IndexError):
+                    continue
+        
+        # Log warning and return None if file ID couldn't be extracted
+        logger.warning(f"Could not extract file ID from URL: {file_url}")
+        return None
+        
+    def get_signed_download(self, file_url: str) -> Tuple[Optional[str], Optional[bytes]]:
+        """
+        Resolve a '/files/:id/download?...verifier=...' Canvas link.
+        
+        Uses the Canvas API to get a direct signed URL or downloads the file content.
+        
+        Args:
+            file_url: URL to a Canvas file, with a 'verifier' parameter
+            
+        Returns:
+            A tuple of (signed_url, raw_bytes). Exactly one of them is not None.
+        """
+        if not self.canvas:
+            logger.warning("Canvas API client not available")
+            return None, None
+            
+        # Extract the file ID from the URL
+        file_id = self._extract_file_id(file_url)
+        if not file_id:
+            logger.error(f"Failed to extract file ID from URL: {file_url}")
+            return None, None
+            
+        try:
+            # Get the file object from Canvas
+            logger.info(f"Getting file {file_id} from Canvas API")
+            file_obj = self.canvas.get_file(file_id)
+            
+            # First try to get a signed download URL (preferred method)
+            try:
+                if hasattr(file_obj, 'get_download_url'):
+                    logger.info(f"Getting download URL for file {file_id}")
+                    signed_url = file_obj.get_download_url()
+                    if signed_url:
+                        return signed_url, None
+            except Exception as e:
+                logger.warning(f"Could not get download URL for file {file_id}: {e}")
+            
+            # Fallback: download the file content
+            logger.info(f"Downloading file {file_id} content")
+            tmp_file = tempfile.TemporaryFile()
+            file_obj.download(tmp_file)
+            tmp_file.seek(0)
+            raw_bytes = tmp_file.read()
+            tmp_file.close()
+            
+            return None, raw_bytes
+            
+        except CanvasException as e:
+            logger.error(f"Canvas API error getting file {file_id}: {e}")
+            return None, None
+        except Exception as e:
+            logger.exception(f"Unexpected error getting file {file_id}: {e}")
+            return None, None

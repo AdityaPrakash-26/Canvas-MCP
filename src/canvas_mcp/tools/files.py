@@ -5,6 +5,8 @@ This module contains tools for accessing file information and content.
 """
 
 import logging
+import os
+import tempfile
 from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -114,6 +116,10 @@ def register_file_tools(mcp: FastMCP) -> None:
         Uses the MarkItDown library internally to attempt conversion for various formats,
         including PDF, DOCX, PPTX, XLSX, HTML, common image/audio types, YouTube URLs, and more.
         Provide the URL obtained from tools like 'get_course_files'.
+        
+        Special handling is provided for Canvas URLs containing 'verifier=' parameters,
+        which require authentication. The function will use the Canvas API to obtain either
+        a properly signed URL or download the file content directly.
 
         Args:
             source_url_or_path: URL or local path of the file/resource.
@@ -131,10 +137,51 @@ def register_file_tools(mcp: FastMCP) -> None:
                 "source_url_or_path": source_url_or_path,
             }
         try:
-            # TODO: if the url contains the word `verifier`, we have to do a two step download by fetching file metadata from the canvas API
-            # ex https://canvas.instructure.com/courses/6592~142317/files/6592~13888362?verifier=sKwTGzXkRigupF3vZXvXjrF0UpYXl9pWp39fTPmj&amp;wrap=1
-
-            # Call the refactored utility function from canvas_mcp.utils.file_extractor
+            # Handle Canvas verifier URLs by using the Canvas API to get a signed URL or raw bytes
+            if "verifier=" in source_url_or_path:
+                # Get API adapter from the lifespan context
+                api_adapter = ctx.request_context.lifespan_context["api_adapter"]
+                
+                # Only process verifier URLs if API adapter is available
+                if api_adapter.is_available():
+                    logger.info(f"Processing Canvas verifier URL: {source_url_or_path}")
+                    # Get a signed download URL or raw file content
+                    signed_url, raw_bytes = api_adapter.get_signed_download(source_url_or_path)
+                    
+                    # Handle the result based on what was returned
+                    if raw_bytes:
+                        # Write raw bytes to a temporary file for processing
+                        tmp = tempfile.NamedTemporaryFile(delete=False)
+                        try:
+                            tmp.write(raw_bytes)
+                            tmp.close()
+                            # Extract text from the temporary file
+                            result = extract_text_from_file(tmp.name, file_type)
+                        finally:
+                            # Clean up the temporary file
+                            if os.path.exists(tmp.name):
+                                os.unlink(tmp.name)
+                        
+                        # Include original source in the result
+                        result["source"] = source_url_or_path
+                        return result
+                        
+                    elif signed_url:
+                        # Use the signed URL instead of the original verifier URL
+                        logger.info(f"Using signed URL for extraction: {signed_url}")
+                        result = extract_text_from_file(signed_url, file_type)
+                        # Include original source in the result
+                        result["source"] = source_url_or_path
+                        return result
+                    else:
+                        # Both signed_url and raw_bytes are None, indicating an error
+                        return {
+                            "success": False,
+                            "source_url_or_path": source_url_or_path,
+                            "error": "Could not resolve Canvas verifier link",
+                        }
+            
+            # For non-verifier URLs or if API adapter is not available, use the standard process
             result = extract_text_from_file(source_url_or_path, file_type)
 
             # Return the result directly as its format matches the expected output
